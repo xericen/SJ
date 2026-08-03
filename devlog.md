@@ -59,3 +59,4 @@
 | 2026-08-03 | 007 | 운영 WIZ 체험용 로그인 버튼·세션 흐름 복구 | [상세](devlog/2026-08-03/007-restore-wiz-demo-login.md) |
 | 2026-08-03 | 008 | 세종호수공원 공용 리스폰 저장 버튼 및 최초 입장 위치 적용 수정 | [상세](devlog/2026-08-03/008-fix-shared-lake-respawn.md) |
 | 2026-08-03 | 009 | 구버전 리스폰 Socket.IO 오류를 유지하던 브라우저 캐시 강제 갱신 | [상세](devlog/2026-08-03/009-refresh-stale-respawn-bundle.md) |
+| 2026-08-03 | 010 | GitHub 최신 공동캠퍼스·맞춤형 체험 기능 WIZ 동기화 | [상세](devlog/2026-08-03/010-pull-latest-upstream.md) |

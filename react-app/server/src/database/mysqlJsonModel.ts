@@ -33,6 +33,9 @@ const matches = (document: PlainDocument, filter: Filter = {}) => Object.entries
       ? actual.some((value) => candidates.includes(String(value)))
       : candidates.includes(String(actual));
   }
+  if (wanted && typeof wanted === 'object' && !Array.isArray(wanted) && '$ne' in wanted) {
+    return String(actual) !== String(wanted.$ne);
+  }
   return String(actual) === String(wanted);
 });
 

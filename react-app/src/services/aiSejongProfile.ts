@@ -21,13 +21,17 @@ export type AiSejongProfile={
 };
 
 const LAKE_KEY='sejong-lake-interest-profile-v1';
+const readStoredValue=(key:string)=>{
+  try{return window.localStorage.getItem(key)}
+  catch{return null}
+};
 const unique=<T>(values:T[])=>[...new Set(values)];
 const userKey=(nickname:string)=>nickname.trim().toLowerCase()||'guest';
 const emotionIcon=(emotion:string)=>emotion.includes('평온')?'🌿':emotion.includes('설렘')?'✨':emotion.includes('희망')?'🌱':emotion.includes('기쁨')||emotion.includes('행복')?'😊':emotion.includes('따뜻')?'☀️':'🍃';
 
 function readLakeProfile(){
   try{
-    return JSON.parse(localStorage.getItem(LAKE_KEY)??'null') as {
+    return JSON.parse(readStoredValue(LAKE_KEY)??'null') as {
       savedContentIds?:unknown;
       activities?:unknown;
       foodPlaceInterests?:unknown;
@@ -59,7 +63,7 @@ export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
   const foodTaste=buildFoodTasteProfile();
   const campusInterests=campusSignalKeywords(profile.nickname).map(label=>({emoji:/자연/.test(label)?'🌿':/문화|축제/.test(label)?'🎭':/먹거리|카페/.test(label)?'🍽️':/기록/.test(label)?'📸':/교류|동행|대화|모임/.test(label)?'🤝':'🧭',label}));
   const interests=[...new Map([...campusInterests,...lakeInterests(),...foodTaste.insights.map(item=>({emoji:'🍽️',label:item.label})),...(generatedExperience?.tags??[]).map(label=>({emoji:'🎭',label}))].map(item=>[item.label,item])).values()].slice(0,6);
-  const greenhouse=parseGreenhouseProgress(localStorage.getItem(`greenhouse-progress-v1:${userKey(profile.nickname)}`));
+  const greenhouse=parseGreenhouseProgress(readStoredValue(`greenhouse-progress-v1:${userKey(profile.nickname)}`));
   const emotionCounts=[...greenhouse.collected.reduce((counts,item)=>{
     if(item.selectedEmotion)counts.set(item.selectedEmotion,(counts.get(item.selectedEmotion)??0)+1);
     return counts;

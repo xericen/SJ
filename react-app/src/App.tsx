@@ -94,8 +94,56 @@ type Page =
   | 'game'
   | 'community';
 
-const KAKAO_LOGIN_URL = '/wiz/api/page.home/login?provider=kakao';
-const DEMO_LOGIN_URL = '/wiz/api/page.home/login?provider=demo';
+const KAKAO_LOGIN_URL =
+  '/wiz/api/page.home/kakao_start';
+const DEMO_LOGIN_URL = '/auth/demo';
+const KAKAO_LOGIN_MESSAGE = 'sejong-kakao-login';
+
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredValue(key: string): string | null {
+  try {
+    return browserStorage()?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredValue(
+  key: string,
+  value: string,
+) {
+  try {
+    browserStorage()?.setItem(key, value);
+  } catch {
+    // Sandboxed login windows may not expose browser storage.
+  }
+}
+
+function removeStoredValue(key: string) {
+  try {
+    browserStorage()?.removeItem(key);
+  } catch {
+    // Keep the current in-memory flow usable when storage is blocked.
+  }
+}
+
+function clearStoredAccountData() {
+  const storage = browserStorage();
+  if (!storage) return;
+
+  try {
+    clearAllAccountData(storage);
+  } catch {
+    // Account state is still reset in React below.
+  }
+}
 
 const KAKAO_USER_ID_KEY =
   'jochiwon-kakao-user-id';
@@ -108,6 +156,12 @@ export default function App() {
     useState<Page>('landing');
   const [loginError, setLoginError] =
     useState('');
+  const [loginIdentity, setLoginIdentity] =
+    useState(() =>
+      readStoredValue(
+        KAKAO_USER_ID_KEY,
+      )?.trim() ?? '',
+    );
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
 
   const [
@@ -152,11 +206,7 @@ export default function App() {
   const membershipComplete =
     journey.membershipComplete;
   const hasLoginIdentity =
-    Boolean(
-      localStorage
-        .getItem(KAKAO_USER_ID_KEY)
-        ?.trim(),
-    );
+    Boolean(loginIdentity);
   const canExperience =
     journey.authenticated &&
     membershipComplete &&
@@ -188,6 +238,65 @@ export default function App() {
     hasLoginIdentity,
     setJourney,
   ]);
+
+  useEffect(() => {
+    const receiveKakaoLogin = (
+      event: MessageEvent,
+    ) => {
+      const result = event.data as {
+        type?: unknown;
+        status?: unknown;
+        userId?: unknown;
+        nickname?: unknown;
+        profileImage?: unknown;
+        message?: unknown;
+      } | null;
+
+      if (
+        !result ||
+        result.type !== KAKAO_LOGIN_MESSAGE ||
+        (
+          result.status !== 'success' &&
+          result.status !== 'error'
+        )
+      ) {
+        return;
+      }
+
+      const searchParams =
+        new URLSearchParams({
+          login: result.status,
+        });
+
+      for (const key of [
+        'userId',
+        'nickname',
+        'profileImage',
+        'message',
+      ] as const) {
+        const value = result[key];
+        if (typeof value === 'string') {
+          searchParams.set(key, value);
+        }
+      }
+
+      window.location.replace(
+        `${window.location.pathname}?${searchParams.toString()}`,
+      );
+    };
+
+    window.addEventListener(
+      'message',
+      receiveKakaoLogin,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'message',
+        receiveKakaoLogin,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     const searchParams =
@@ -232,19 +341,20 @@ export default function App() {
         ?.trim() ?? '';
 
     if (userId) {
-      localStorage.setItem(
+      writeStoredValue(
         KAKAO_USER_ID_KEY,
         userId,
       );
+      setLoginIdentity(userId);
     }
 
     if (profileImage) {
-      localStorage.setItem(
+      writeStoredValue(
         KAKAO_PROFILE_IMAGE_KEY,
         profileImage,
       );
     } else {
-      localStorage.removeItem(
+      removeStoredValue(
         KAKAO_PROFILE_IMAGE_KEY,
       );
     }
@@ -257,8 +367,9 @@ export default function App() {
         '카카오 사용자',
     };
 
-    const completedMembership =
-      journey.membershipComplete;
+    // OAuth success must always show setup in this browser context.
+    // Stale local demo data must never skip directly into the lake world.
+    const completedMembership = false;
 
     setProfile(nextProfile);
 
@@ -330,29 +441,6 @@ export default function App() {
     setPage('login');
   };
 
-  const kakaoLogin = () => {
-    setLoginError('');
-    const authWindow =
-      window.parent !== window
-        ? window.parent
-        : window;
-
-    authWindow.location.assign(
-      KAKAO_LOGIN_URL,
-    );
-  };
-
-  const demoLogin = () => {
-    const authWindow =
-      window.parent !== window
-        ? window.parent
-        : window;
-
-    authWindow.location.assign(
-      DEMO_LOGIN_URL,
-    );
-  };
-
   const moveToStep = (
     onboardingStep: OnboardingStep,
   ) => {
@@ -398,7 +486,7 @@ export default function App() {
     completedProfile: UserProfile,
   ) => {
     setProfile(completedProfile);
-    localStorage.removeItem('sejong-lake-tutorial-hidden-v1');
+    removeStoredValue('sejong-lake-tutorial-hidden-v1');
     void saveAccountProfile(completedProfile).catch(error => console.warn('[account profile save failed]', error instanceof Error ? error.message : 'unknown'));
 
     setJourney({
@@ -448,8 +536,8 @@ export default function App() {
         onBack={() =>
           setPage('landing')
         }
-        onLogin={kakaoLogin}
-        onDemoLogin={demoLogin}
+        loginUrl={KAKAO_LOGIN_URL}
+        demoLoginUrl={DEMO_LOGIN_URL}
         errorMessage={loginError}
       />
     );
@@ -468,8 +556,8 @@ export default function App() {
         onBack={() =>
           setPage('landing')
         }
-        onLogin={kakaoLogin}
-        onDemoLogin={demoLogin}
+        loginUrl={KAKAO_LOGIN_URL}
+        demoLoginUrl={DEMO_LOGIN_URL}
         errorMessage={loginError}
       />
     );
@@ -526,7 +614,8 @@ export default function App() {
           setPage(gameReturnState?'game':'landing')
         }
         onWithdraw={() => {
-          clearAllAccountData(localStorage);
+          clearStoredAccountData();
+          setLoginIdentity('');
           setGameReturnState(undefined);
           setProfile(defaultProfile);
           setJourney(defaultUserJourney);
@@ -534,11 +623,12 @@ export default function App() {
         }}
         onLogout={() => {
           setGameReturnState(undefined);
-          localStorage.removeItem(
+          setLoginIdentity('');
+          removeStoredValue(
             KAKAO_USER_ID_KEY,
           );
 
-          localStorage.removeItem(
+          removeStoredValue(
             KAKAO_PROFILE_IMAGE_KEY,
           );
 

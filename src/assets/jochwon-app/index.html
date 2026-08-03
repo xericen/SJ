@@ -8,6 +8,46 @@
   <title>세종한바퀴</title>
   <script>
     (() => {
+      try {
+        window.localStorage.getItem('__storage_probe__');
+      } catch {
+        const values = new Map();
+        const memoryStorage = {
+          get length() {
+            return values.size;
+          },
+          key(index) {
+            return [...values.keys()][index] ?? null;
+          },
+          getItem(key) {
+            return values.has(String(key))
+              ? values.get(String(key))
+              : null;
+          },
+          setItem(key, value) {
+            values.set(String(key), String(value));
+          },
+          removeItem(key) {
+            values.delete(String(key));
+          },
+          clear() {
+            values.clear();
+          },
+        };
+
+        Object.defineProperty(
+          window,
+          'localStorage',
+          {
+            configurable: true,
+            value: memoryStorage,
+          },
+        );
+      }
+    })();
+  </script>
+  <script>
+    (() => {
       const buildId = '20260803-respawn-v3';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
@@ -21,9 +61,9 @@
       window.location.replace(url.toString());
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-B40mWB7T.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/jsx-runtime-n5LQ9ujS.js">
-  <link rel="stylesheet" crossorigin href="./assets/index-DuoZTMVY.css">
+  <script type="module" crossorigin src="/auth/jochwon-assets/assets/index-DQhAvX1F.js"></script>
+  <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-n5LQ9ujS.js">
+  <link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-BRKi8P3Z.css">
 </head>
 <body>
   <div id="root"></div>

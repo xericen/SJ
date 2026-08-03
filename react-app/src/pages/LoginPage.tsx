@@ -1,3 +1,5 @@
+import type { MouseEvent } from 'react';
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -37,18 +39,37 @@ const journey = [
 ];
 
 type LoginPageProps = {
-  onLogin: () => void;
-  onDemoLogin: () => void;
+  loginUrl: string;
+  demoLoginUrl: string;
   onBack: () => void;
   errorMessage?: string;
 };
 
 export function LoginPage({
-  onLogin,
-  onDemoLogin,
+  loginUrl,
+  demoLoginUrl,
   onBack,
   errorMessage,
 }: LoginPageProps) {
+  const continueInCurrentWindow = (
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => {
+    try {
+      const topWindow = window.top;
+      if (
+        topWindow &&
+        topWindow.location.origin ===
+          window.location.origin
+      ) {
+        event.preventDefault();
+        topWindow.location.assign(loginUrl);
+      }
+    } catch {
+      // A restricted ReviewOps iframe cannot navigate its top window.
+      // In that environment the native popup target remains the fallback.
+    }
+  };
+
   return (
     <main className="login-design-page">
       <section className="login-design-card">
@@ -219,14 +240,17 @@ export function LoginPage({
               </p>
             )}
 
-            <button
-              type="button"
+            <a
               className="login-design-kakao"
-              onClick={onLogin}
+              href={loginUrl}
+              target="sejong-kakao-login"
+              rel="opener"
+              onClick={continueInCurrentWindow}
+              aria-label="카카오 로그인하기"
             >
               <b>●</b>
               <span>카카오로 시작하기</span>
-            </button>
+            </a>
 
             <div className="login-design-divider">
               <span />
@@ -234,14 +258,14 @@ export function LoginPage({
               <span />
             </div>
 
-            <button
-              type="button"
+            <a
               className="login-design-guest"
-              onClick={onDemoLogin}
+              href={demoLoginUrl}
+              target="_top"
             >
               체험용으로 시작하기
               <b>→</b>
-            </button>
+            </a>
 
             <small>
               체험 계정은 실제 계정과 분리되며, 가입 후 기록 공개 여부와 채팅 가능 여부를 직접 설정할 수 있어요.

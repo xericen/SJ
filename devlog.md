@@ -60,3 +60,12 @@
 | 2026-08-03 | 008 | 세종호수공원 공용 리스폰 저장 버튼 및 최초 입장 위치 적용 수정 | [상세](devlog/2026-08-03/008-fix-shared-lake-respawn.md) |
 | 2026-08-03 | 009 | 구버전 리스폰 Socket.IO 오류를 유지하던 브라우저 캐시 강제 갱신 | [상세](devlog/2026-08-03/009-refresh-stale-respawn-bundle.md) |
 | 2026-08-03 | 010 | GitHub 최신 공동캠퍼스·맞춤형 체험 기능 WIZ 동기화 | [상세](devlog/2026-08-03/010-pull-latest-upstream.md) |
+| 2026-08-03 | 011 | 카카오 로그인을 WIZ 공용 인증 라우트와 서버 세션으로 이전 | [상세](devlog/2026-08-03/011-migrate-kakao-login-to-auth-route.md) |
+| 2026-08-03 | 012 | 카카오 OAuth 콜백을 등록된 WIZ API 주소로 재통일 | [상세](devlog/2026-08-03/012-align-kakao-registered-callback.md) |
+| 2026-08-03 | 013 | 제한된 iframe에서 카카오 시작 버튼 상위 이동 차단 수정 | [상세](devlog/2026-08-03/013-fix-kakao-button-top-navigation.md) |
+| 2026-08-03 | 014 | ReviewOps 제한 환경에서 카카오 로그인을 새 창으로 실행하도록 수정 | [상세](devlog/2026-08-03/014-open-kakao-login-popup.md) |
+| 2026-08-03 | 015 | 카카오 로그인 성공 팝업의 빈 화면을 원본 화면 복귀 방식으로 수정 | [상세](devlog/2026-08-03/015-relay-kakao-popup-result.md) |
+| 2026-08-03 | 016 | 카카오 성공 URL의 sandbox 저장소 예외로 인한 흰 화면 제거 | [상세](devlog/2026-08-03/016-fix-sandboxed-login-success-blank.md) |
+| 2026-08-03 | 017 | ReviewOps sandbox CORS 흰 화면 및 로그인 후 온보딩 순서 수정 | [상세](devlog/2026-08-03/017-fix-sandbox-cors-onboarding-flow.md) |
+| 2026-08-03 | 018 | 직접 서비스 카카오 로그인을 현재 창 연속 흐름으로 변경 | [상세](devlog/2026-08-03/018-use-single-window-kakao-login.md) |
+| 2026-08-03 | 019 | 카카오 인증 화면을 필수로 거친 뒤 초기설정 진입하도록 수정 | [상세](devlog/2026-08-03/019-require-kakao-auth-before-onboarding.md) |

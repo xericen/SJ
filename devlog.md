@@ -53,3 +53,4 @@
 | 2026-08-03 | 001 | React 백엔드 MongoDB 저장 계층을 MySQL로 전환 | [상세](devlog/2026-08-03/001-migrate-react-backend-to-mysql.md) |
 | 2026-08-03 | 002 | WIZ 전용 API 비밀 설정 파일 및 안전한 설정 상태 확인 API 추가 | [상세](devlog/2026-08-03/002-add-wiz-api-secret-config.md) |
 | 2026-08-03 | 003 | 입력된 API 비밀값 형식 보정 및 WIZ·Express 설정 연결 검증 | [상세](devlog/2026-08-03/003-verify-wiz-api-secrets.md) |
+| 2026-08-03 | 004 | GitHub 최신 로그인·월드 에셋 변경 WIZ 동기화 | [상세](devlog/2026-08-03/004-sync-latest-github-into-wiz.md) |

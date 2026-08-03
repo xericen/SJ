@@ -1,0 +1,12 @@
+{
+    "id": "page.home",
+    "mode": "page",
+    "title": "\uc5ec\uae30 \uc0ac\ub78c \uc788\uc74c",
+    "namespace": "home",
+    "category": "service",
+    "viewuri": "/home",
+    "preview": "",
+    "controller": "base",
+    "layout": "layout.empty",
+    "template": "wiz-page-home()"
+}

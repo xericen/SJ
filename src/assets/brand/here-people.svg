@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="여기 사람 있음">
+  <rect width="64" height="64" rx="20" fill="#143d31"/>
+  <path d="M32 13c-9.1 0-16.5 7.2-16.5 16.1 0 11.7 14.4 22.1 15 22.6.9.7 2.1.7 3 0 .6-.5 15-10.9 15-22.6C48.5 20.2 41.1 13 32 13Z" fill="#f4c95d"/>
+  <circle cx="32" cy="28" r="7.2" fill="#143d31"/>
+  <circle cx="51" cy="14" r="6" fill="#69c998" stroke="#fff" stroke-width="3"/>
+</svg>

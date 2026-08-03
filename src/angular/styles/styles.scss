@@ -1,0 +1,44 @@
+@font-face {
+    font-family: '세종 글꽃체';
+    font-style: normal;
+    font-weight: 400;
+    font-display: block;
+    src: local('세종글꽃체'), local('SejongGeulggot'), url('/assets/font/SejongGeulggot/SejongGeulggot.ttf') format('truetype');
+}
+
+html,
+body,
+app-root {
+    font-family: '세종 글꽃체', sans-serif;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: block;
+}
+
+button,
+input,
+select,
+textarea {
+    font-family: inherit;
+}
+
+app-root {
+    overflow: auto;
+}
+
+a,
+button {
+    cursor: pointer;
+}
+
+.text-orange-season {
+    color: #FF5934;
+}
+
+.ckeditor-h-480 {
+    .ck-content {
+        height: 480px;
+        min-height: 0 !important;
+    }
+}

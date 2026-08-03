@@ -4,6 +4,8 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
   type ErrorInfo,
   type ReactNode,
@@ -151,6 +153,9 @@ const KAKAO_USER_ID_KEY =
 const KAKAO_PROFILE_IMAGE_KEY =
   'jochiwon-kakao-profile-image';
 
+const ONBOARDING_COMPLETE_USER_ID_KEY =
+  'jochiwon-onboarding-complete-user-id';
+
 export default function App() {
   const [page, setPage] =
     useState<Page>('landing');
@@ -163,6 +168,7 @@ export default function App() {
       )?.trim() ?? '',
     );
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
+  const hydratedProfileUserIdRef=useRef<string|undefined>(undefined);
 
   const [
     storedProfile,
@@ -180,7 +186,7 @@ export default function App() {
     defaultUserJourney,
   );
 
-  const profile: UserProfile = {
+  const profile = useMemo<UserProfile>(()=>({
     ...defaultProfile,
     ...storedProfile,
 
@@ -199,7 +205,7 @@ export default function App() {
 
     chatEnabled:
       storedProfile.chatEnabled ?? true,
-  };
+  }),[storedProfile]);
 
   // A nickname and interests are only an onboarding draft. Login becomes
   // complete exclusively after the character save action finishes signup.
@@ -341,6 +347,8 @@ export default function App() {
         ?.trim() ?? '';
 
     if (userId) {
+      // Keep the callback identity authoritative while onboarding is in progress.
+      hydratedProfileUserIdRef.current = userId;
       writeStoredValue(
         KAKAO_USER_ID_KEY,
         userId,
@@ -359,17 +367,21 @@ export default function App() {
       );
     }
 
-    const nextProfile: UserProfile = {
-      ...profile,
-      nickname:
-        nickname ||
-        profile.nickname ||
-        '카카오 사용자',
-    };
-
     // OAuth success must always show setup in this browser context.
     // Stale local demo data must never skip directly into the lake world.
     const completedMembership = false;
+
+    const nextProfile: UserProfile = {
+      ...(completedMembership
+        ? profile
+        : defaultProfile),
+      nickname:
+        nickname ||
+        (completedMembership
+          ? profile.nickname
+          : '') ||
+        '카카오 사용자',
+    };
 
     setProfile(nextProfile);
 
@@ -399,11 +411,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hasLoginIdentity) return;
+    if (!hasLoginIdentity || !membershipComplete) return;
+    const userId=localStorage.getItem(KAKAO_USER_ID_KEY)?.trim();
+    if(!userId||hydratedProfileUserIdRef.current===userId)return;
+    hydratedProfileUserIdRef.current=userId;
     void loadAccountProfile().then(saved => {
       if (saved) setProfile({ ...defaultProfile, ...saved });
-    }).catch(() => undefined);
-  }, [hasLoginIdentity, setProfile]);
+    }).catch(() => {
+      if(hydratedProfileUserIdRef.current===userId)hydratedProfileUserIdRef.current=undefined;
+    });
+  }, [hasLoginIdentity, membershipComplete, setProfile]);
 
   const startExperience = () => {
     setPage(
@@ -486,6 +503,16 @@ export default function App() {
     completedProfile: UserProfile,
   ) => {
     setProfile(completedProfile);
+    const currentUserId =
+      readStoredValue(KAKAO_USER_ID_KEY)
+        ?.trim();
+    if (currentUserId) {
+      hydratedProfileUserIdRef.current = currentUserId;
+      writeStoredValue(
+        ONBOARDING_COMPLETE_USER_ID_KEY,
+        currentUserId,
+      );
+    }
     removeStoredValue('sejong-lake-tutorial-hidden-v1');
     void saveAccountProfile(completedProfile).catch(error => console.warn('[account profile save failed]', error instanceof Error ? error.message : 'unknown'));
 
@@ -616,6 +643,7 @@ export default function App() {
         onWithdraw={() => {
           clearStoredAccountData();
           setLoginIdentity('');
+          hydratedProfileUserIdRef.current=undefined;
           setGameReturnState(undefined);
           setProfile(defaultProfile);
           setJourney(defaultUserJourney);

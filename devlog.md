@@ -69,3 +69,4 @@
 | 2026-08-03 | 017 | ReviewOps sandbox CORS 흰 화면 및 로그인 후 온보딩 순서 수정 | [상세](devlog/2026-08-03/017-fix-sandbox-cors-onboarding-flow.md) |
 | 2026-08-03 | 018 | 직접 서비스 카카오 로그인을 현재 창 연속 흐름으로 변경 | [상세](devlog/2026-08-03/018-use-single-window-kakao-login.md) |
 | 2026-08-03 | 019 | 카카오 인증 화면을 필수로 거친 뒤 초기설정 진입하도록 수정 | [상세](devlog/2026-08-03/019-require-kakao-auth-before-onboarding.md) |
+| 2026-08-03 | 020 | ReviewOps 수정 보존 후 GitHub 최신 프로젝트 로비 기능 병합 | [상세](devlog/2026-08-03/020-merge-latest-after-reviewops.md) |

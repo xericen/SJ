@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export function useLocalStorage<T>(
   key: string,
@@ -17,7 +17,7 @@ export function useLocalStorage<T>(
       }
     });
 
-  const setValue = (next: T) => {
+  const setValue = useCallback((next: T) => {
     setValueState(next);
 
     try {
@@ -28,7 +28,7 @@ export function useLocalStorage<T>(
     } catch {
       // ReviewOps login popups can block storage; React state must still advance.
     }
-  };
+  }, [key]);
 
   return [value, setValue] as const;
 }

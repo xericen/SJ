@@ -2,7 +2,7 @@
 
 세종의 가상 공간 체험, 사용자 간 커뮤니케이션, 실제 세종 방문 추천을 연결하는 TypeScript 프로젝트입니다.
 
-현재 구성은 React, Phaser, Express, Socket.IO, MySQL이며, 실제 장소 검색에는 Kakao Local API, 공동 방문 코스 구성에는 OpenAI Responses API를 사용합니다.
+현재 구성은 React, Phaser, Express, Socket.IO, MongoDB, Mongoose이며, 실제 장소 검색에는 Kakao Local API, 공동 방문 코스 구성에는 OpenAI Responses API를 사용합니다.
 
 ## 실행 방법
 
@@ -14,7 +14,7 @@ npm run dev
 
 기본 주소:
 
-- 프론트엔드: `http://127.0.0.1:5173`
+- 프론트엔드: `http://localhost:5173`
 - 백엔드: `http://localhost:3001`
 - 서버 상태: `GET http://localhost:3001/health`
 - Provider 상태: `GET http://localhost:3001/api/health/providers`
@@ -22,7 +22,7 @@ npm run dev
 
 환경변수를 변경하면 실행 중인 서버를 다시 시작해야 합니다.
 
-`server/.env.example`을 `server/.env`로 복사한 뒤 `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`를 실제 접속 정보로 변경합니다. 실제 `.env`는 Git에서 제외되며 커밋하면 안 됩니다. 운영 환경에서는 파일 대신 배포 시스템의 Secret 기능으로 같은 변수를 주입하는 것을 권장합니다.
+카카오 로그인은 기본적으로 별도 동의 권한 없이 사용자 ID만 요청합니다. 이메일, 생년, 생일 또는 카카오싱크 약관을 사용하는 앱은 카카오 개발자 콘솔에서 해당 항목을 승인·등록한 뒤 `KAKAO_LOGIN_SCOPES`, `KAKAO_SERVICE_TERMS`에 명시하세요.
 
 ## 현재 데이터 흐름
 
@@ -31,7 +31,7 @@ npm run dev
   ↓
 카카오 사용자 정보 조회
   ↓
-User MySQL 저장 또는 갱신
+User MongoDB 저장 또는 갱신
   ↓
 백엔드에서 ageGroup 계산
   ↓
@@ -42,7 +42,7 @@ User MySQL 저장 또는 갱신
   ↓
 같은 연령 그룹끼리 1대1 채팅
   ↓
-메시지 MySQL 저장
+메시지 MongoDB 저장
   ↓
 대화 원문이 아닌 임시 관심 키워드만 서버 캐시에 저장
   ↓
@@ -50,7 +50,7 @@ Kakao Local API에서 실제 세종 장소 후보 검색
   ↓
 OpenAI가 후보 안에서만 공동 코스 구성
   ↓
-서버 검증 후 추천 결과 MySQL 저장
+서버 검증 후 추천 결과 MongoDB 저장
 ```
 
 ## 주요 디렉터리
@@ -66,7 +66,7 @@ src/
 server/src/
 ├─ index.ts                       Express와 Socket.IO 진입점
 ├─ middleware/                    인증 처리
-├─ models/                        MySQL 문서 모델
+├─ models/                        Mongoose 모델
 ├─ routes/                        REST API
 ├─ services/
 │  ├─ age/                        연령 분류
@@ -121,10 +121,10 @@ GET /api/auth/kakao/diagnostics
 - Client Secret 설정 여부
 - 현재 서버 주소와 Redirect URI 일치 여부
 - 인증 쿠키 서명 키 설정 여부
-- MySQL 연결 여부
+- MongoDB 연결 여부
 - Kakao 사용자 저장 문서 수
 
-## User MySQL 모델
+## User MongoDB 모델
 
 파일:
 
@@ -162,9 +162,9 @@ GET /api/auth/kakao/diagnostics
 
 `kakaoId`에는 unique index가 적용됩니다. 생년월일과 이메일은 기본 조회에서 제외되는 비공개 필드입니다.
 
-## MySQL에 저장되는 데이터
+## MongoDB에 저장되는 데이터
 
-현재 `server/src/models`의 모델은 `jochwon_documents` 테이블에 컬렉션 이름, 문서 ID, JSON 본문을 저장합니다. 기존 API의 문서 구조는 유지하면서 저장 엔진만 MySQL로 변경했습니다.
+현재 `server/src/models`의 Mongoose 모델을 기준으로 다음 데이터가 MongoDB에 저장됩니다. 아래 컬렉션 이름은 Mongoose가 실제 DB에서 복수형·소문자로 변환할 수 있으므로 논리적인 모델 이름을 기준으로 적었습니다.
 
 ### 1. User
 

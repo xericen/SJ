@@ -40,12 +40,14 @@ type LoginPageProps = {
   onLogin: () => void;
   onDemoLogin: () => void;
   onBack: () => void;
+  errorMessage?: string;
 };
 
 export function LoginPage({
   onLogin,
   onDemoLogin,
   onBack,
+  errorMessage,
 }: LoginPageProps) {
   return (
     <main className="login-design-page">
@@ -211,6 +213,12 @@ export function LoginPage({
               </span>
             </div>
 
+            {errorMessage && (
+              <p className="login-design-error" role="alert">
+                {errorMessage}
+              </p>
+            )}
+
             <button
               type="button"
               className="login-design-kakao"
@@ -220,29 +228,23 @@ export function LoginPage({
               <span>카카오로 시작하기</span>
             </button>
 
-            {import.meta.env.DEV && (
-              <>
-                <div className="login-design-divider">
-                  <span />
-                  API 키 없이 로컬 체험
-                  <span />
-                </div>
+            <div className="login-design-divider">
+              <span />
+              가입 전 서비스 둘러보기
+              <span />
+            </div>
 
-                <button
-                  type="button"
-                  className="login-design-guest"
-                  onClick={onDemoLogin}
-                >
-                  체험용으로 시작하기
-                  <b>→</b>
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              className="login-design-guest"
+              onClick={onDemoLogin}
+            >
+              체험용으로 시작하기
+              <b>→</b>
+            </button>
 
             <small>
-              {import.meta.env.DEV
-                ? '체험용 로그인은 로컬 개발 환경에서만 제공돼요.'
-                : '가입 후 기록 공개 여부와 채팅 가능 여부를 직접 설정할 수 있어요.'}
+              체험 계정은 실제 계정과 분리되며, 가입 후 기록 공개 여부와 채팅 가능 여부를 직접 설정할 수 있어요.
             </small>
           </section>
         </div>

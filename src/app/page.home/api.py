@@ -1,5 +1,9 @@
 import json
 import re
+import secrets
+import urllib.error
+import urllib.parse
+import urllib.request
 
 session = wiz.model("portal/season/session").use()
 struct = wiz.model("struct")
@@ -87,6 +91,14 @@ def signup():
 
 
 def login():
+    provider = wiz.request.query("provider", "")
+    if provider == "kakao":
+        return _kakao_start()
+    if provider == "demo":
+        return _demo_login()
+    if wiz.request.query("code", "") or wiz.request.query("state", "") or wiz.request.query("error", ""):
+        return _kakao_callback()
+
     email, password = _credentials()
 
     if not email or not password:
@@ -178,3 +190,196 @@ def save_avatar():
 def logout():
     session.clear()
     return wiz.response.status(200)
+
+
+def _demo_login():
+    demo_token = session.get("demo_user_token", "")
+    if not isinstance(demo_token, str) or not re.match(r"^[a-f0-9]{24}$", demo_token):
+        demo_token = secrets.token_hex(12)
+
+    email = f"demo-{demo_token}@experience.local"
+    nickname = "체험 탐험가"
+
+    try:
+        user = struct.user.db.get(email=email)
+        if user is None:
+            user_id = struct.user.create({
+                "email": email,
+                "password": secrets.token_urlsafe(32),
+                "name": nickname,
+                "role": "user",
+            })
+            user = struct.user.get(user_id)
+        if user is None:
+            raise ValueError("failed to create demo user")
+    except Exception:
+        return _login_redirect("error", message="체험 계정을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+
+    _set_session(user)
+    session.set(demo_user_token=demo_token)
+    return _login_redirect(
+        "success",
+        userId=str(user["id"]),
+        nickname=user.get("name") or nickname,
+        profileImage="",
+    )
+
+
+def _public_origin():
+    flask = wiz.server.package.flask
+    request = flask.request
+    scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",", 1)[0].strip()
+    host = request.headers.get("X-Forwarded-Host", request.host).split(",", 1)[0].strip()
+    if scheme not in ("http", "https") or not re.match(r"^[A-Za-z0-9.:-]+$", host):
+        return ""
+    return f"{scheme}://{host}"
+
+
+def _kakao_callback_url():
+    origin = _public_origin()
+    if not origin:
+        return ""
+    return f"{origin}/wiz/api/page.home/login"
+
+
+def _kakao_request_json(url, data=None, headers=None):
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers=headers or {},
+        method="POST" if data is not None else "GET",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _login_redirect(status, **params):
+    query = {"login": status}
+    query.update(params)
+    wiz.response.redirect("/assets/jochwon-app/index.html?" + urllib.parse.urlencode(query))
+
+
+def _kakao_start():
+    config = _secret_config()
+    client_id = getattr(config, "KAKAO_REST_API_KEY", "") if config is not None else ""
+    redirect_uri = _kakao_callback_url()
+
+    if not client_id or not redirect_uri:
+        return _login_redirect("error", message="카카오 로그인 설정을 확인해 주세요.")
+
+    state = secrets.token_urlsafe(24)
+    session.set(kakao_oauth_state=state)
+    params = {
+        "client_id": client_id.strip(),
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "state": state,
+    }
+    scopes = getattr(config, "KAKAO_LOGIN_SCOPES", "") or ""
+    scopes = ",".join(scope.strip() for scope in scopes.split(",") if scope.strip())
+    if scopes:
+        params["scope"] = scopes
+    service_terms = getattr(config, "KAKAO_SERVICE_TERMS", "") or ""
+    service_terms = ",".join(term.strip() for term in service_terms.split(",") if term.strip())
+    if service_terms:
+        params["service_terms"] = service_terms
+
+    authorization_url = "https://kauth.kakao.com/oauth/authorize?" + urllib.parse.urlencode(params)
+    wiz.response.redirect(authorization_url)
+
+
+def _kakao_callback():
+    config = _secret_config()
+    client_id = getattr(config, "KAKAO_REST_API_KEY", "") if config is not None else ""
+    client_secret = getattr(config, "KAKAO_CLIENT_SECRET", "") if config is not None else ""
+    redirect_uri = _kakao_callback_url()
+    code = wiz.request.query("code", "")
+    state = wiz.request.query("state", "")
+    provider_error = wiz.request.query("error", "")
+    expected_state = session.get("kakao_oauth_state", "")
+    if session.has("kakao_oauth_state"):
+        session.delete("kakao_oauth_state")
+
+    error_message = ""
+    user = None
+    kakao_user_id = ""
+    nickname = ""
+    profile_image = ""
+
+    if provider_error:
+        error_message = "카카오 로그인이 취소되었습니다."
+    elif not code or not state or not expected_state or not secrets.compare_digest(state, expected_state):
+        error_message = "로그인 요청이 만료되었습니다. 다시 시도해 주세요."
+    elif not client_id or not redirect_uri:
+        error_message = "카카오 로그인 설정을 확인해 주세요."
+    else:
+        try:
+            token_data = {
+                "grant_type": "authorization_code",
+                "client_id": client_id.strip(),
+                "redirect_uri": redirect_uri,
+                "code": code,
+            }
+            if client_secret:
+                token_data["client_secret"] = client_secret.strip()
+            token = _kakao_request_json(
+                "https://kauth.kakao.com/oauth/token",
+                data=urllib.parse.urlencode(token_data).encode("utf-8"),
+                headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+            )
+            access_token = token.get("access_token", "")
+            if not access_token:
+                raise ValueError("missing access token")
+
+            kakao_user = _kakao_request_json(
+                "https://kapi.kakao.com/v2/user/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            kakao_user_id = str(kakao_user.get("id", "")).strip()
+            if not kakao_user_id:
+                raise ValueError("missing kakao user id")
+
+            account = kakao_user.get("kakao_account") or {}
+            account_profile = account.get("profile") or {}
+            properties = kakao_user.get("properties") or {}
+            nickname = (
+                account_profile.get("nickname")
+                or properties.get("nickname")
+                or "카카오 사용자"
+            ).strip()[:50]
+            profile_image = (
+                account_profile.get("profile_image_url")
+                or properties.get("profile_image")
+                or ""
+            ).strip()
+            email = f"kakao-{kakao_user_id}@oauth.local"
+            user = struct.user.db.get(email=email)
+            if user is None:
+                try:
+                    user_id = struct.user.create({
+                        "email": email,
+                        "password": secrets.token_urlsafe(32),
+                        "name": nickname,
+                        "role": "user",
+                    })
+                    user = struct.user.get(user_id)
+                except Exception:
+                    user = struct.user.db.get(email=email)
+            if user is None:
+                raise ValueError("failed to save kakao user")
+            user.pop("password", None)
+        except (urllib.error.URLError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            error_message = "카카오 로그인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요."
+        except Exception:
+            error_message = "로그인 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+
+    if error_message:
+        return _login_redirect("error", message=error_message)
+
+    _set_session(user)
+    return _login_redirect(
+        "success",
+        userId=kakao_user_id,
+        nickname=nickname,
+        profileImage=profile_image,
+    )

@@ -43,3 +43,16 @@
 .login-design-kakao:hover{transform:translateY(-2px);box-shadow:0 16px 28px rgba(149,128,0,.29)}
 .login-safety-guide{border:2px solid #c7ded6;background:#f1f8f5}
 .login-safety-guide strong{color:#0b554a}
+
+
+.login-design-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #f2c7bc;
+  border-radius: 10px;
+  background: #fff5f2;
+  color: #a23b2a;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}

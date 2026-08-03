@@ -94,8 +94,8 @@ type Page =
   | 'game'
   | 'community';
 
-const KAKAO_LOGIN_URL = `${API_BASE_URL}/auth/kakao`;
-const DEMO_LOGIN_URL = `${API_BASE_URL}/auth/demo`;
+const KAKAO_LOGIN_URL = '/wiz/api/page.home/login?provider=kakao';
+const DEMO_LOGIN_URL = '/wiz/api/page.home/login?provider=demo';
 
 const KAKAO_USER_ID_KEY =
   'jochiwon-kakao-user-id';
@@ -106,6 +106,8 @@ const KAKAO_PROFILE_IMAGE_KEY =
 export default function App() {
   const [page, setPage] =
     useState<Page>('landing');
+  const [loginError, setLoginError] =
+    useState('');
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
 
   const [
@@ -196,9 +198,25 @@ export default function App() {
     const loginResult =
       searchParams.get('login');
 
+    if (loginResult === 'error') {
+      setLoginError(
+        searchParams.get('message')?.trim() ||
+        '로그인에 실패했습니다. 다시 시도해 주세요.',
+      );
+      setPage('login');
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname,
+      );
+      return;
+    }
+
     if (loginResult !== 'success') {
       return;
     }
+
+    setLoginError('');
 
     const userId =
       searchParams.get('userId')?.trim() ??
@@ -308,17 +326,31 @@ export default function App() {
   };
 
   const openLogin = () => {
+    setLoginError('');
     setPage('login');
   };
 
   const kakaoLogin = () => {
-    window.location.href =
-      KAKAO_LOGIN_URL;
+    setLoginError('');
+    const authWindow =
+      window.parent !== window
+        ? window.parent
+        : window;
+
+    authWindow.location.assign(
+      KAKAO_LOGIN_URL,
+    );
   };
 
   const demoLogin = () => {
-    window.location.href =
-      DEMO_LOGIN_URL;
+    const authWindow =
+      window.parent !== window
+        ? window.parent
+        : window;
+
+    authWindow.location.assign(
+      DEMO_LOGIN_URL,
+    );
   };
 
   const moveToStep = (
@@ -418,6 +450,7 @@ export default function App() {
         }
         onLogin={kakaoLogin}
         onDemoLogin={demoLogin}
+        errorMessage={loginError}
       />
     );
   }
@@ -437,6 +470,7 @@ export default function App() {
         }
         onLogin={kakaoLogin}
         onDemoLogin={demoLogin}
+        errorMessage={loginError}
       />
     );
   }

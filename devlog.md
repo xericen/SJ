@@ -54,3 +54,8 @@
 | 2026-08-03 | 002 | WIZ 전용 API 비밀 설정 파일 및 안전한 설정 상태 확인 API 추가 | [상세](devlog/2026-08-03/002-add-wiz-api-secret-config.md) |
 | 2026-08-03 | 003 | 입력된 API 비밀값 형식 보정 및 WIZ·Express 설정 연결 검증 | [상세](devlog/2026-08-03/003-verify-wiz-api-secrets.md) |
 | 2026-08-03 | 004 | GitHub 최신 로그인·월드 에셋 변경 WIZ 동기화 | [상세](devlog/2026-08-03/004-sync-latest-github-into-wiz.md) |
+| 2026-08-03 | 005 | 로그인 버튼의 WIZ 카카오 OAuth 연결 및 iframe 이탈 수정 | [상세](devlog/2026-08-03/005-fix-kakao-login-bounce.md) |
+| 2026-08-03 | 006 | 동적 iframe URL 차단으로 발생한 `/home` 빈 화면 복구 | [상세](devlog/2026-08-03/006-restore-home-iframe-rendering.md) |
+| 2026-08-03 | 007 | 운영 WIZ 체험용 로그인 버튼·세션 흐름 복구 | [상세](devlog/2026-08-03/007-restore-wiz-demo-login.md) |
+| 2026-08-03 | 008 | 세종호수공원 공용 리스폰 저장 버튼 및 최초 입장 위치 적용 수정 | [상세](devlog/2026-08-03/008-fix-shared-lake-respawn.md) |
+| 2026-08-03 | 009 | 구버전 리스폰 Socket.IO 오류를 유지하던 브라우저 캐시 강제 갱신 | [상세](devlog/2026-08-03/009-refresh-stale-respawn-bundle.md) |

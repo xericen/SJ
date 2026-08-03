@@ -1,1 +1,29 @@
-<!doctype html><html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="referrer" content="strict-origin-when-cross-origin"/><link rel="icon" href="data:,"/><title>세종한바퀴</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="referrer" content="strict-origin-when-cross-origin"/>
+  <link rel="icon" href="data:,"/>
+  <title>세종한바퀴</title>
+  <script>
+    (() => {
+      const buildId = '20260803-respawn-v3';
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('_build') === buildId) return;
+      if ('caches' in window) {
+        void caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key))));
+      }
+      if ('serviceWorker' in navigator) {
+        void navigator.serviceWorker.getRegistrations().then(registrations => Promise.all(registrations.map(registration => registration.unregister())));
+      }
+      url.searchParams.set('_build', buildId);
+      window.location.replace(url.toString());
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

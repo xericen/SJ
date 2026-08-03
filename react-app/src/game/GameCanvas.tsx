@@ -9,10 +9,10 @@ import { GreenhouseExperience } from '../components/GreenhouseExperience';
 import { NatureDiscoveryGuide } from '../components/NatureDiscoveryGuide';
 import { BearHabitatDesignExperience } from '../components/BearHabitatDesignExperience';
 import { BEAR_PLAY_ZONE_RENDERER_OPTIONS,BEAR_TREE_PARK_RENDERER_OPTIONS,CAMPUS_RENDERER_OPTIONS,CLUB_STREET_FESTIVAL_RENDERER_OPTIONS,FESTIVAL_EXPERIENCE_RENDERER_OPTIONS,FOOD_EXPERIENCE_RENDERER_OPTIONS,GARDEN_RENDERER_OPTIONS,GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS,GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS,GOVERNMENT_RENDERER_OPTIONS,LAKE_PARK_RENDERER_OPTIONS,LAKE_PARK_SPAWN,preloadBearTreeParkDownload,PROJECT_ROOM_RENDERER_OPTIONS,RECRUITMENT_CENTER_RENDERER_OPTIONS,SEJONG_ARTS_CENTER_RENDERER_OPTIONS,SEJONG_SMART_CITY_RENDERER_OPTIONS,STUDENT_HALL_RENDERER_OPTIONS,VillageMapRenderer,WORLD_RENDERER_LAYOUT_TOKEN } from './renderers/VillageMapRenderer';
-import type { CampusFeaturePortalId,CampusFeaturePortalPosition,MapId,PlayerResumeState,RespawnPosition } from '../../shared/socket-events';
+import type { CampusFeaturePortalId,CampusFeaturePortalPosition,MapId,RespawnPosition } from '../../shared/socket-events';
 import { buildExperienceRecommendationProfile,recordMapExperience } from '../services/experienceRecommendationProfile';
 import type { GameReturnState } from './gameReturnState';
-import { loadLocalPlayerResumeState } from './playerResumeState';
+import { getSharedRespawnPosition } from '../services/respawnPosition';
 import {ExperienceHarnessCollector,hydrateGeneratedExperienceProfile,setActiveExperienceUser} from '../services/experienceHarness';
 
 const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;description:string;tasks:string[]}>>={
@@ -43,23 +43,24 @@ const rendererOptionsFor=(mapId:MapId)=>mapId==='arts-center'?SEJONG_ARTS_CENTER
 
 export const GameCanvas=memo(function GameCanvas({profile,returnState}:{profile:UserProfile;returnState?:GameReturnState}){
   setActiveExperienceUser(profile.nickname);
-  const [entrySpawn,setEntrySpawn]=useState<RespawnPosition|PlayerResumeState|undefined>(()=>returnState);
+  const [entrySpawn,setEntrySpawn]=useState<RespawnPosition|GameReturnState|undefined>(()=>returnState);
   const ref=useRef<HTMLDivElement>(null),[loading,setLoading]=useState(true),[loadingMapId,setLoadingMapId]=useState<MapId>(()=>returnState?.mapId??'town'),[loadError,setLoadError]=useState('');
   const loadingCopy=MAP_LOADING_COPY[loadingMapId]??{place:'세종예술의전당',title:'세종예술의전당으로 이동중...',description:'공연장 로비와 무대를 준비하고 있어요',tasks:['전당 입구 확인','예술의전당 GLB 불러오기','캐릭터 배치','공연 공간 연결','호수공원 귀환 포탈 연결']};
   useEffect(()=>{
     if(returnState){setEntrySpawn(returnState);return}
     let active=true,settled=false,fallbackTimer=0;
-    const finish=(position:RespawnPosition|PlayerResumeState)=>{if(!active||settled)return;settled=true;window.clearTimeout(fallbackTimer);setEntrySpawn(position)};
-    const resolveRespawn=()=>socket.emit('getPlayerResumeState',serverSaved=>{
-      const localSaved=loadLocalPlayerResumeState(profile.nickname);
-      const saved=localSaved&&(!serverSaved||(localSaved.savedAt??0)>(serverSaved.savedAt??0))?localSaved:serverSaved;
-      if(saved){finish(saved);return}
-      socket.emit('getRespawnPosition',finish);
-    });
-    // Remote shared servers can need more than a local round trip.
+    const finish=(position:RespawnPosition)=>{if(!active||settled)return;settled=true;window.clearTimeout(fallbackTimer);setEntrySpawn(position)};
+    const resolveRespawn=async()=>{
+      try{finish(await getSharedRespawnPosition())}
+      catch{
+        if(socket.connected)socket.emit('getRespawnPosition',finish);
+        else socket.connect();
+      }
+    };
+    // Prefer the shared WIZ position used by both demo and Kakao entry flows.
     fallbackTimer=window.setTimeout(()=>finish(LAKE_PARK_SPAWN),5000);
     socket.on('connect',resolveRespawn);
-    if(socket.connected)resolveRespawn();else socket.connect();
+    void resolveRespawn();
     return()=>{active=false;window.clearTimeout(fallbackTimer);socket.off('connect',resolveRespawn)};
   },[profile.nickname,returnState]);
   useEffect(()=>{

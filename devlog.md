@@ -70,3 +70,8 @@
 | 2026-08-03 | 018 | 직접 서비스 카카오 로그인을 현재 창 연속 흐름으로 변경 | [상세](devlog/2026-08-03/018-use-single-window-kakao-login.md) |
 | 2026-08-03 | 019 | 카카오 인증 화면을 필수로 거친 뒤 초기설정 진입하도록 수정 | [상세](devlog/2026-08-03/019-require-kakao-auth-before-onboarding.md) |
 | 2026-08-03 | 020 | ReviewOps 수정 보존 후 GitHub 최신 프로젝트 로비 기능 병합 | [상세](devlog/2026-08-03/020-merge-latest-after-reviewops.md) |
+| 2026-08-03 | 021 | 비로그인 16개 월드의 캐릭터 없는 맵 둘러보기 지원 | [상세](devlog/2026-08-03/021-guest-map-only-preview.md) |
+| 2026-08-03 | 022 | 비로그인 월드 진입 문구를 맵 구경하기로 변경 | [상세](devlog/2026-08-03/022-rename-guest-map-action.md) |
+| 2026-08-03 | 023 | 최신 비로그인 맵 구경하기 번들을 WIZ 운영 자산에 배포 | [상세](devlog/2026-08-03/023-deploy-guest-map-bundle.md) |
+| 2026-08-03 | 024 | Chrome `/home` 빈 화면의 iframe 빌드 전환 제거 | [상세](devlog/2026-08-03/024-fix-home-blank-build-redirect.md) |
+| 2026-08-03 | 025 | 비로그인 맵 구경하기 자유 카메라 조작 개선 | [상세](devlog/2026-08-03/025-improve-map-preview-navigation.md) |

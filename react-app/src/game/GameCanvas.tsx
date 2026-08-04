@@ -41,8 +41,8 @@ const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;descripti
 
 const rendererOptionsFor=(mapId:MapId)=>mapId==='arts-center'?SEJONG_ARTS_CENTER_RENDERER_OPTIONS:mapId==='festival-experience'?FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:mapId==='food-experience'?FOOD_EXPERIENCE_RENDERER_OPTIONS:mapId==='club-street-festival'?CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:mapId==='town'?LAKE_PARK_RENDERER_OPTIONS:mapId==='bear-tree-park'?BEAR_TREE_PARK_RENDERER_OPTIONS:mapId==='bear-play-zone'?BEAR_PLAY_ZONE_RENDERER_OPTIONS:mapId==='garden'?GARDEN_RENDERER_OPTIONS:mapId==='campus'?CAMPUS_RENDERER_OPTIONS:mapId==='student-hall'?STUDENT_HALL_RENDERER_OPTIONS:mapId==='recruitment-center'?RECRUITMENT_CENTER_RENDERER_OPTIONS:mapId==='project-room'?PROJECT_ROOM_RENDERER_OPTIONS:mapId==='government'?GOVERNMENT_RENDERER_OPTIONS:mapId==='government-central-plaza'?GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:mapId==='government-observatory'?GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:mapId==='sejong-smart-city'?SEJONG_SMART_CITY_RENDERER_OPTIONS:undefined;
 
-export const GameCanvas=memo(function GameCanvas({profile,returnState}:{profile:UserProfile;returnState?:GameReturnState}){
-  setActiveExperienceUser(profile.nickname);
+export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnly=false}:{profile:UserProfile;returnState?:GameReturnState;previewOnly?:boolean}){
+  if(!previewOnly)setActiveExperienceUser(profile.nickname);
   const [entrySpawn,setEntrySpawn]=useState<RespawnPosition|GameReturnState|undefined>(()=>returnState);
   const ref=useRef<HTMLDivElement>(null),[loading,setLoading]=useState(true),[loadingMapId,setLoadingMapId]=useState<MapId>(()=>returnState?.mapId??'town'),[loadError,setLoadError]=useState('');
   const loadingCopy=MAP_LOADING_COPY[loadingMapId]??{place:'세종예술의전당',title:'세종예술의전당으로 이동중...',description:'공연장 로비와 무대를 준비하고 있어요',tasks:['전당 입구 확인','예술의전당 GLB 불러오기','캐릭터 배치','공연 공간 연결','호수공원 귀환 포탈 연결']};
@@ -66,24 +66,25 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState}:{profile:
   useEffect(()=>{
     if(!ref.current||!entrySpawn)return;
     let cancelled=false,mapTravelActive=false,gardenReleaseTimer=0;
-    const experienceHarness=new ExperienceHarnessCollector(profile.nickname);
-    void hydrateGeneratedExperienceProfile(profile.nickname);
+    const experienceHarness=previewOnly?undefined:new ExperienceHarnessCollector(profile.nickname);
+    if(!previewOnly)void hydrateGeneratedExperienceProfile(profile.nickname);
     const preloadIdleHandles:number[]=[];
     const initialMapId=returnState?.mapId??('mapId' in entrySpawn?entrySpawn.mapId:'town'),initialOptions=rendererOptionsFor(initialMapId);
-    experienceHarness.enter(initialMapId);
-    const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,spawn:entrySpawn}):undefined;
+    experienceHarness?.enter(initialMapId);
+    const previewOptions={hideCharacters:true,previewNavigation:true,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
+    const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
     let latestCampusFeaturePortals:CampusFeaturePortalPosition[]=[];
     const ensureWorldRenderer=(mapId:MapId)=>{
       const existing=worldRenderers[mapId];if(existing)return existing;
       const options=rendererOptionsFor(mapId);
       if(!options)return;
-      const renderer=new VillageMapRenderer(ref.current!,profile,options);renderer.setVisible(false);worldRenderers[mapId]=renderer;
+      const renderer=new VillageMapRenderer(ref.current!,profile,{...options,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
       if(mapId==='campus')latestCampusFeaturePortals.forEach(position=>renderer.setCampusFeaturePortalPosition(position));
       return renderer;
     };
     const showMapTravelLoading=(mapId:MapId)=>{
-      experienceHarness.exit();
+      experienceHarness?.exit();
       mapTravelActive=true;setLoadingMapId(mapId);setLoadError('');setLoading(true);
       window.clearTimeout(gardenReleaseTimer);
       if(mapId==='bear-tree-park'&&worldRenderers.garden){
@@ -135,9 +136,8 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState}:{profile:
     const enrich=()=>socket.emit('joinMap',{mapId:initialMapId,nickname:profile.nickname,appearance:profile.character,model:profile.model,matchProfile:recommendationProfile(),x:entrySpawn.x,y:entrySpawn.z});
     const experienceChanged=()=>publishRecommendationProfile();
     const mapExperienceChanged=(mapId:MapId)=>{
-      experienceHarness.enter(mapId);
-      recordMapExperience(profile.nickname,mapId);
-      publishRecommendationProfile();
+      experienceHarness?.enter(mapId);
+      if(!previewOnly){recordMapExperience(profile.nickname,mapId);publishRecommendationProfile()}
       // Keep only the active WebGL world. Retaining the lake renderer while
       // loading the bear park and research lab can exhaust the GPU context.
       Object.entries(worldRenderers).forEach(([storedMapId,renderer])=>{
@@ -147,21 +147,22 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState}:{profile:
         delete worldRenderers[storedMapId as MapId];
       });
     };
-    socket.on('worldClock',syncWorldClock);
-    socket.on('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals);
+    if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals)}
     gameEvents.on('campus-feature-portal-place-at-player',placeCampusFeaturePortal);
-    socket.once('currentMapUsers',enrich);
-    window.addEventListener('sejong-lake-interest-updated',experienceChanged);
-    window.addEventListener('sejong-experience-profile-updated',experienceChanged);
-    gameEvents.on('greenhouse-progress-changed',experienceChanged);
-    gameEvents.on('bear-wildlife-progress-changed',experienceChanged);
-    gameEvents.on('bear-travel-style-changed',experienceChanged);
-    gameEvents.on('bear-habitat-decision-changed',experienceChanged);
+    if(!previewOnly){
+      socket.once('currentMapUsers',enrich);
+      window.addEventListener('sejong-lake-interest-updated',experienceChanged);
+      window.addEventListener('sejong-experience-profile-updated',experienceChanged);
+      gameEvents.on('greenhouse-progress-changed',experienceChanged);
+      gameEvents.on('bear-wildlife-progress-changed',experienceChanged);
+      gameEvents.on('bear-travel-style-changed',experienceChanged);
+      gameEvents.on('bear-habitat-decision-changed',experienceChanged);
+    }
     gameEvents.on('map-travel-complete',mapExperienceChanged);
     const game=new Phaser.Game({type:Phaser.CANVAS,parent:ref.current,width:1100,height:700,transparent:true,backgroundColor:'rgba(0,0,0,0)',render:{antialias:false,roundPixels:true},dom:{createContainer:true},physics:{default:'arcade'},scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH}});
     game.canvas.classList.add('phaser-world-canvas');
     if(game.domContainer)game.domContainer.style.zIndex='3';
-    game.scene.add('world',WorldScene,true,{profile,mapId:initialMapId,worldRenderers,ensureWorldRenderer,initialSpawn:entrySpawn});
+    game.scene.add('world',WorldScene,true,{profile,mapId:initialMapId,worldRenderers,ensureWorldRenderer,initialSpawn:entrySpawn,previewOnly});
     return()=>{
       cancelled=true;
       window.clearTimeout(gardenReleaseTimer);
@@ -181,10 +182,11 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState}:{profile:
       gameEvents.off('map-travel-complete',hideMapTravelLoading);
       gameEvents.off('map-travel-failed',showMapTravelError);
       gameEvents.removeAllListeners('show-bubble');
-      experienceHarness.destroy();
+      experienceHarness?.destroy();
       game.destroy(true);
       Object.values(worldRenderers).forEach(renderer=>renderer?.destroy());
     };
-  },[profile,entrySpawn,returnState,WORLD_RENDERER_LAYOUT_TOKEN]);
-  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span>🧑🏻‍🌾</span><div><b>세종한바퀴</b><small>세종 소통형 체험 공간</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||loadingCopy.description}</p><div className="world-loading-tasks">{loadingCopy.tasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}<LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><BearHabitatDesignExperience userKey={profile.nickname} mapId={loadingMapId}/><GreenhouseExperience userKey={profile.nickname}/></>;
+  },[profile,entrySpawn,returnState,previewOnly,WORLD_RENDERER_LAYOUT_TOKEN]);
+  const loadingTasks=previewOnly?['입장 위치 확인',`${loadingCopy.place} GLB 불러오기`,'맵 둘러보기 카메라 준비']:loadingCopy.tasks;
+  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span>{previewOnly?'🗺️':'🧑🏻‍🌾'}</span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><BearHabitatDesignExperience userKey={profile.nickname} mapId={loadingMapId}/><GreenhouseExperience userKey={profile.nickname}/></>}</>;
 });

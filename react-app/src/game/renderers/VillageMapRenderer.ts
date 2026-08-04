@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import villageModelUrl from '../../assets/maps/sejong-lake-park.glb?url';
@@ -207,6 +208,8 @@ export type WorldMapRendererOptions={
   companionModelUrl?:string;
   mapName:string;
   spawn:{x:number;z:number;yaw:number};
+  hideCharacters?:boolean;
+  previewNavigation?:boolean;
   guide?:boolean;
   mapSign?:boolean;
   overview?:boolean;
@@ -977,10 +980,11 @@ class WorldCharacter{
   private height:number;
   private seated=false;
 
-  constructor(private scene:THREE.Scene,name:string,private model:CharacterModel,private parts:CharacterParts,height=CHARACTER_HEIGHT,private idleOnly=false,private staticPose=false){
+  constructor(private scene:THREE.Scene,name:string,private model:CharacterModel,private parts:CharacterParts,height=CHARACTER_HEIGHT,private idleOnly=false,private staticPose=false,disabled=false){
     this.height=height;
     this.root.name=`world-character-${name}`;
     scene.add(this.root);
+    if(disabled){this.nameplate=new THREE.Sprite();this.root.visible=false;this.ready=Promise.resolve();return}
     this.nameplate=this.createNameplate(name);this.root.add(this.nameplate);
     if(model==='custom'){this.createFallback(parts);this.ready=Promise.resolve()}
     else this.ready=this.loadModels(model);
@@ -1200,6 +1204,8 @@ export class VillageMapRenderer{
   private renderer:THREE.WebGLRenderer;
   private scene=new THREE.Scene();
   private camera:THREE.OrthographicCamera|THREE.PerspectiveCamera;
+  private previewControls?:OrbitControls;
+  private previewCameraInitialized=false;
   private parent:HTMLElement;
   private width=1;
   private height=1;
@@ -1444,7 +1450,7 @@ export class VillageMapRenderer{
     this.camera.up.set(0,1,0);this.camera.near=.1;this.camera.far=5000;
     parent.prepend(this.renderer.domElement);
     this.resize();
-    this.localCharacter=new WorldCharacter(this.scene,profile.nickname,profile.model,profile.character,options.characterHeight??CHARACTER_HEIGHT);
+    this.localCharacter=new WorldCharacter(this.scene,profile.nickname,profile.model,profile.character,options.characterHeight??CHARACTER_HEIGHT,false,false,!!options.hideCharacters);
     if(options.overview)gameEvents.on('map-overview-toggle',this.onMapOverviewToggle);
     if(options.mapName==='베어트리파크')gameEvents.on('nature-chapter-progress-changed',this.onNatureChapterProgressChanged);
     if(options.bearPhotoZone)gameEvents.on('bear-photo-enter',this.onBearPhotoEnter);
@@ -1488,7 +1494,65 @@ export class VillageMapRenderer{
     if(options.foodTruckExperience)gameEvents.on('food-truck-kiosk-close',this.exitFoodTruckKiosk);
     if(options.foodTruckExperience)gameEvents.on('food-seat-toggle',this.toggleFoodSeat);
     window.addEventListener('keydown',this.onWorldPortalKeyDown);
+    if(options.previewNavigation)gameEvents.on('map-preview-camera-reset',this.onPreviewCameraReset);
     this.ready=this.loadVillage();
+  }
+
+  private onPreviewCameraReset=()=>{
+    this.previewControls?.dispose();
+    this.previewControls=undefined;
+    this.previewCameraInitialized=false;
+  };
+
+  private initializePreviewCamera(){
+    const groundPosition=this.followTarget.set(this.localX,this.localGround+this.characterGroundClearance,this.worldToSceneZ(this.localZ));
+    this.followCharacter(groundPosition,0,true);
+    const controls=this.previewControls=new OrbitControls(this.camera,this.renderer.domElement);
+    controls.target.copy(this.cameraTarget);
+    controls.enableDamping=true;
+    controls.dampingFactor=.1;
+    controls.enablePan=true;
+    controls.enableRotate=true;
+    controls.enableZoom=true;
+    controls.screenSpacePanning=false;
+    controls.panSpeed=1.25;
+    controls.rotateSpeed=.7;
+    controls.zoomSpeed=1.1;
+    controls.minPolarAngle=THREE.MathUtils.degToRad(12);
+    controls.maxPolarAngle=THREE.MathUtils.degToRad(82);
+    controls.minDistance=180;
+    controls.maxDistance=4200;
+    controls.minZoom=.35;
+    controls.maxZoom=4;
+    controls.mouseButtons.LEFT=THREE.MOUSE.PAN;
+    controls.mouseButtons.MIDDLE=THREE.MOUSE.DOLLY;
+    controls.mouseButtons.RIGHT=THREE.MOUSE.ROTATE;
+    controls.touches.ONE=THREE.TOUCH.PAN;
+    controls.touches.TWO=THREE.TOUCH.DOLLY_ROTATE;
+    controls.update();
+    this.previewCameraInitialized=true;
+  }
+
+  updatePreviewCamera(screenX:number,screenY:number,fast:boolean,delta:number){
+    if(!this.mapReady)return;
+    if(!this.previewCameraInitialized)this.initializePreviewCamera();
+    const controls=this.previewControls;
+    if(!controls)return;
+    if(screenX||screenY){
+      const viewDirection=this.cameraTarget.copy(controls.target).sub(this.camera.position);
+      viewDirection.y=0;
+      if(viewDirection.lengthSq()<.001)viewDirection.set(0,0,-1);else viewDirection.normalize();
+      const right=this.boundsCenter.crossVectors(viewDirection,this.camera.up).normalize();
+      const scale=(fast?900:520)*delta*(this.camera instanceof THREE.OrthographicCamera?1/Math.max(.35,this.camera.zoom):Math.max(.7,this.camera.position.distanceTo(controls.target)/1400));
+      const offset=this.followTarget.copy(right).multiplyScalar(screenX*scale).addScaledVector(viewDirection,-screenY*scale);
+      controls.target.add(offset);
+      this.camera.position.add(offset);
+    }
+    controls.update();
+    this.cameraTarget.copy(controls.target);
+    this.adjustQuality(delta);
+    this.renderAccumulator+=delta;
+    if(this.renderAccumulator>=this.renderInterval){this.renderAccumulator%=this.renderInterval;this.render()}
   }
 
   private async loadVillage(){
@@ -4909,6 +4973,7 @@ export class VillageMapRenderer{
     if(this.localNpcNearbyId){gameEvents.emit('local-npc-proximity-changed',null);gameEvents.emit('local-npc-screen-position',null)}
     if(this.overviewActive)gameEvents.emit('map-overview-changed',false);
     if(this.options.overview)gameEvents.off('map-overview-toggle',this.onMapOverviewToggle);
+    if(this.options.previewNavigation)gameEvents.off('map-preview-camera-reset',this.onPreviewCameraReset);
     if(this.options.mapName==='베어트리파크')gameEvents.off('nature-chapter-progress-changed',this.onNatureChapterProgressChanged);
     if(this.options.bearPhotoZone)gameEvents.off('bear-photo-enter',this.onBearPhotoEnter);
     if(this.options.bearPhotoZone){gameEvents.off('bear-photo-capture',this.onBearPhotoCapture);gameEvents.off('bear-photo-exit',this.onBearPhotoExit)}
@@ -4956,6 +5021,7 @@ export class VillageMapRenderer{
     if(this.artsCenterSeatNearby||this.artsCenterActiveSeat)gameEvents.emit('arts-center-seat-proximity-changed',null);
     if(this.foodSeatNearby||this.foodActiveSeat)gameEvents.emit('food-seat-proximity-changed',null);
     window.removeEventListener('keydown',this.onWorldPortalKeyDown);
+    this.previewControls?.dispose();this.previewControls=undefined;
     this.projectRoomInteractionOutlines.forEach(outline=>{outline.geometry.dispose();(outline.material as THREE.Material).dispose()});
     this.projectRoomInteractionOutlines.clear();
     this.projectRoomInteractionPositions.clear();

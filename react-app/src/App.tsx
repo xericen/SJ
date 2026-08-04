@@ -39,6 +39,7 @@ const CommunityPage=lazy(()=>import('./pages/CommunityPage').then(module=>({defa
 const CreateProfilePage=lazy(()=>import('./pages/CreateProfilePage').then(module=>({default:module.CreateProfilePage})));
 const loadGamePage=()=>import('./pages/GamePage').then(module=>({default:module.GamePage}));
 const GamePage=lazy(loadGamePage);
+const MapPreviewPage=lazy(()=>import('./pages/MapPreviewPage').then(module=>({default:module.MapPreviewPage})));
 
 class DeferredPageErrorBoundary extends Component<{children:ReactNode},{failed:boolean}> {
   state={failed:false};
@@ -168,6 +169,7 @@ export default function App() {
       )?.trim() ?? '',
     );
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
+  const [guestMapPreview,setGuestMapPreview]=useState(false);
   const hydratedProfileUserIdRef=useRef<string|undefined>(undefined);
 
   const [
@@ -450,10 +452,12 @@ export default function App() {
       'sejong-smart-city':{mapId:'sejong-smart-city',x:1200,z:1580,yaw:Math.PI},
     };
     setGameReturnState(entryPoints[mapId]);
+    setGuestMapPreview(!canExperience);
     setPage('game');
   };
 
   const openLogin = () => {
+    setGuestMapPreview(false);
     setLoginError('');
     setPage('login');
   };
@@ -576,7 +580,8 @@ export default function App() {
       page === 'community' ||
       page === 'account'
     ) &&
-    !canExperience
+    !canExperience &&
+    !(page === 'game' && guestMapPreview)
   ) {
     return (
       <LoginPage
@@ -686,6 +691,21 @@ export default function App() {
           setGameReturnState(current=>current?.mapId==='campus'?current:{mapId:'campus',x:1200,z:1500,yaw:Math.PI});
           setPage('game');
         }}
+      /></DeferredPage>
+    );
+  }
+
+  if (page === 'game' && guestMapPreview) {
+    return (
+      <DeferredPage><MapPreviewPage
+        profile={{...defaultProfile,nickname:'비로그인 둘러보기'}}
+        returnState={gameReturnState}
+        onExit={() => {
+          setGuestMapPreview(false);
+          setGameReturnState(undefined);
+          setPage('landing');
+        }}
+        onLogin={openLogin}
       /></DeferredPage>
     );
   }

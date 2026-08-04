@@ -140,7 +140,7 @@ export function LandingPage({onStart,onEnterWorld,onLogin,onUserClick,actionLabe
             <p>{selectedWorld.description}</p>
             <div className="world-model-points"><small>이 월드의 주요 체험</small>{selectedWorld.points.map((point,index)=><div key={point}><span style={{background:selectedWorld.accent}}>{String(index+1).padStart(2,'0')}</span><b>{point}</b></div>)}</div>
             <div className="world-model-actions">
-              {selectedWorld.mapId&&<button type="button" className="world-model-enter" onClick={()=>{const mapId=selectedWorld.mapId;if(!mapId)return;setSelectedWorld(null);onEnterWorld(mapId)}}><Play size={15} fill="currentColor"/> {selectedWorld.name} 입장하기</button>}
+              {selectedWorld.mapId&&<button type="button" className="world-model-enter" onClick={()=>{const mapId=selectedWorld.mapId;if(!mapId)return;setSelectedWorld(null);onEnterWorld(mapId)}}><Play size={15} fill="currentColor"/> {userName?`${selectedWorld.name} 입장하기`:'맵 구경하기'}</button>}
               <button type="button" onClick={()=>{setSelectedWorld(null);showNeighborhoods()}}>{view==='home'?`${guideWorlds.length}개 공간 자세히 보기`:'다른 공간 둘러보기'} <ArrowRight/></button>
             </div>
             <small className="world-model-note">3D 모형은 실제 인게임 GLB 파일을 사용합니다.</small>
@@ -259,7 +259,7 @@ export function LandingPage({onStart,onEnterWorld,onLogin,onUserClick,actionLabe
             <span className="guide-world-copy">
               <small>{world.people}</small><strong>{world.name}</strong><p>{world.description}</p>
               <span className="guide-world-experiences">{world.points.map(point=><i key={point}><Sparkles size={9}/>{point}</i>)}</span>
-              <em>{world.mapId?'3D 맵 확인 후 입장':'3D 맵 둘러보기'} <ArrowRight size={13}/></em>
+              <em>{world.mapId?(userName?'3D 맵 확인 후 입장':'3D 맵 확인 후 구경하기'):'3D 맵 둘러보기'} <ArrowRight size={13}/></em>
             </span>
           </button>)}
         </div>

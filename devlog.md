@@ -75,3 +75,4 @@
 | 2026-08-03 | 023 | 최신 비로그인 맵 구경하기 번들을 WIZ 운영 자산에 배포 | [상세](devlog/2026-08-03/023-deploy-guest-map-bundle.md) |
 | 2026-08-03 | 024 | Chrome `/home` 빈 화면의 iframe 빌드 전환 제거 | [상세](devlog/2026-08-03/024-fix-home-blank-build-redirect.md) |
 | 2026-08-03 | 025 | 비로그인 맵 구경하기 자유 카메라 조작 개선 | [상세](devlog/2026-08-03/025-improve-map-preview-navigation.md) |
+| 2026-08-04 | 001 | ReviewOps 미리보기 보존 후 최신 프로젝트·동아리 경험 병합 | [상세](devlog/2026-08-04/001-merge-project-club-experience.md) |

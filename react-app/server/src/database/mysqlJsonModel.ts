@@ -164,6 +164,9 @@ export const createMysqlJsonModel = (collection: string, defaults: (input: Plain
     await persist(collection, document);
     return document;
   },
+  async insertMany(inputs: PlainDocument[]) {
+    return Promise.all(inputs.map((input) => this.create(input)));
+  },
   findOneAndUpdate(filter: Filter, update: Update, options: Options = {}) {
     return new MysqlQuery(async () => {
       const documents = await load(collection);
@@ -194,5 +197,20 @@ export const createMysqlJsonModel = (collection: string, defaults: (input: Plain
     if (!document) return null;
     await getDatabasePool().execute('DELETE FROM jochwon_documents WHERE collection_name = ? AND document_id = ?', [collection, document._id]);
     return new MysqlDocument(collection, document);
+  },
+  async deleteMany(filter: Filter = {}) {
+    const documents = (await load(collection)).filter((document) => matches(document, filter));
+    if (!documents.length) return { acknowledged: true, deletedCount: 0 };
+    if (!Object.keys(filter).length) {
+      await getDatabasePool().execute('DELETE FROM jochwon_documents WHERE collection_name = ?', [collection]);
+    } else {
+      const ids = documents.map((document) => String(document._id));
+      const placeholders = ids.map(() => '?').join(',');
+      await getDatabasePool().execute(
+        `DELETE FROM jochwon_documents WHERE collection_name = ? AND document_id IN (${placeholders})`,
+        [collection, ...ids],
+      );
+    }
+    return { acknowledged: true, deletedCount: documents.length };
   },
 });

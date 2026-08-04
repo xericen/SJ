@@ -24,7 +24,7 @@ class Struct:
 
     def _init_tables(self):
         """DB 테이블이 없으면 자동 생성"""
-        tables = ["user"]
+        tables = ["user", "ai_behavior_state"]
         for name in tables:
             try:
                 db = self.orm.use(name)

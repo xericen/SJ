@@ -143,6 +143,18 @@ class User:
         ), id=id)
         return True
 
+    def delete_account(self, id):
+        """사용자 계정과 WIZ 연관 데이터를 하나의 트랜잭션으로 삭제"""
+        if not id:
+            return False
+
+        behavior_db = self.core.db("ai_behavior_state")
+        database = self.db.orm._meta.database
+        with database.atomic():
+            behavior_db.delete(user_id=id)
+            self.db.delete(id=id)
+        return True
+
     def count(self, **kwargs):
         """사용자 수 조회"""
         return self.db.count(**kwargs) or 0

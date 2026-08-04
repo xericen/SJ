@@ -1,3 +1,4 @@
+import datetime
 import json
 import re
 import secrets
@@ -268,6 +269,90 @@ def _kakao_request_json(url, data=None, headers=None):
         return json.loads(response.read().decode("utf-8"))
 
 
+def _unlink_kakao_user(user):
+    email = str(user.get("email") or "").strip().lower()
+    match = re.match(
+        r"^kakao-([1-9][0-9]{0,19})@oauth\\.local$",
+        email,
+    )
+    if match is None:
+        return None
+
+    config = _secret_config()
+    admin_key = (
+        getattr(config, "KAKAO_ADMIN_KEY", "")
+        if config is not None
+        else ""
+    )
+    if not isinstance(admin_key, str) or not admin_key.strip():
+        return None
+
+    kakao_user_id = match.group(1)
+    try:
+        result = _kakao_request_json(
+            "https://kapi.kakao.com/v1/user/unlink",
+            data=urllib.parse.urlencode({
+                "target_id_type": "user_id",
+                "target_id": kakao_user_id,
+            }).encode("utf-8"),
+            headers={
+                "Authorization": f"KakaoAK {admin_key.strip()}",
+                "Content-Type":
+                    "application/x-www-form-urlencoded;charset=utf-8",
+            },
+        )
+        return str(result.get("id") or "") == kakao_user_id
+    except (
+        urllib.error.URLError,
+        ValueError,
+        KeyError,
+        TypeError,
+        json.JSONDecodeError,
+    ):
+        return False
+
+
+def withdraw():
+    user_id = session.get("id")
+    if not user_id:
+        return wiz.response.status(
+            401,
+            message="로그인이 필요합니다.",
+        )
+
+    try:
+        user = struct.user.get(user_id)
+    except Exception:
+        return wiz.response.status(
+            503,
+            message="회원 정보를 확인하지 못했습니다.",
+        )
+
+    if user is None:
+        session.clear()
+        return wiz.response.status(
+            404,
+            message="이미 삭제된 계정입니다.",
+        )
+
+    kakao_unlinked = _unlink_kakao_user(user)
+
+    try:
+        struct.user.delete_account(user_id)
+    except Exception:
+        return wiz.response.status(
+            503,
+            message="회원 탈퇴를 처리하지 못했습니다.",
+        )
+
+    session.clear()
+    return wiz.response.status(
+        200,
+        deleted=True,
+        kakaoUnlinked=kakao_unlinked,
+    )
+
+
 def _login_redirect(status, **params):
     query = {"login": status}
     query.update(params)
@@ -308,11 +393,32 @@ main{text-align:center;padding:32px}b{display:block;margin-bottom:8px;font-size:
 (function () {
   var payload = __PAYLOAD__;
   var fallback = __TARGET__;
+  var acknowledged = false;
+
+  function receiveAcknowledgement(event) {
+    if (
+      event.data &&
+      event.data.type === "sejong-kakao-login-ack"
+    ) {
+      acknowledged = true;
+      window.close();
+    }
+  }
+
   if (window.opener && !window.opener.closed) {
+    window.addEventListener(
+      "message",
+      receiveAcknowledgement
+    );
     window.opener.postMessage(payload, "*");
-    window.close();
+    window.setTimeout(function () {
+      if (!acknowledged) {
+        window.location.replace(fallback);
+      }
+    }, 1200);
     return;
   }
+
   window.location.replace(fallback);
 }());
 </script>
@@ -441,4 +547,128 @@ def _kakao_callback():
         userId=kakao_user_id,
         nickname=nickname,
         profileImage=profile_image,
+    )
+
+
+# Map AI behavior persistence is intentionally handled by the WIZ runtime.
+# The React experience still uses localStorage as an offline cache, while this
+# endpoint provides the authenticated MySQL source shared across browsers.
+BEHAVIOR_STATE_VERSION = 1
+BEHAVIOR_STATE_MAX_BYTES = 750000
+BEHAVIOR_VALUE_MAX_BYTES = 200000
+BEHAVIOR_KEY_PREFIXES = (
+    "sejong-",
+    "greenhouse-",
+    "bear-",
+    "campus-",
+    "government-",
+    "nature-discovery-",
+    "festival-",
+    "food-",
+    "project-room-",
+    "club-street-",
+    "arts-center-",
+)
+
+
+def _valid_behavior_key(value):
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 180
+        and value.startswith(BEHAVIOR_KEY_PREFIXES)
+    )
+
+
+def _behavior_state_db():
+    db = struct.db("ai_behavior_state")
+    db.orm.create_table(safe=True)
+    return db
+
+
+def behavior_state():
+    user_id = session.get("id")
+    if not user_id:
+        return wiz.response.status(
+            401,
+            message="로그인이 필요합니다.",
+        )
+
+    db = _behavior_state_db()
+    payload_raw = wiz.request.query("payload", "")
+
+    if not payload_raw:
+        record = db.get(id=user_id)
+        if record is None:
+            return wiz.response.status(
+                200,
+                version=BEHAVIOR_STATE_VERSION,
+                entries={},
+                updatedAt=None,
+            )
+        try:
+            stored = json.loads(record.get("payload") or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            stored = {}
+        entries = stored.get("entries", {}) if isinstance(stored, dict) else {}
+        if not isinstance(entries, dict):
+            entries = {}
+        entries = {
+            key: value
+            for key, value in entries.items()
+            if _valid_behavior_key(key) and isinstance(value, str)
+        }
+        updated = record.get("updated")
+        return wiz.response.status(
+            200,
+            version=BEHAVIOR_STATE_VERSION,
+            entries=entries,
+            updatedAt=updated.isoformat() if hasattr(updated, "isoformat") else str(updated or ""),
+        )
+
+    if not isinstance(payload_raw, str):
+        return wiz.response.status(400, message="행동 데이터 형식이 올바르지 않습니다.")
+    if len(payload_raw.encode("utf-8")) > BEHAVIOR_STATE_MAX_BYTES:
+        return wiz.response.status(413, message="행동 데이터가 너무 큽니다.")
+
+    try:
+        payload = json.loads(payload_raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return wiz.response.status(400, message="행동 데이터를 해석하지 못했습니다.")
+
+    entries = payload.get("entries") if isinstance(payload, dict) else None
+    if not isinstance(entries, dict) or len(entries) > 200:
+        return wiz.response.status(400, message="행동 데이터 형식이 올바르지 않습니다.")
+
+    normalized = {}
+    for key, value in entries.items():
+        if not _valid_behavior_key(key) or not isinstance(value, str):
+            return wiz.response.status(400, message="허용되지 않은 행동 데이터가 포함되어 있습니다.")
+        if len(value.encode("utf-8")) > BEHAVIOR_VALUE_MAX_BYTES:
+            return wiz.response.status(413, message="개별 행동 데이터가 너무 큽니다.")
+        normalized[key] = value
+
+    now = datetime.datetime.now()
+    serialized = json.dumps(
+        {"version": BEHAVIOR_STATE_VERSION, "entries": normalized},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    current = db.get(id=user_id)
+    values = {
+        "user_id": user_id,
+        "version": BEHAVIOR_STATE_VERSION,
+        "payload": serialized,
+        "updated": now,
+    }
+    if current is None:
+        values.update({"id": user_id, "created": now})
+        db.insert(values)
+    else:
+        db.update(values, id=user_id)
+
+    return wiz.response.status(
+        200,
+        version=BEHAVIOR_STATE_VERSION,
+        saved=len(normalized),
+        updatedAt=now.isoformat(),
     )

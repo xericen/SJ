@@ -19,6 +19,7 @@ import { TermsPage } from './pages/TermsPage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { API_BASE_URL } from './config/api';
 import { clearAllAccountData } from './services/accountData';
+import { startBehaviorStateSync } from './services/behaviorStateSync';
 
 import {
   defaultProfile,
@@ -32,7 +33,7 @@ import {
 import type { UserProfile } from './types';
 import type { GameReturnState } from './game/gameReturnState';
 import type { MapId } from '../shared/socket-events';
-import { loadAccountProfile, saveAccountProfile } from './services/accountProfile';
+import { loadAccountProfile, saveAccountProfile, withdrawAccount } from './services/accountProfile';
 
 const CharacterTestPage=lazy(()=>import('./pages/CharacterTestPage').then(module=>({default:module.CharacterTestPage})));
 const CommunityPage=lazy(()=>import('./pages/CommunityPage').then(module=>({default:module.CommunityPage})));
@@ -101,6 +102,8 @@ const KAKAO_LOGIN_URL =
   '/wiz/api/page.home/kakao_start';
 const DEMO_LOGIN_URL = '/auth/demo';
 const KAKAO_LOGIN_MESSAGE = 'sejong-kakao-login';
+const KAKAO_LOGIN_ACK_MESSAGE =
+  'sejong-kakao-login-ack';
 
 function browserStorage(): Storage | null {
   try {
@@ -170,6 +173,7 @@ export default function App() {
     );
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
   const [guestMapPreview,setGuestMapPreview]=useState(false);
+  const [behaviorStateReady,setBehaviorStateReady]=useState(false);
   const hydratedProfileUserIdRef=useRef<string|undefined>(undefined);
 
   const [
@@ -220,6 +224,24 @@ export default function App() {
     membershipComplete &&
     hasLoginIdentity;
 
+  useEffect(() => {
+    if (!canExperience) {
+      setBehaviorStateReady(false);
+      return;
+    }
+
+    let active = true;
+    const sync = startBehaviorStateSync();
+    void sync.ready.finally(() => {
+      if (active) setBehaviorStateReady(true);
+    });
+
+    return () => {
+      active = false;
+      sync.stop();
+    };
+  }, [canExperience]);
+
   useEffect(()=>{
     if(page!=='landing')return;
     const timer=window.setTimeout(()=>{
@@ -269,6 +291,15 @@ export default function App() {
         )
       ) {
         return;
+      }
+
+      try {
+        (event.source as Window | null)?.postMessage(
+          { type: KAKAO_LOGIN_ACK_MESSAGE },
+          '*',
+        );
+      } catch {
+        // The callback window has its own redirect fallback.
       }
 
       const searchParams =
@@ -531,6 +562,14 @@ export default function App() {
   };
 
   if (
+    page === 'game' &&
+    canExperience &&
+    !behaviorStateReady
+  ) {
+    return <ExperienceLoading mapId={gameReturnState?.mapId} />;
+  }
+
+  if (
     import.meta.env.DEV &&
     location.pathname ===
       '/dev/character-test'
@@ -646,13 +685,26 @@ export default function App() {
           setPage(gameReturnState?'game':'landing')
         }
         onWithdraw={() => {
-          clearStoredAccountData();
-          setLoginIdentity('');
-          hydratedProfileUserIdRef.current=undefined;
-          setGameReturnState(undefined);
-          setProfile(defaultProfile);
-          setJourney(defaultUserJourney);
-          setPage('landing');
+          void withdrawAccount()
+            .then(() => {
+              clearStoredAccountData();
+              setLoginIdentity('');
+              hydratedProfileUserIdRef.current=undefined;
+              setGameReturnState(undefined);
+              setProfile(defaultProfile);
+              setJourney(defaultUserJourney);
+              setPage('landing');
+              window.alert(
+                '탈퇴가 완료되었습니다. 다시 이용하려면 카카오 로그인이 필요합니다.',
+              );
+            })
+            .catch((error: unknown) => {
+              window.alert(
+                error instanceof Error
+                  ? error.message
+                  : '회원 탈퇴를 처리하지 못했습니다.',
+              );
+            });
         }}
         onLogout={() => {
           setGameReturnState(undefined);

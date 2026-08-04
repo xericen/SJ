@@ -1,4 +1,39 @@
 import { API_BASE_URL } from '../config/api';
+
+type WithdrawResult = {
+  deleted: boolean;
+  kakaoUnlinked: boolean | null;
+};
+
+export async function withdrawAccount(): Promise<WithdrawResult> {
+  const response = await fetch('/wiz/api/page.home/withdraw', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const body = await response.json() as {
+    code?: number;
+    data?: Partial<WithdrawResult> & { message?: string };
+  };
+
+  if (
+    !response.ok ||
+    body.code !== 200 ||
+    body.data?.deleted !== true
+  ) {
+    throw new Error(
+      body.data?.message ||
+      '회원 탈퇴를 처리하지 못했습니다.',
+    );
+  }
+
+  return {
+    deleted: body.data?.deleted === true,
+    kakaoUnlinked:
+      typeof body.data?.kakaoUnlinked === 'boolean'
+        ? body.data.kakaoUnlinked
+        : null,
+  };
+}
 import type { UserProfile } from '../types';
 
 export async function loadAccountProfile(): Promise<UserProfile | null> {

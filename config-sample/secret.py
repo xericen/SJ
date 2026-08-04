@@ -8,6 +8,8 @@ OPENAI_MODEL = "gpt-4.1-mini"
 
 KAKAO_REST_API_KEY = ""
 KAKAO_CLIENT_SECRET = ""
+# Optional: enables Kakao app unlink during account withdrawal.
+KAKAO_ADMIN_KEY = ""
 
 SEJONG_API_KEY = ""
 TOUR_API_KEY = ""

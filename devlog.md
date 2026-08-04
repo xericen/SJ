@@ -76,3 +76,6 @@
 | 2026-08-03 | 024 | Chrome `/home` 빈 화면의 iframe 빌드 전환 제거 | [상세](devlog/2026-08-03/024-fix-home-blank-build-redirect.md) |
 | 2026-08-03 | 025 | 비로그인 맵 구경하기 자유 카메라 조작 개선 | [상세](devlog/2026-08-03/025-improve-map-preview-navigation.md) |
 | 2026-08-04 | 001 | ReviewOps 미리보기 보존 후 최신 프로젝트·동아리 경험 병합 | [상세](devlog/2026-08-04/001-merge-project-club-experience.md) |
+| 2026-08-04 | 002 | 카카오 인증 성공 콜백의 초기설정 1단계 전환 유실 방지 | [상세](devlog/2026-08-04/002-fix-kakao-callback-onboarding-transition.md) |
+| 2026-08-04 | 003 | 전체 맵 AI 행동 데이터 MySQL 저장·복원 연결 | [상세](devlog/2026-08-04/003-connect-map-ai-behavior-to-mysql.md) |
+| 2026-08-04 | 004 | 회원 탈퇴 시 서버 계정·연관 기록 삭제 및 세션 종료 구현 | [상세](devlog/2026-08-04/004-delete-account-data-on-withdrawal.md) |

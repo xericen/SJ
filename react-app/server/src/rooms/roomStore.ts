@@ -7,10 +7,10 @@ export class RoomStore {
  players=new Map<string,PlayerState>(); groups=new Map<string,GroupRoom>(); pendingDirect=new Map<string,{fromId:string;toId:string}>(); directRooms=new Map<string,DirectRoom>(); directMessages=new Map<string,DirectMessage[]>(); governmentProposals=new Map<string,GovernmentSessionProposal>(); governmentPlans=new Map<string,GovernmentPlanState>(); recommendationCache=new Map<string,{roomId:string;places:DirectRecommendationPlace[];expiresAt:number}>(); blockedPairs=new Set<string>();
  bearExplorationCards=new Map<BearExplorationCardId,string>();bearExplorationAnalyzed=new Set<BearExplorationCardId>();bearExplorationAnalyses=new Map<BearExplorationCardId,BearExplorationAnalysis>();bearExplorationJoinedAt=new Map<string,number>();bearExplorationStory='';bearExplorationReport?:BearExplorationReport;completedBearRoutes:string[][]=[];
  portalPositions=new Map<string,PortalPosition>(WORLD_PORTAL_DEFAULTS.map(position=>[worldPortalKey(position),{...position}]));
- bearTreePortalPositions:BearTreePortalPositions={town:{x:980,z:1580},photo:{x:1569,z:1525}};
- interactionPositions=new Map<WorldInteractionPosition['destination'],WorldInteractionPosition>([['bear-play-zone',{destination:'bear-play-zone',x:1616,z:601}],['bear-tree-park',{destination:'bear-tree-park',x:1200,z:1650}]]);
+ bearTreePortalPositions:BearTreePortalPositions={town:{x:1185,z:1616},photo:{x:1478,z:1479}};
+ interactionPositions=new Map<WorldInteractionPosition['destination'],WorldInteractionPosition>([['bear-play-zone',{destination:'bear-play-zone',x:1482,z:661}],['bear-tree-park',{destination:'bear-tree-park',x:1200,z:1650}]]);
  lakeExperiencePositions=new Map<LakeExperienceId,LakeExperiencePosition>([['central-plaza',{experience:'central-plaza',x:1219,z:1462}],['activity-zone',{experience:'activity-zone',x:603,z:452}],['food-shop-zone',{experience:'food-shop-zone',x:491,z:1556}],['wind-hill',{experience:'wind-hill',x:1908,z:549}]]);
- campusFeaturePortalPositions=new Map<CampusFeaturePortalId,CampusFeaturePortalPosition>([['people',{portal:'people',x:881,z:950}],['clubs',{portal:'clubs',x:450,z:882}],['recruit',{portal:'recruit',x:508,z:1382}],['government',{portal:'government',x:1656,z:1501}]]);
+ campusFeaturePortalPositions=new Map<CampusFeaturePortalId,CampusFeaturePortalPosition>([['people',{portal:'people',x:881,z:950}],['clubs',{portal:'clubs',x:1537,z:499}],['recruit',{portal:'recruit',x:817,z:1318}],['government',{portal:'government',x:1590,z:1543}]]);
  respawnPosition:RespawnPosition={...FIXED_LAKE_RESPAWN};
  setRespawnPosition(position:RespawnPosition){this.respawnPosition={...position}}
  lakeWishes:LakeWish[]=[];
@@ -36,7 +36,7 @@ export class RoomStore {
  migrateBearTreePortalPositions(_value:BearTreePortalPositions){return false}
  allPortalPositions(){return [...this.portalPositions.values()]}
  setPortalPosition(position:PortalPosition){
-  if(position?.mapId==='arts-center'||position?.mapId==='festival-experience')return false;
+  if(position?.mapId==='campus'||position?.mapId==='arts-center'||position?.mapId==='festival-experience'||position?.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return false;
   const key=worldPortalKey(position),existing=this.portalPositions.get(key);
   if(!existing||!Number.isFinite(position?.x)||!Number.isFinite(position?.z)||position.x<0||position.x>4800||position.z<0||position.z>2600)return false;
   this.portalPositions.set(key,{mapId:existing.mapId,destination:existing.destination,x:Math.round(position.x),z:Math.round(position.z)});return true;
@@ -47,11 +47,8 @@ export class RoomStore {
  allLakeExperiencePositions(){return [...this.lakeExperiencePositions.values()]}
  setLakeExperiencePosition(_position:LakeExperiencePosition,_persist=true){return false}
  allCampusFeaturePortalPositions(){return [...this.campusFeaturePortalPositions.values()]}
- setCampusFeaturePortalPosition(position:CampusFeaturePortalPosition){
-  if(!this.campusFeaturePortalPositions.has(position?.portal)||!Number.isFinite(position?.x)||!Number.isFinite(position?.z)||position.x<0||position.x>2400||position.z<0||position.z>1900)return false;
-  this.campusFeaturePortalPositions.set(position.portal,{portal:position.portal,x:Math.round(position.x),z:Math.round(position.z)});return true;
- }
- replaceCampusFeaturePortalPositions(positions:CampusFeaturePortalPosition[]){positions.forEach(position=>this.setCampusFeaturePortalPosition(position))}
+ setCampusFeaturePortalPosition(_position:CampusFeaturePortalPosition){return false}
+ replaceCampusFeaturePortalPositions(_positions:CampusFeaturePortalPosition[]){/* Authored campus portal positions are fixed. */}
  addLakeWish(nickname:string,message:string){const wish:LakeWish={id:crypto.randomUUID(),nickname,message,createdAt:Date.now()};this.lakeWishes=[...this.lakeWishes.slice(-79),wish];try{fs.writeFileSync(this.lakeWishFile,JSON.stringify(this.lakeWishes,null,2))}catch(error){console.error('[lake wish persistence failed]',error)}return wish}
  addNearbyChat(message:ChatMessage){
   const messages=[...(this.nearbyChatMessages.get(message.mapId)??[]),message].slice(-80);

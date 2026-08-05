@@ -150,3 +150,19 @@
 | 2026-08-05 | 061 | 축제·먹거리·공연 관심 저장과 매칭 프로필 통합 개선 | [상세](devlog/2026-08-05/061-integrate-saved-interests-and-matching.md) |
 | 2026-08-05 | 062 | 축제부스 카메라 확대 및 호수공원 귀환 도착점 보정 | [상세](devlog/2026-08-05/062-festival-camera-and-lake-arrival.md) |
 | 2026-08-05 | 063 | 원격 개인 팜 생태 미션 병합 및 MySQL·WIZ 연동 | [상세](devlog/2026-08-05/063-merge-personal-farm-missions.md) |
+| 2026-08-05 | 064 | 베어트리파크 곰 가족 포토존 현재 위치 이동 및 저장 | [상세](devlog/2026-08-05/064-move-bear-photo-zone.md) |
+| 2026-08-05 | 065 | 공간 안내 마이홈 월드 추가 및 개인팜 명칭 전환 | [상세](devlog/2026-08-05/065-add-my-home-to-world-guide.md) |
+| 2026-08-05 | 066 | 베어트리파크 포탈 3개 요청자 확정 좌표 공용 고정 | [상세](devlog/2026-08-05/066-freeze-bear-tree-portals.md) |
+| 2026-08-05 | 067 | 공간 안내 마이홈 첫 카드 노출 및 운영 재배포 | [상세](devlog/2026-08-05/067-show-my-home-first-in-world-guide.md) |
+| 2026-08-05 | 068 | 베어트리파크 곰 관찰·서식 조사 지점 및 마이홈 포탈 제거 | [상세](devlog/2026-08-05/068-clean-bear-tree-park.md) |
+| 2026-08-05 | 069 | 베어트리파크 곰 형상 제거 및 포토존 공용 위치 고정 | [상세](devlog/2026-08-05/069-fix-bear-photo-zone.md) |
+| 2026-08-05 | 070 | AI 탐험 연구소 곰 조사·서식지 설계 활동 제거 | [상세](devlog/2026-08-05/070-remove-ai-lab-activities.md) |
+| 2026-08-05 | 071 | 마이홈 외부 포탈·위치 이동 버튼 제거 및 미션 상태 재배치 | [상세](devlog/2026-08-05/071-remove-my-home-portals.md) |
+| 2026-08-05 | 072 | 맵 상단 마이홈 바로가기 버튼 추가 | [상세](devlog/2026-08-05/072-add-my-home-map-shortcut.md) |
+| 2026-08-05 | 073 | 베어트리파크에서 수목원 이동 시 포탈 아래 안전 지점으로 도착 보정 | [상세](devlog/2026-08-05/073-fix-garden-portal-arrival.md) |
+| 2026-08-05 | 074 | AI 탐험 연구소 명칭을 곰 체험소로 전체 통일 | [상세](devlog/2026-08-05/074-rename-bear-experience.md) |
+| 2026-08-05 | 075 | 마이홈 오브젝트 충돌·E 출입 및 7개 좌석 상호작용 구현 | [상세](devlog/2026-08-05/075-my-home-collision-entry-seating.md) |
+| 2026-08-05 | 076 | 수목원 도착 좌표 강제 적용 및 축제 포탈 회귀 테스트 복구 | [상세](devlog/2026-08-05/076-enforce-garden-arrival-and-fix-festival-test.md) |
+| 2026-08-05 | 077 | 17개 맵 카메라·캐릭터 이동 기준 통일 | [상세](devlog/2026-08-05/077-unify-world-navigation.md) |
+| 2026-08-05 | 078 | 공동캠퍼스 포탈 5개 요청자 확정 좌표 공용 고정 | [상세](devlog/2026-08-05/078-freeze-campus-portals.md) |
+| 2026-08-05 | 079 | 해커톤 제출 README 개편 및 누적 ReviewOps 변경 게시 | [상세](devlog/2026-08-05/079-publish-hackathon-submission.md) |

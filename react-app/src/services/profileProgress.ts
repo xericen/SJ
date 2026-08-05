@@ -24,7 +24,7 @@ export const PROFILE_ZONES: ProfileZone[] = [
   { id: 'food-experience', label: '먹거리 체험장', maps: ['food-experience'], icon: '🍽️' },
   { id: 'club-street-festival', label: '동아리 거리제', maps: ['club-street-festival'], icon: '🎪' },
   { id: 'bear-tree-park', label: '베어트리파크', maps: ['bear-tree-park'], icon: '🐻' },
-  { id: 'bear-play-zone', label: 'AI 생태 연구소', maps: ['bear-play-zone'], icon: '🔬' },
+  { id: 'bear-play-zone', label: '곰 체험소', maps: ['bear-play-zone'], icon: '🐻' },
   { id: 'garden', label: '국립세종수목원', maps: ['garden'], icon: '🌿' },
   { id: 'campus', label: '공동캠퍼스', maps: ['campus'], icon: '🎓' },
   { id: 'student-hall', label: '학생회관', maps: ['student-hall'], icon: '🤝' },
@@ -42,10 +42,10 @@ export const PROFILE_ZONES: ProfileZone[] = [
 ];
 
 const MAP_LABELS: Record<MapId, string> = {
-  'personal-farm': '개인 팜',
+  'personal-farm': '마이홈',
   'club-street-festival': '동아리 거리제',
   town: '세종호수공원', 'arts-center': '세종예술의전당', 'festival-experience': '축제 체험장', 'food-experience': '먹거리 체험장',
-  'bear-tree-park': '베어트리파크', 'bear-play-zone': 'AI 생태 연구소', garden: '국립세종수목원', campus: '공동캠퍼스',
+  'bear-tree-park': '베어트리파크', 'bear-play-zone': '곰 체험소', garden: '국립세종수목원', campus: '공동캠퍼스',
   'student-hall': '학생회관', 'recruitment-center': '모집센터', 'project-room': '프로젝트실', government: '정부세종청사', 'government-central-plaza': '정부청사 중앙광장',
   'government-policy-hall': '정책 체험관', 'government-observatory': '정부청사 전망대', 'sejong-smart-city': '스마트시티 전시관',
   'jochwon-station': '조치원역', 'traditional-market': '세종전통시장', 'jochwon-park': '조치원공원', 'college-street': '대학로',
@@ -63,7 +63,7 @@ const PERFORMANCE_LABELS:Record<string,string>={
 };
 const NATURE_DISCOVERY_LABELS:Record<string,{title:string;note:string}>={
   forest:{title:'숲 산책 시작',note:'베어트리파크 숲길에서 자연 관찰을 시작했어요'},
-  bear:{title:'곰 생태 탐험 시작',note:'AI 생태 연구소에서 곰의 흔적을 조사하기로 했어요'},
+  bear:{title:'곰 체험 시작',note:'곰 체험소를 둘러보기로 했어요'},
 };
 const validDate=(value:unknown)=>typeof value==='number'&&Number.isFinite(value)?new Date(value).toISOString():undefined;
 
@@ -179,7 +179,7 @@ export function buildProfileProgress(profile: UserProfile) {
   const applications = readJson<Array<{ id: string; applicantId: string; createdAt?: string }>>('sejong-project-room-applications-v1', []);
   applications.filter(item => item.applicantId === profile.nickname).forEach(item => records.push({ id: `project-${item.id}`, zone: '프로젝트실', title: '공동 프로젝트 지원', note: '세종 프로젝트에 참여 의사를 남겼어요', point: 15, at: item.createdAt, image: '/images/government-complex-diorama.png' }));
   if (bearTravel.result) records.push({ id: 'bear-travel', zone: '베어트리파크', title: '나의 여행 스타일 발견', note: bearTravel.result.title, point: 20, at: bearTravel.result.completedAt, image: '/images/government-complex-diorama.png' });
-  if (habitat.result) records.push({ id: 'habitat', zone: 'AI 생태 연구소', title: '서식지 설계 완료', note: habitat.result.title, point: 25, at: habitat.result.completedAt, image: '/images/government-complex-diorama.png' });
+  if (habitat.result) records.push({ id: 'habitat', zone: '곰 체험소', title: '서식지 설계 완료', note: habitat.result.title, point: 25, at: habitat.result.completedAt, image: '/images/government-complex-diorama.png' });
 
   const sortedRecords = records.sort((a, b) => (b.at ? Date.parse(b.at) : 0) - (a.at ? Date.parse(a.at) : 0));
   const experienceCount = sortedRecords.length;

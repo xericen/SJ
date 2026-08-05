@@ -28,10 +28,9 @@ WORLD_PORTAL_DEFAULTS = (
     ("festival-experience", "town", 1211, 440),
     ("food-experience", "town", 1193, 546),
     ("club-street-festival", "campus", 1200, 1580),
-    ("bear-tree-park", "town", 980, 1580),
-    ("bear-tree-park", "garden", 682, 735),
-    ("bear-tree-park", "bear-play-zone", 1616, 601),
-    ("bear-tree-park", "personal-farm", 1450, 1440),
+    ("bear-tree-park", "town", 1185, 1616),
+    ("bear-tree-park", "garden", 767, 751),
+    ("bear-tree-park", "bear-play-zone", 1482, 661),
     ("bear-play-zone", "bear-tree-park", 1200, 1650),
     ("garden", "bear-tree-park", 1200, 1260),
     ("garden", "personal-farm", 1840, 1130),
@@ -40,9 +39,9 @@ WORLD_PORTAL_DEFAULTS = (
     ("personal-farm", "garden", 500, 1510),
     ("campus", "town", 1120, 1731),
     ("campus", "student-hall", 881, 950),
-    ("campus", "club-street-festival", 450, 882),
-    ("campus", "recruitment-center", 508, 1382),
-    ("campus", "project-room", 1656, 1501),
+    ("campus", "club-street-festival", 1537, 499),
+    ("campus", "recruitment-center", 817, 1318),
+    ("campus", "project-room", 1590, 1543),
     ("student-hall", "campus", 1200, 1660),
     ("recruitment-center", "campus", 1200, 1690),
     ("project-room", "campus", 1220, 2050),
@@ -58,15 +57,24 @@ WORLD_PORTAL_DEFAULTS = (
 WORLD_PORTAL_KEYS = {(item[0], item[1]) for item in WORLD_PORTAL_DEFAULTS}
 FROZEN_WORLD_PORTAL_MAPS = {
     "town",
+    "campus",
     "government",
     "arts-center",
     "festival-experience",
     "food-experience",
 }
 CANONICAL_WORLD_PORTAL_KEYS = {
+    ("campus", "town"),
+    ("campus", "student-hall"),
+    ("campus", "club-street-festival"),
+    ("campus", "recruitment-center"),
+    ("campus", "project-room"),
     ("arts-center", "town"),
     ("festival-experience", "town"),
     ("food-experience", "town"),
+    ("bear-tree-park", "town"),
+    ("bear-tree-park", "garden"),
+    ("bear-tree-park", "bear-play-zone"),
 }
 FOOD_SOURCE_PREVIEW_HOSTS = {
     "www.diningcode.com",
@@ -645,7 +653,7 @@ def portal_positions():
         return wiz.response.status(400, message="포탈 위치 값이 올바르지 않아요.")
     key = (position.get("mapId"), position.get("destination"))
     x, z = position.get("x"), position.get("z")
-    if key[0] in FROZEN_WORLD_PORTAL_MAPS:
+    if key[0] in FROZEN_WORLD_PORTAL_MAPS or key in CANONICAL_WORLD_PORTAL_KEYS:
         return wiz.response.status(403, message="현재 맵의 포탈 위치는 고정되어 있어요.")
     if (
         key not in WORLD_PORTAL_KEYS
@@ -1361,7 +1369,7 @@ def personal_farm_progress():
             "metadata": {str(key)[:40]: str(value)[:300] for key, value in metadata.items()},
         })
     else:
-        return _personal_farm_error(400, "INVALID_ACTION", "지원하지 않는 개인 팜 작업입니다.")
+        return _personal_farm_error(400, "INVALID_ACTION", "지원하지 않는 마이홈 작업입니다.")
 
     progress = _save_personal_farm(db, user_id, progress, record)
     return wiz.response.status(200, progress=progress)

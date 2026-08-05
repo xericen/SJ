@@ -7,9 +7,8 @@ import type { UserProfile } from '../types';
 import { LakeParkExperiences } from '../components/LakeParkExperiences';
 import { GreenhouseExperience } from '../components/GreenhouseExperience';
 import { NatureDiscoveryGuide } from '../components/NatureDiscoveryGuide';
-import { BearHabitatDesignExperience } from '../components/BearHabitatDesignExperience';
 import { BEAR_PLAY_ZONE_RENDERER_OPTIONS,BEAR_TREE_PARK_RENDERER_OPTIONS,CAMPUS_RENDERER_OPTIONS,CLUB_STREET_FESTIVAL_RENDERER_OPTIONS,FESTIVAL_EXPERIENCE_RENDERER_OPTIONS,FOOD_EXPERIENCE_RENDERER_OPTIONS,GARDEN_RENDERER_OPTIONS,GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS,GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS,GOVERNMENT_RENDERER_OPTIONS,LAKE_PARK_RENDERER_OPTIONS,LAKE_PARK_SPAWN,PERSONAL_FARM_RENDERER_OPTIONS,preloadBearTreeParkDownload,PROJECT_ROOM_RENDERER_OPTIONS,RECRUITMENT_CENTER_RENDERER_OPTIONS,SEJONG_ARTS_CENTER_RENDERER_OPTIONS,SEJONG_SMART_CITY_RENDERER_OPTIONS,STUDENT_HALL_RENDERER_OPTIONS,VillageMapRenderer,WORLD_RENDERER_LAYOUT_TOKEN } from './renderers/VillageMapRenderer';
-import type { CampusFeaturePortalId,CampusFeaturePortalPosition,MapId,PortalPosition,PortalSaveResult,RespawnPosition } from '../../shared/socket-events';
+import type { MapId,PortalPosition,PortalSaveResult,RespawnPosition } from '../../shared/socket-events';
 import { buildExperienceRecommendationProfile,recordMapExperience } from '../services/experienceRecommendationProfile';
 import type { GameReturnState } from './gameReturnState';
 import { getSharedRespawnPosition } from '../services/respawnPosition';
@@ -17,10 +16,11 @@ import {ExperienceHarnessCollector,hydrateGeneratedExperienceProfile,setActiveEx
 import {loadSharedWorldPortalState,saveSharedWorldPortalPosition} from '../services/worldPortalPositions';
 import {PersonalFarmProgressExperience} from '../components/PersonalFarmProgressExperience';
 import {PERSONAL_FARM_PROGRESS_CHANGED,refreshPersonalFarmProgress,setPersonalFarmProgressUser} from '../services/personalFarmApi';
+import {applyUnifiedWorldCamera,usesUnifiedWorldNavigation} from './worldNavigationProfile';
 
 const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;description:string;tasks:string[]}>>={
-  'bear-play-zone':{place:'AI 탐험 연구소',title:'AI 곰 체험소로 이동 중...',description:'곰 행동을 관찰하고 AI 생태 연구를 체험해요.',tasks:['AI 연구소 입구 확인','곰 관찰 구역 불러오기','연구 안내판 배치','AI 생태 체험 연결','베어트리파크 귀환 포털 연결']},
-  'personal-farm':{place:'개인 팜',title:'개인 팜으로 이동 중...',description:'아늑한 집과 작은 마당을 준비하고 있어요.',tasks:['개인 팜 입구 확인','집과 마당 불러오기','캐릭터 배치','꽃밭과 보상 확인','포털 연결']},
+  'bear-play-zone':{place:'곰 체험소',title:'곰 체험소로 이동 중...',description:'곰 체험소 공간을 자유롭게 둘러볼 수 있도록 준비하고 있어요.',tasks:['곰 체험소 입구 확인','체험소 공간 불러오기','캐릭터 배치','곰 조형물 배치','베어트리파크 귀환 포털 연결']},
+  'personal-farm':{place:'마이홈',title:'마이홈으로 이동 중...',description:'아늑한 집과 작은 마당을 준비하고 있어요.',tasks:['마이홈 입구 확인','집과 마당 불러오기','캐릭터 배치','꽃밭과 보상 확인','포털 연결']},
   'recruitment-center':{place:'모집센터',title:'모집센터로 이동 중...',description:'함께할 사람과 활동을 찾는 모집 공간을 준비하고 있어요.',tasks:['모집센터 입구 확인','모집센터 GLB 불러오기','캐릭터 배치','안내 데스크 동선 연결','공동 캠퍼스 귀환 포털 연결']},
   town:{place:'세종호수공원',title:'세종호수공원으로 이동중...',description:'호수 산책로와 다양한 취향 체험을 준비하고 있어요.',tasks:['입장 위치 확인','호수공원 산책로 불러오기','캐릭터 배치','축제·공연 체험 연결','주변 사용자 연결']},
   'arts-center':{place:'세종예술의전당',title:'세종예술의전당으로 이동중...',description:'밝은 예술 로비와 공연장을 준비하고 있어요.',tasks:['예술의전당 포털 확인','공연장 GLB 불러오기','캐릭터 배치','공연장 동선 연결','호수공원 귀환 포털 연결']},
@@ -43,7 +43,11 @@ const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;descripti
   'college-street':{place:'대학로',title:'대학로로 이동중...',description:'청년 문화와 개성 있는 가게가 모인 거리를 준비하고 있어요.',tasks:['거리 입구 확인','대학로 상점 불러오기','캐릭터 배치','문화·상점 정보 연결','주변 사용자 연결']},
 };
 
-const rendererOptionsFor=(mapId:MapId)=>mapId==='personal-farm'?PERSONAL_FARM_RENDERER_OPTIONS:mapId==='arts-center'?SEJONG_ARTS_CENTER_RENDERER_OPTIONS:mapId==='festival-experience'?FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:mapId==='food-experience'?FOOD_EXPERIENCE_RENDERER_OPTIONS:mapId==='club-street-festival'?CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:mapId==='town'?LAKE_PARK_RENDERER_OPTIONS:mapId==='bear-tree-park'?BEAR_TREE_PARK_RENDERER_OPTIONS:mapId==='bear-play-zone'?BEAR_PLAY_ZONE_RENDERER_OPTIONS:mapId==='garden'?GARDEN_RENDERER_OPTIONS:mapId==='campus'?CAMPUS_RENDERER_OPTIONS:mapId==='student-hall'?STUDENT_HALL_RENDERER_OPTIONS:mapId==='recruitment-center'?RECRUITMENT_CENTER_RENDERER_OPTIONS:mapId==='project-room'?PROJECT_ROOM_RENDERER_OPTIONS:mapId==='government'?GOVERNMENT_RENDERER_OPTIONS:mapId==='government-central-plaza'?GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:mapId==='government-observatory'?GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:mapId==='sejong-smart-city'?SEJONG_SMART_CITY_RENDERER_OPTIONS:undefined;
+const authoredRendererOptionsFor=(mapId:MapId)=>mapId==='personal-farm'?PERSONAL_FARM_RENDERER_OPTIONS:mapId==='arts-center'?SEJONG_ARTS_CENTER_RENDERER_OPTIONS:mapId==='festival-experience'?FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:mapId==='food-experience'?FOOD_EXPERIENCE_RENDERER_OPTIONS:mapId==='club-street-festival'?CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:mapId==='town'?LAKE_PARK_RENDERER_OPTIONS:mapId==='bear-tree-park'?BEAR_TREE_PARK_RENDERER_OPTIONS:mapId==='bear-play-zone'?BEAR_PLAY_ZONE_RENDERER_OPTIONS:mapId==='garden'?GARDEN_RENDERER_OPTIONS:mapId==='campus'?CAMPUS_RENDERER_OPTIONS:mapId==='student-hall'?STUDENT_HALL_RENDERER_OPTIONS:mapId==='recruitment-center'?RECRUITMENT_CENTER_RENDERER_OPTIONS:mapId==='project-room'?PROJECT_ROOM_RENDERER_OPTIONS:mapId==='government'?GOVERNMENT_RENDERER_OPTIONS:mapId==='government-central-plaza'?GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:mapId==='government-observatory'?GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:mapId==='sejong-smart-city'?SEJONG_SMART_CITY_RENDERER_OPTIONS:undefined;
+const rendererOptionsFor=(mapId:MapId)=>{
+  const options=authoredRendererOptionsFor(mapId);
+  return options&&usesUnifiedWorldNavigation(mapId)?applyUnifiedWorldCamera(options):options;
+};
 
 export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnly=false,previewDragRotate=false,authenticated=Boolean(localStorage.getItem('jochiwon-kakao-user-id')?.trim())}:{profile:UserProfile;returnState?:GameReturnState;previewOnly?:boolean;previewDragRotate?:boolean;authenticated?:boolean}){
   if(!previewOnly){setActiveExperienceUser(profile.nickname);setPersonalFarmProgressUser(profile.nickname)}
@@ -85,7 +89,6 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     const previewOptions={hideCharacters:true,previewNavigation:true,previewDragRotate,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
     const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,mapId:initialMapId,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
-    let latestCampusFeaturePortals:CampusFeaturePortalPosition[]=[];
     let latestPortalPositions:PortalPosition[]=[],activeMapId=initialMapId;
     const ensureWorldRenderer=(mapId:MapId)=>{
       const existing=worldRenderers[mapId];if(existing)return existing;
@@ -93,7 +96,6 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       if(!options)return;
       const renderer=new VillageMapRenderer(ref.current!,profile,{...options,mapId,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
       latestPortalPositions.filter(position=>position.mapId===mapId).forEach(position=>renderer.setPortalPosition(position));
-      if(mapId==='campus')latestCampusFeaturePortals.forEach(position=>renderer.setCampusFeaturePortalPosition(position));
       return renderer;
     };
     const showMapTravelLoading=(mapId:MapId)=>{
@@ -125,10 +127,6 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       preloadIdleHandles.push(window.requestIdleCallback(preloadNextMap,{timeout:1800}));
     }).catch(error=>{if(!cancelled)setLoadError(error instanceof Error?error.message:String(error))});
     const syncWorldClock=(serverNow:number)=>Object.values(worldRenderers).forEach(renderer=>renderer?.setWorldClock(serverNow));
-    const syncCampusFeaturePortals=(positions:CampusFeaturePortalPosition[])=>{
-      latestCampusFeaturePortals=positions;
-      positions.forEach(position=>worldRenderers.campus?.setCampusFeaturePortalPosition(position));
-    };
     const syncPortalPositions=(positions:PortalPosition[])=>{
       latestPortalPositions=positions;
       positions.forEach(position=>worldRenderers[position.mapId]?.setPortalPosition(position));
@@ -141,13 +139,6 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
         gameEvents.emit('portal-position-save-result',result);
         socket.emit('savePortalPosition',position,()=>undefined);
       }).catch(error=>gameEvents.emit('portal-position-save-result',{ok:false,message:error instanceof Error?error.message:'포탈 위치를 저장하지 못했어요.'}));
-    };
-    const placeCampusFeaturePortal=(portal:CampusFeaturePortalId)=>{
-      const renderer=worldRenderers.campus;
-      if(!renderer)return;
-      const position={portal,...renderer.getLocalPosition()};
-      renderer.setCampusFeaturePortalPosition(position);
-      socket.emit('saveCampusFeaturePortalPosition',position);
     };
     const recommendationProfile=()=>{
       const recommendation=buildExperienceRecommendationProfile(profile);
@@ -176,17 +167,13 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     };
     let sharedPortalTimer=0;
     const refreshSharedPortals=()=>{void loadSharedWorldPortalState().then(({positions})=>{if(!cancelled&&positions.length)syncPortalPositions(positions)}).catch(()=>undefined)};
-    if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('portalPositionsUpdated',syncPortalPositions);socket.on('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals);refreshSharedPortals();sharedPortalTimer=window.setInterval(refreshSharedPortals,2500)}
+    if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('portalPositionsUpdated',syncPortalPositions);refreshSharedPortals();sharedPortalTimer=window.setInterval(refreshSharedPortals,2500)}
     gameEvents.on('world-portal-place-at-player',placeWorldPortal);
-    gameEvents.on('campus-feature-portal-place-at-player',placeCampusFeaturePortal);
     if(!previewOnly){
       socket.once('currentMapUsers',enrich);
       window.addEventListener('sejong-lake-interest-updated',experienceChanged);
       window.addEventListener('sejong-experience-profile-updated',experienceChanged);
       gameEvents.on('greenhouse-progress-changed',experienceChanged);
-      gameEvents.on('bear-wildlife-progress-changed',experienceChanged);
-      gameEvents.on('bear-travel-style-changed',experienceChanged);
-      gameEvents.on('bear-habitat-decision-changed',experienceChanged);
     }
     gameEvents.on('map-travel-complete',mapExperienceChanged);
     const game=new Phaser.Game({type:Phaser.CANVAS,parent:ref.current,width:1100,height:700,transparent:true,backgroundColor:'rgba(0,0,0,0)',render:{antialias:false,roundPixels:true},dom:{createContainer:true},physics:{default:'arcade'},scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH}});
@@ -200,16 +187,11 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       preloadIdleHandles.forEach(handle=>window.cancelIdleCallback(handle));
       socket.off('worldClock',syncWorldClock);
       socket.off('portalPositionsUpdated',syncPortalPositions);
-      socket.off('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals);
-      gameEvents.off('campus-feature-portal-place-at-player',placeCampusFeaturePortal);
       gameEvents.off('world-portal-place-at-player',placeWorldPortal);
       socket.off('currentMapUsers',enrich);
       window.removeEventListener('sejong-lake-interest-updated',experienceChanged);
       window.removeEventListener('sejong-experience-profile-updated',experienceChanged);
       gameEvents.off('greenhouse-progress-changed',experienceChanged);
-      gameEvents.off('bear-wildlife-progress-changed',experienceChanged);
-      gameEvents.off('bear-travel-style-changed',experienceChanged);
-      gameEvents.off('bear-habitat-decision-changed',experienceChanged);
       gameEvents.off('map-travel-complete',mapExperienceChanged);
       gameEvents.off('map-travel-started',showMapTravelLoading);
       gameEvents.off('map-travel-complete',hideMapTravelLoading);
@@ -221,5 +203,5 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     };
   },[profile,entrySpawn,returnState,previewOnly,previewDragRotate,authenticated,WORLD_RENDERER_LAYOUT_TOKEN]);
   const loadingTasks=previewOnly?['입장 위치 확인',`${loadingCopy.place} GLB 불러오기`,'맵 둘러보기 카메라 준비']:loadingCopy.tasks;
-  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span>{previewOnly?'🗺️':'🧑🏻‍🌾'}</span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><BearHabitatDesignExperience userKey={profile.nickname} mapId={loadingMapId}/><GreenhouseExperience userKey={profile.nickname}/><PersonalFarmProgressExperience authenticated={authenticated} userKey={profile.nickname} mapId={loadingMapId}/></>}</>;
+  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span>{previewOnly?'🗺️':'🧑🏻‍🌾'}</span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><GreenhouseExperience userKey={profile.nickname}/><PersonalFarmProgressExperience authenticated={authenticated} userKey={profile.nickname} mapId={loadingMapId}/></>}</>;
 });

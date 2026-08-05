@@ -15,7 +15,7 @@ const errorMessages:Record<string,string>={
 };
 
 export class PersonalFarmApiError extends Error {
-  constructor(readonly code:string,message?:string,readonly status=0){super(errorMessages[code]??message??'개인 팜 정보를 처리하지 못했습니다. 다시 시도해 주세요.')}
+  constructor(readonly code:string,message?:string,readonly status=0){super(errorMessages[code]??message??'마이홈 정보를 처리하지 못했습니다. 다시 시도해 주세요.')}
 }
 
 let cachedProgress:PersonalFarmProgressDto|undefined;

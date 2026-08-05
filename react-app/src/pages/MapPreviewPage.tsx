@@ -14,7 +14,7 @@ const mapNames:Partial<Record<MapId,string>>={
   'food-experience':'먹거리 부스',
   'club-street-festival':'동아리 거리제',
   'bear-tree-park':'베어트리파크',
-  'bear-play-zone':'AI 탐험 연구소',
+  'bear-play-zone':'곰 체험소',
   garden:'국립세종수목원',
   campus:'공동캠퍼스',
   'student-hall':'학생회관',

@@ -5,9 +5,10 @@ import { directionFromMovement,directionYaw,jumpInputBlocked,motionState,movemen
 import { BEAR_PLAY_ZONE_SPAWN,BEAR_TREE_PARK_SPAWN,CAMPUS_SPAWN,GARDEN_SPAWN,GOVERNMENT_CENTRAL_PLAZA_SPAWN,GOVERNMENT_OBSERVATORY_SPAWN,GOVERNMENT_SPAWN,LAKE_PARK_SPAWN,PROJECT_ROOM_SPAWN,PROJECT_ROOM_WORLD_HEIGHT,PROJECT_ROOM_WORLD_WIDTH,RECRUITMENT_CENTER_SPAWN,RECRUITMENT_CENTER_WORLD_HEIGHT,SEJONG_SMART_CITY_SPAWN,SEJONG_SMART_CITY_WORLD_HEIGHT,STUDENT_HALL_SPAWN,type VillageMapRenderer } from '../renderers/VillageMapRenderer';
 import type { GameReturnState } from '../gameReturnState';
 import { saveLocalPlayerResumeState } from '../playerResumeState';
+import { worldPortalArrivalOverride } from '../worldPortalArrivals';
 interface Remote { avatar:AvatarContainer; targetX:number; targetY:number; targetYaw:number; state:PlayerState;lastAnimationAt:number }
 interface SceneData {profile:UserProfile;mapId?:MapId;worldRenderers?:Partial<Record<MapId,VillageMapRenderer>>;ensureWorldRenderer?:(mapId:MapId)=>VillageMapRenderer|undefined;initialSpawn?:{x:number;z:number;yaw:number};previewOnly?:boolean}
-const labels:Record<MapId,string>={'personal-farm':'개인 팜',town:'세종호수공원','arts-center':'세종예술의전당','festival-experience':'축제 부스','food-experience':'먹거리 부스','club-street-festival':'동아리 거리제','bear-tree-park':'베어트리파크','bear-play-zone':'AI 탐험 연구소',garden:'수목원',campus:'공동캠퍼스','student-hall':'학생회관','recruitment-center':'모집센터','project-room':'프로젝트실',government:'정부청사','government-central-plaza':'중앙광장','government-policy-hall':'정책 체험관','government-observatory':'전망대','sejong-smart-city':'세종 스마트시티 국가시범도시','jochwon-station':'조치원역','traditional-market':'세종전통시장','jochwon-park':'조치원공원','college-street':'대학로'};
+const labels:Record<MapId,string>={'personal-farm':'마이홈',town:'세종호수공원','arts-center':'세종예술의전당','festival-experience':'축제 부스','food-experience':'먹거리 부스','club-street-festival':'동아리 거리제','bear-tree-park':'베어트리파크','bear-play-zone':'곰 체험소',garden:'수목원',campus:'공동캠퍼스','student-hall':'학생회관','recruitment-center':'모집센터','project-room':'프로젝트실',government:'정부청사','government-central-plaza':'중앙광장','government-policy-hall':'정책 체험관','government-observatory':'전망대','sejong-smart-city':'세종 스마트시티 국가시범도시','jochwon-station':'조치원역','traditional-market':'세종전통시장','jochwon-park':'조치원공원','college-street':'대학로'};
 const MAIN={width:2400,height:1900};const DETAIL={width:1600,height:1100};
 const PROJECT_ROOM_SIZE={width:PROJECT_ROOM_WORLD_WIDTH,height:PROJECT_ROOM_WORLD_HEIGHT};
 const RECRUITMENT_CENTER_SIZE={width:MAIN.width,height:RECRUITMENT_CENTER_WORLD_HEIGHT};
@@ -66,10 +67,11 @@ export class WorldScene extends Phaser.Scene{
    const minimumTransition=new Promise<void>(resolve=>this.time.delayedCall(320,resolve));
    await Promise.all([renderer?.ready??Promise.resolve(),minimumTransition]);
    if(!this.scene.isActive())return;
+   const routeArrival=worldPortalArrivalOverride(sourceMapId,mapId);
    const arrivalSpawn=renderer
-    ?renderer.arrivalSpawnFrom(sourceMapId)
+    ?renderer.arrivalSpawnFrom(sourceMapId,routeArrival)
     // Illustrated detail maps use the bottom exit as their return portal.
-    :{x:800,z:860,yaw:Math.PI};
+    :routeArrival??{x:800,z:860,yaw:Math.PI};
    this.scene.restart({profile:this.profile,mapId,worldRenderers:this.worldRenderers,ensureWorldRenderer:this.ensureWorldRenderer,initialSpawn:arrivalSpawn,previewOnly:this.previewOnly});
   }catch(error){
    this.transitioning=false;this.cameras.main.fadeIn(120,22,43,40);

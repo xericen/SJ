@@ -196,7 +196,7 @@ export function BearHabitatDesignExperience({userKey,mapId}:{userKey:string;mapI
 
   return <div className="habitat-design-ui">
     <aside className="habitat-design-status">
-      <Compass size={16}/><div><small>AI 탐험 연구소 · 두 곰의 서식 환경 설계</small><b>{phase}</b><span>현장 조사 {totalDone}/5</span></div>
+      <Compass size={16}/><div><small>곰 체험소 · 두 곰의 서식 환경 설계</small><b>{phase}</b><span>현장 조사 {totalDone}/5</span></div>
       {progress.result&&<button type="button" onClick={()=>setResultOpen(true)}>결과 보기</button>}
     </aside>
 
@@ -248,7 +248,7 @@ export function BearHabitatDesignExperience({userKey,mapId}:{userKey:string;mapI
 
     {resultOpen&&progress.result&&<section className="habitat-design-overlay"><div className="habitat-design-modal habitat-result">
       <button className="habitat-close" onClick={()=>setResultOpen(false)} aria-label="닫기"><X size={18}/></button>
-      <i><Sparkles size={30}/></i><small>AI 탐험 연구소 · 의사결정 프로필</small><h2>{progress.result.title}</h2>
+      <i><Sparkles size={30}/></i><small>곰 체험소 · 의사결정 프로필</small><h2>{progress.result.title}</h2>
       <section className="habitat-criteria"><b>주요 판단 기준</b><div>{progress.result.criteria.map(item=><span key={item.id}><em>{item.label}</em><strong>{item.score}%</strong><i><b style={{width:`${item.score}%`}}/></i></span>)}</div></section>
       <dl><dt>설계 과정</dt><dd>{progress.result.response}</dd><dt>코스 구성 방식</dt><dd>{progress.result.courseStrategy}</dd></dl>
       <p className="habitat-map-copy"><b>맵 배치 분석</b>{progress.result.mapAnalysis}</p>

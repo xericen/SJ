@@ -36,7 +36,7 @@ export class RoomStore {
  migrateBearTreePortalPositions(_value:BearTreePortalPositions){return false}
  allPortalPositions(){return [...this.portalPositions.values()]}
  setPortalPosition(position:PortalPosition){
-  if(position?.mapId==='arts-center')return false;
+  if(position?.mapId==='arts-center'||position?.mapId==='festival-experience')return false;
   const key=worldPortalKey(position),existing=this.portalPositions.get(key);
   if(!existing||!Number.isFinite(position?.x)||!Number.isFinite(position?.z)||position.x<0||position.x>4800||position.z<0||position.z>2600)return false;
   this.portalPositions.set(key,{mapId:existing.mapId,destination:existing.destination,x:Math.round(position.x),z:Math.round(position.z)});return true;

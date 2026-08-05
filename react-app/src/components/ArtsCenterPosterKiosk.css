@@ -39,6 +39,7 @@
   display:block;
   user-select:none;
   -webkit-user-drag:none;
+  pointer-events:none;
 }
 
 .arts-center-poster-close{
@@ -65,43 +66,95 @@
 }
 
 .arts-center-poster-watch,
-.arts-center-poster-favorite{
+.arts-center-poster-favorite,
+.arts-center-poster-detail{
   position:absolute;
   z-index:2;
   left:6.111%;
   width:87.778%;
-  height:4.815%;
+  height:3.519%;
   box-sizing:border-box;
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:1.1cqw;
+  gap:1cqw;
   border:0.278cqw solid #cbd8d4;
-  border-radius:2.222cqw;
+  border-radius:1.944cqw;
   background:#f8fbfa;
   color:#54746b;
-  font-size:2.778cqw;
+  font-size:2.5cqw;
   font-weight:900;
   pointer-events:auto;
+  touch-action:manipulation;
   cursor:pointer;
 }
 
-.arts-center-poster-watch{top:87.963%}
-.arts-center-poster-favorite{top:93.889%}
+.arts-center-poster-watch{top:86.111%}
+.arts-center-poster-favorite{top:90.37%}
+.arts-center-poster-detail{top:94.63%}
 
 .arts-center-poster-watch svg,
-.arts-center-poster-favorite svg{
-  width:2.917cqw;
-  height:2.917cqw;
+.arts-center-poster-favorite svg,
+.arts-center-poster-detail svg{
+  width:2.5cqw;
+  height:2.5cqw;
 }
 
 .arts-center-poster-watch:hover,
 .arts-center-poster-favorite:hover,
+.arts-center-poster-detail:hover,
 .arts-center-poster-favorite[aria-pressed="true"]{
   border-color:#7cae9f;
   background:#eef8f5;
   color:#276d5c;
 }
+
+.arts-center-poster-web-detail{
+  position:absolute;
+  z-index:5;
+  inset:0;
+  display:grid;
+  grid-template-rows:46px minmax(0,1fr);
+  overflow:hidden;
+  border-radius:3px;
+  background:#fff;
+  pointer-events:auto;
+}
+
+.arts-center-poster-web-detail>header{
+  min-width:0;
+  padding:0 9px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:7px;
+  border-bottom:1px solid #dbe7e2;
+  background:#f5faf8;
+  color:#31594e;
+}
+
+.arts-center-poster-web-detail>header button,
+.arts-center-poster-web-detail>header a{
+  height:30px;
+  padding:0 9px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  border:1px solid #d1e0db;
+  border-radius:8px;
+  background:#fff;
+  color:#456c61;
+  font-size:10px;
+  font-weight:900;
+  text-decoration:none;
+  cursor:pointer;
+}
+
+.arts-center-poster-web-detail>header svg{width:14px;height:14px}
+.arts-center-poster-web-detail>header strong{overflow:hidden;font-size:11px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
+.arts-center-poster-web-detail>header .arts-center-web-detail-close{width:30px;padding:0;border-radius:50%}
+.arts-center-poster-web-detail>iframe{width:100%;height:100%;border:0;background:#fff}
 
 @keyframes arts-center-html-poster-in{
   from{opacity:0}

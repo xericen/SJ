@@ -133,38 +133,24 @@ authRouter.get('/kakao', (req, res) => {
   res.redirect(url);
 });
 
-authRouter.get('/demo', async (_req, res) => {
-  if (env.NODE_ENV === 'production') {
-    return res.status(404).json({
-      message: '체험용 로그인은 개발 환경에서만 사용할 수 있습니다.',
-    });
-  }
+authRouter.get('/demo', (_req, res) => {
+  res.clearCookie('jochwon_session', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.NODE_ENV === 'production',
+  });
+  const redirectUrl = new URL(env.CLIENT_ORIGIN);
+  redirectUrl.searchParams.set('login', 'local');
+  return res.redirect(redirectUrl.toString());
+});
 
-  try {
-    const savedUser = await UserModel.findOneAndUpdate(
-      { kakaoId: 'demo-local-user' },
-      {
-        $set: {
-          nickname: '체험 탐험가',
-          profileImage: '',
-          authProvider: 'demo',
-          lastLoginAt: new Date(),
-        },
-      },
-      {
-        returnDocument: 'after',
-        upsert: true,
-      },
-    );
-
-    return redirectLoggedInUser(res, savedUser);
-  } catch (error) {
-    console.error('[Auth] 체험용 로그인 실패:', error);
-
-    return res.status(500).json({
-      message: '체험용 로그인을 시작하지 못했습니다.',
-    });
-  }
+authRouter.post('/logout', (_req, res) => {
+  res.clearCookie('jochwon_session', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.NODE_ENV === 'production',
+  });
+  return res.json({ success: true });
 });
 
 authRouter.get('/kakao/callback', async (req, res) => {

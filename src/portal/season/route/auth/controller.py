@@ -133,52 +133,9 @@ def _kakao_start():
 
 
 def _demo_login():
-    demo_token = wiz.session.get("demo_user_token", "")
-    if not isinstance(demo_token, str) or not re.match(r"^[a-f0-9]{24}$", demo_token):
-        demo_token = secrets.token_hex(12)
-
-    email = f"demo-{demo_token}@experience.local"
-    nickname = "체험 탐험가"
-    user = None
-    error_message = ""
-
-    try:
-        struct = wiz.model("struct")
-        user = struct.user.db.get(email=email)
-        if user is None:
-            user_id = struct.user.create({
-                "email": email,
-                "password": secrets.token_urlsafe(32),
-                "name": nickname,
-                "role": "user",
-            })
-            user = struct.user.get(user_id)
-        if user is None:
-            raise ValueError("failed to create demo user")
-        user.pop("password", None)
-    except Exception:
-        error_message = (
-            "체험 계정을 준비하지 못했습니다. "
-            "잠시 후 다시 시도해 주세요."
-        )
-
-    if error_message:
-        return _client_redirect("error", message=error_message)
-
-    wiz.session.set(
-        id=user["id"],
-        email=user["email"],
-        name=user["name"],
-        role=user["role"],
-        demo_user_token=demo_token,
-    )
-    return _client_redirect(
-        "success",
-        userId=str(user["id"]),
-        nickname=user.get("name") or nickname,
-        profileImage="",
-    )
-
+    # Local experience mode is intentionally anonymous and never creates a DB user.
+    wiz.session.clear()
+    return _client_redirect("local")
 
 app_asset = wiz.request.match(
     f"{BASEURI}/jochwon-assets/<path:path>"

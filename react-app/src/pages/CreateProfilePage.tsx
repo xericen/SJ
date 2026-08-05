@@ -154,7 +154,7 @@ function profileForSave(profile:UserProfile):UserProfile{
   };
 }
 
-export function CreateProfilePage({initial,initialStep=1,editMode=false,cancelLabel='메인 이동',onCancel,onLogout,onWithdraw,onProgress,onComplete}: {initial:UserProfile;initialStep?:1|2;editMode?:boolean;cancelLabel?:string;onCancel?:()=>void;onLogout?:()=>void;onWithdraw?:()=>void;onProgress?:(step:1|2,p:UserProfile)=>void;onComplete:(p:UserProfile)=>void}) {
+export function CreateProfilePage({initial,initialStep=1,editMode=false,experienceMode='social',cancelLabel='메인 이동',onCancel,onLogout,onWithdraw,onProgress,onComplete}: {initial:UserProfile;initialStep?:1|2;editMode?:boolean;experienceMode?:'local'|'social';cancelLabel?:string;onCancel?:()=>void;onLogout?:()=>void;onWithdraw?:()=>void;onProgress?:(step:1|2,p:UserProfile)=>void;onComplete:(p:UserProfile)=>void}) {
   const [p, setP] = useState<UserProfile>(() => {
     const model=initial.model === 'chungnyeong'||initial.model === 'custom'?'girl1':initial.model;
     return {...initial,model,character:normalizeCharacterForModel(model,initial.character)};
@@ -211,8 +211,8 @@ export function CreateProfilePage({initial,initialStep=1,editMode=false,cancelLa
         {!editMode&&onCancel&&<button type="button" className="onboarding-home-button" onClick={onCancel}>홈으로</button>}
         <header className="profile-design-heading">
           <span className="profile-design-sparkle" aria-hidden="true">✧</span>
-          <div><h1>{editMode?'회원 정보 변경':'세종에서 만날 나를 소개해 주세요'}</h1><p>{editMode?'프로필 정보를 확인하고 변경해보세요':'간단한 기본 정보를 알려주시면 세종에서의 만남과 체험을 더 편하게 시작할 수 있어요.'}</p></div>
-          {editMode?<div className="profile-design-header-actions"><button type="button" className="profile-design-withdraw" onClick={()=>{if(window.confirm('세종한바퀴에서 탈퇴할까요? 저장된 프로필과 체험 기록이 삭제됩니다.'))onWithdraw?.()}}>탈퇴</button><button type="button" className="profile-design-logout" onClick={onLogout}>로그아웃</button><button type="button" className="profile-design-close" onClick={onCancel}>{cancelLabel}</button></div>:<span className="profile-design-step">캐릭터 설정 · 1/2</span>}
+          <div><h1>{editMode?(experienceMode==='local'?'체험 정보 변경':'회원 정보 변경'):'세종에서 만날 나를 소개해 주세요'}</h1><p>{editMode?(experienceMode==='local'?'현재 웹에서 사용할 프로필과 캐릭터를 변경해보세요':'프로필 정보를 확인하고 변경해보세요'):'간단한 기본 정보를 알려주시면 세종에서의 만남과 체험을 더 편하게 시작할 수 있어요.'}</p></div>
+          {editMode?<div className="profile-design-header-actions">{experienceMode==='social'&&<button type="button" className="profile-design-withdraw" onClick={()=>{if(window.confirm('세종한바퀴에서 탈퇴할까요? 저장된 프로필과 체험 기록이 삭제됩니다.'))onWithdraw?.()}}>탈퇴</button>}<button type="button" className="profile-design-logout" onClick={onLogout}>{experienceMode==='local'?'체험 종료':'로그아웃'}</button><button type="button" className="profile-design-close" onClick={onCancel}>{cancelLabel}</button></div>:<span className="profile-design-step">캐릭터 설정 · 1/2</span>}
         </header>
 
         <div className="profile-design-content">
@@ -265,7 +265,7 @@ export function CreateProfilePage({initial,initialStep=1,editMode=false,cancelLa
           </div>
         </div>
 
-        <footer className="profile-design-actions"><span>{editMode?'변경 내용은 완료 버튼을 누르면 저장돼요':'다음 단계에서 메타버스 캐릭터를 선택해요'}</span><button type="button" disabled={!canContinue} onClick={()=>setStep(2)}>{editMode?'캐릭터 설정 확인':'캐릭터 선택하기'} <b>→</b></button></footer>
+        <footer className="profile-design-actions"><span>{editMode?(experienceMode==='local'?'변경 내용은 현재 웹을 나갈 때까지 유지돼요':'변경 내용은 완료 버튼을 누르면 저장돼요'):'다음 단계에서 메타버스 캐릭터를 선택해요'}</span><button type="button" disabled={!canContinue} onClick={()=>setStep(2)}>{editMode?'캐릭터 설정 확인':'캐릭터 선택하기'} <b>→</b></button></footer>
       </section>
     </main>
   );

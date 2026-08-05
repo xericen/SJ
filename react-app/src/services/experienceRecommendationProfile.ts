@@ -5,7 +5,7 @@ import { analyzeNatureTaste,dominantEmotion,parseGreenhouseProgress } from './gr
 import { loadBearProgress } from '../data/bear-wildlife';
 import { loadBearHabitatProgress } from './bearHabitatDecision';
 import { buildAiSejongProfile } from './aiSejongProfile';
-import {loadGeneratedExperienceProfile} from './experienceHarness';
+import {loadExperienceProfileFragments,loadFestivalKeywordInsights,loadGeneratedExperienceProfile,loadSavedExperienceInterests,type GeneratedExperienceProfile} from './experienceHarness';
 import {recordProfileVisit} from './profileProgress';
 import {loadCampusProfileSignals} from './campusProfileSignals';
 
@@ -66,6 +66,7 @@ const mapRecords:Partial<Record<MapId,{record:string;categories:string[]}>>={
 
 const unique=(values:string[])=>[...new Set(values.filter(Boolean))];
 const mapKey=(nickname:string)=>`${MAP_RECORD_PREFIX}${nickname.trim().toLowerCase()||'guest'}`;
+const analysisLabel=(profile:Pick<GeneratedExperienceProfile,'source'>)=>profile.source==='sejong_food_trucks'?'AI 먹거리 취향':profile.source==='sejong_festival_booth'?'AI 축제 취향':profile.source==='sejong_arts_center'?'AI 공연 취향':'AI 체험 취향';
 
 export function recordMapExperience(nickname:string,mapId:MapId){
   recordProfileVisit(nickname,mapId);
@@ -128,7 +129,11 @@ export function buildExperienceRecommendationProfile(profile:UserProfile):Public
   const preferredPlaceCategories=[...profile.preferredPlaceCategories];
   const aiSejongProfile=buildAiSejongProfile(profile);
   const generatedExperience=loadGeneratedExperienceProfile();
-  if(generatedExperience){experienceRecords.push(...generatedExperience.tags.map(tag=>`AI 공연 취향: ${tag}`),`AI 체험 분석: ${generatedExperience.summary}`);preferredPlaceCategories.push('문화시설')}
+  const profileFragments=loadExperienceProfileFragments(profile.nickname);
+  const savedInterests=loadSavedExperienceInterests(profile.nickname);
+  const festivalKeywords=loadFestivalKeywordInsights(profile.nickname);
+  if(generatedExperience){const label=analysisLabel(generatedExperience);experienceRecords.push(...generatedExperience.tags.map(tag=>`${label}: ${tag}`),`AI 체험 분석: ${generatedExperience.summary}`)}
+  profileFragments.forEach(fragment=>{const label=analysisLabel(fragment);experienceRecords.push(...fragment.tags.map(tag=>`${label}: ${tag}`),`${label} 분석: ${fragment.summary}`)});
   loadCampusProfileSignals(profile.nickname).slice(0,8).forEach(signal=>experienceRecords.push(`캠퍼스 성향: ${signal.keywords[0]??signal.title}`));
   try{
     const lake=JSON.parse(localStorage.getItem(LAKE_INTEREST_KEY)??'null') as {savedContentIds?:unknown;activities?:unknown;foodShopIds?:unknown;foodPlaceInterests?:unknown;foodInterests?:unknown;shopInterests?:unknown;festivalTheme?:unknown;likedCourseTitles?:unknown;tasteInsights?:unknown}|null;
@@ -192,11 +197,23 @@ export function buildExperienceRecommendationProfile(profile:UserProfile):Public
       if(definition){experienceRecords.push(record);preferredPlaceCategories.push(...definition.categories)}
     });
   }catch{/* Ignore malformed map records. */}
+  savedInterests.forEach(item=>{
+    experienceRecords.push(`${item.domain==='performance'?'관심 공연':item.domain==='food'?'저장한 음식점':'관심 축제'}: ${item.title}`);
+    preferredPlaceCategories.push(...item.placeCategories);
+  });
+  festivalKeywords.forEach(item=>experienceRecords.push(`축제 취향: ${item.keyword}`));
+  const inferredInterests=[
+    ...festivalKeywords.map(item=>item.keyword),
+    ...savedInterests.flatMap(item=>item.tags),
+    ...profileFragments.flatMap(fragment=>fragment.tags),
+    ...aiSejongProfile.interests.map(item=>item.label),
+    ...(generatedExperience?.tags??[]),
+  ];
   return {
     mbti:profile.mbti,
-    interests:unique([...profile.interests,...aiSejongProfile.interests.map(item=>item.label),...(generatedExperience?.tags??[])]).slice(0,10),
-    usagePurposes:unique(profile.usagePurposes).slice(0,10),
-    preferredPlaceCategories:unique(preferredPlaceCategories).slice(0,10),
-    experienceRecords:unique(experienceRecords).slice(-10),
+    interests:unique([...inferredInterests,...profile.interests]).slice(0,20),
+    usagePurposes:unique(profile.usagePurposes).slice(0,20),
+    preferredPlaceCategories:unique(preferredPlaceCategories).slice(0,20),
+    experienceRecords:unique(experienceRecords).slice(-20),
   };
 }

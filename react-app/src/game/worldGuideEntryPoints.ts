@@ -18,8 +18,8 @@ type PortalPoint={x:number;z:number};
 export const WORLD_GUIDE_PORTAL_POSITIONS:Record<GuideWorldMapId,PortalPoint>={
   town:{x:2122,z:944},
   'arts-center':{x:1000,z:780},
-  'festival-experience':{x:1200,z:1690},
-  'food-experience':{x:980,z:1810},
+  'festival-experience':{x:1211,z:440},
+  'food-experience':{x:1193,z:546},
   'club-street-festival':{x:1200,z:1580},
   'bear-tree-park':{x:980,z:1580},
   'bear-play-zone':{x:1200,z:1650},

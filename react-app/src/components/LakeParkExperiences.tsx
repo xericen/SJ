@@ -1,5 +1,5 @@
 import { useEffect,useMemo,useRef,useState } from 'react';
-import { Bookmark,Check,Heart,MapPin,Route,Sparkles,ThumbsUp,Users,X } from 'lucide-react';
+import { Bookmark,Check,Heart,Route,Sparkles,ThumbsUp,Users,X } from 'lucide-react';
 import type { LakeExperienceId,MapId,PlayerState } from '../../shared/socket-events';
 import { gameEvents } from '../game/events';
 import { socket } from '../game/systems/socketClient';
@@ -529,7 +529,6 @@ export function LakeParkExperiences(){
   if(!supportsExperienceWeb)return null;
   return <>
     {isFestivalExperience&&<>
-      <button type="button" className="portal-position-editor festival-portal-editor" onClick={()=>gameEvents.emit('primary-portal-place-at-player')}><span>🌀</span><div><small>포탈 위치 편집</small><b>현재 위치로 포탈 이동</b></div><MapPin size={16}/></button>
       <aside className="festival-experience-passport">
         <header><span>🎟️</span><div><small>축제 스탬프 여행권</small><b>{completedCount}/3개 부스 완료</b></div></header>
         <div>{([['공연장',festivalStamps.performance,'🎵'],['전통문화',festivalStamps.traditionalCulture,'🎭'],['예술 전시',festivalStamps.artExhibition,'🎨']] as const).map(([label,done,icon])=><span className={done?'done':''} key={label}><i>{done?'✓':icon}</i><small>{label}</small></span>)}</div>

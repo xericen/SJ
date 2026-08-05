@@ -46,8 +46,8 @@ import { ARTS_CENTER_PERFORMANCES,artsCenterPerformanceImageUrl,type ArtsCenterP
 import { SmartCityHologram,type SmartCityTechnologyId } from './SmartCityHologram';
 import { LAKE_PARK_PORTALS } from '../lakeParkPortals';
 import { isPortalChargePositionHeld,PortalTravelGate } from '../portalTravelGate';
-import { ARTS_CENTER_MAX_JUMP_STEP_HEIGHT,DEFAULT_MAX_STEP_HEIGHT,isGroundFootprintCoherent,JUMP_COLLISION_CLEARANCE,reachableStepHeight } from '../groundTraversal';
-import { clampCameraBehindLimit,SEJONG_SHARED_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
+import { ARTS_CENTER_CHARACTER_FOOT_LIFT,ARTS_CENTER_MAX_JUMP_STEP_HEIGHT,characterVisualY,DEFAULT_MAX_STEP_HEIGHT,isGroundFootprintCoherent,JUMP_COLLISION_CLEARANCE,reachableStepHeight } from '../groundTraversal';
+import { clampCameraBehindLimit,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
 
 const WORLD_WIDTH=2400;
 const WORLD_HEIGHT=1900;
@@ -134,8 +134,9 @@ export const CLUB_STREET_FESTIVAL_SPAWN:{x:number;z:number;yaw:number}={x:1200,z
 // Change these x/z values to move the lake-park return portal in the festival map.
 export const FESTIVAL_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['festival-experience'];
 export const FOOD_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['food-experience'];
+export const FESTIVAL_EXPERIENCE_CAMERA_DISTANCE=1020;
+const FOOD_EXPERIENCE_CAMERA_DOWN_LIMIT_Z=FOOD_LAKE_RETURN_PORTAL_POSITION.z;
 const LAKE_PARK_GUIDE={x:2045,z:1138,yaw:-.78} as const;
-const LAKE_WELCOME_SEEN_KEY='sejong-lake-tutorial-hidden-v2';
 const LAKE_GUIDE_INTRO_DURATION_MS=2600;
 const GUIDE_PATROL_POINTS=([
   [LAKE_PARK_GUIDE.x,LAKE_PARK_GUIDE.z],[2050,1150],[2000,1150],[2000,750],[1900,750],[1900,500],
@@ -186,7 +187,7 @@ type LocalNpcState={
   targetIndex:number;
   blockedSeconds:number;
 };
-type PortalConfig={x:number;z:number;destination:PortalPosition['destination'];label:string;appearance?:'standing'|'white-circle'|'energy-rift';fixedPosition?:boolean;theme?:'mint'|'blue'|'orange';chargeSeconds?:number;activationRadius?:number;sharedPosition?:boolean;positionEditable?:boolean;hideMarker?:boolean};
+type PortalConfig={x:number;z:number;destination:PortalPosition['destination'];label:string;appearance?:'standing'|'white-circle'|'energy-rift';fixedPosition?:boolean;theme?:'mint'|'blue'|'orange';chargeSeconds?:number;activationRadius?:number;sharedPosition?:boolean;positionEditable?:boolean;hideMarker?:boolean;arrivalDirection?:{x:number;z:number};arrivalClearance?:number};
 type InteractionConfig={x:number;z:number;destination:WorldInteractionPosition['destination'];label:string;buttonLabel:string;fixedPosition?:boolean;chargeSeconds?:number;positionEditable?:boolean};
 type LakeExperienceConfig={id:LakeExperienceId;x:number;z:number;label:string;description:string;color:number;radius?:number};
 type CampusFeaturePortalConfig={id:CampusFeaturePortalId;x:number;z:number;label:string;description:string;color:number};
@@ -247,6 +248,7 @@ export type WorldMapRendererOptions={
   cameraDownScreenLimitZ?:number;
   characterHeight?:number;
   characterGroundClearance?:number;
+  characterFootLift?:number;
   mapScaleMultiplier?:number;
   mapRotationY?:number;
   groundFillColor?:number;
@@ -309,18 +311,21 @@ export function portalArrivalSpawn(options:WorldMapRendererOptions,sourceMapId:M
   const isProjectRoom=options.mapName==='프로젝트실';
   const centerX=(isProjectRoom?PROJECT_ROOM_WORLD_WIDTH:WORLD_WIDTH)/2;
   const centerZ=(isProjectRoom?PROJECT_ROOM_WORLD_HEIGHT:WORLD_HEIGHT)/2;
-  let dx=centerX-entrance.x;
-  let dz=centerZ-entrance.z;
+  const arrivalDirection='arrivalDirection' in entrance?entrance.arrivalDirection:undefined;
+  const arrivalClearance='arrivalClearance' in entrance?entrance.arrivalClearance:undefined;
+  let dx=arrivalDirection?.x??centerX-entrance.x;
+  let dz=arrivalDirection?.z??centerZ-entrance.z;
   const length=Math.hypot(dx,dz);
   if(length<1){dx=0;dz=1}else{dx/=length;dz/=length}
+  const clearance=Math.max(PORTAL_ARRIVAL_CLEARANCE,arrivalClearance??0);
   return {
-    x:entrance.x+dx*PORTAL_ARRIVAL_CLEARANCE,
-    z:entrance.z+dz*PORTAL_ARRIVAL_CLEARANCE,
+    x:entrance.x+dx*clearance,
+    z:entrance.z+dz*clearance,
     yaw:Math.atan2(dx,dz),
   };
 }
 const [LAKE_PARK_PRIMARY_PORTAL,...LAKE_PARK_FIXED_PORTALS]=LAKE_PARK_PORTALS;
-export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:1.12,cameraDistance:SEJONG_SHARED_FOLLOW_CAMERA_DISTANCE,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config})),lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
+export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config})),lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
 export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:bearTreeParkModelUrl,mapName:'베어트리파크',spawn:BEAR_TREE_PARK_SPAWN,portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:true,chargeSeconds:3,sharedPosition:false},fixedPortals:[{x:682,z:735,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3}],interaction:{x:1616,z:601,destination:'bear-play-zone',label:'AI 탐험 연구소',buttonLabel:'자연 탐험 시작하기',fixedPosition:true,chargeSeconds:3},cameraZoom:1.12,characterHeight:125,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,lightingIntensityMultiplier:.76,performanceMode:true,balancedTextureQuality:false,maxTextureSize:512,performancePixelRatio:.75,simplifiedCollision:false,bearPhotoZone:true};
 export const BEAR_PLAY_ZONE_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:bearPlayZoneModelUrl,mapName:'AI 탐험 연구소',spawn:BEAR_PLAY_ZONE_SPAWN,interaction:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-play-zone'],destination:'bear-tree-park',label:'베어트리파크',buttonLabel:'탐험 마치고 돌아가기',fixedPosition:true,chargeSeconds:3},resident:{modelUrl:bearCubModelUrl,x:1125,z:1435,height:100,yaw:Math.PI,stationary:true},residentDecor:[{modelUrl:grizzlyBearModelUrl,x:1325,z:1410,height:155,yaw:-Math.PI/2,stationary:true}],wildlifeClues:[{id:'bearA',x:1325,z:1410,icon:'🐻',label:'불곰 조사'},{id:'bearB',x:1125,z:1435,icon:'🐻',label:'반달가슴곰 조사'}],cameraZoom:.86,characterHeight:140,groundFillColor:0xead9ad,performanceMode:true,balancedTextureQuality:true,performancePixelRatio:1.1};
 export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
@@ -680,15 +685,16 @@ export const SEJONG_ARTS_CENTER_RENDERER_OPTIONS:WorldMapRendererOptions={
   // camera on the poster-wall side and looked out into the open GLB boundary.
   cameraElevationDeg:29,
   cameraAzimuthDeg:180,
-  cameraDistance:SEJONG_SHARED_FOLLOW_CAMERA_DISTANCE,
+  cameraDistance:SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE,
   cameraFov:46,
   cameraTargetHeight:75,
   // Preserve the approved view direction and stop only downward screen follow.
   cameraDownScreenLimitZ:SEJONG_ARTS_CENTER_CAMERA_DOWN_LIMIT_Z,
   characterHeight:150,
-  // The model is normalized to a foot baseline of zero; retain only the
-  // standard small clearance that prevents z-fighting with the floor.
+  // Keep the collision/camera ground baseline unchanged while lifting only
+  // the character visual above the authored lobby floor finish.
   characterGroundClearance:4,
+  characterFootLift:ARTS_CENTER_CHARACTER_FOOT_LIFT,
   // Blender exports spaces as underscores. These names must match the GLB
   // exactly or the spawn ground probe falls back to y=0 below the lobby.
   groundObjectPrefixes:['Lobby_matte_stone_floor','Auditorium_floor','Audience_riser','Stage','Building_foundation'],
@@ -730,7 +736,7 @@ export const FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
   centerInWorldCoordinates:true,
   cameraElevationDeg:31,
   cameraAzimuthDeg:180,
-  cameraDistance:1700,
+  cameraDistance:FESTIVAL_EXPERIENCE_CAMERA_DISTANCE,
   cameraFov:46,
   characterHeight:150,
   // The avatar models are normalized to a zero-foot baseline, so only retain
@@ -765,6 +771,9 @@ export const FOOD_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraAzimuthDeg:180,
   cameraDistance:1700,
   cameraFov:46,
+  // Keep the lake-return portal fully in view when the player walks farther
+  // toward the lower edge of the authored food-booth island.
+  cameraDownScreenLimitZ:FOOD_EXPERIENCE_CAMERA_DOWN_LIMIT_Z,
   characterHeight:150,
   characterGroundClearance:12,
   groundFillColor:0xbfd6c2,
@@ -1286,6 +1295,7 @@ export class VillageMapRenderer{
   private qualityFrameTime=0;
   private qualityFrames=0;
   private get characterGroundClearance(){return this.options.characterGroundClearance??CHARACTER_GROUND_CLEARANCE}
+  private get characterFootLift(){return this.options.characterFootLift??0}
   private renderInterval=RENDER_INTERVAL;
   private mapMeshes:THREE.Mesh[]=[];
   private mapMeshBounds=new Map<THREE.Mesh,THREE.Box3>();
@@ -1496,7 +1506,9 @@ export class VillageMapRenderer{
       ?new THREE.PerspectiveCamera(options.cameraFov??42,1,.1,5000)
       :new THREE.OrthographicCamera();
     this.parent=parent;
-    this.guideIntroActive=!!options.guide&&localStorage.getItem(LAKE_WELCOME_SEEN_KEY)!=='true';
+    // First-time guidance is presented as a focused tutorial card in GamePage.
+    // Keep Chungnyeong on the normal patrol instead of approaching for chat.
+    this.guideIntroActive=false;
     if(options.performanceMode){this.pixelRatio=Math.min(MAX_PIXEL_RATIO,Math.max(minPixelRatio,options.performancePixelRatio??1));this.renderInterval=1/(options.performanceFrameRate??30)}
     this.localX=options.spawn.x;
     this.localZ=options.spawn.z;
@@ -1884,11 +1896,13 @@ export class VillageMapRenderer{
       });
       const residentReady=this.options.resident?this.createResident(this.options.resident):Promise.resolve();
       const residentDecorReady=Promise.all((this.options.residentDecor??[]).map((config,index)=>this.createResidentDecor(config,index)));
-      const startPosition=new THREE.Vector3(this.localX,this.localGround+this.characterGroundClearance,this.worldToSceneZ(this.localZ));
-      this.localCharacter.update(startPosition,this.localNormal,this.options.spawn.yaw,'idle',0);
+      const startGroundPosition=new THREE.Vector3(this.localX,this.localGround+this.characterGroundClearance,this.worldToSceneZ(this.localZ));
+      const startCharacterPosition=startGroundPosition.clone();
+      startCharacterPosition.y=characterVisualY(this.localGround,this.characterGroundClearance,this.characterFootLift);
+      this.localCharacter.update(startCharacterPosition,this.localNormal,this.options.spawn.yaw,'idle',0);
       await Promise.all([this.localCharacter.ready,this.guideNpc?.ready,...this.localNpcs.map(npc=>npc.character.ready),residentReady,residentDecorReady]);
       if(this.destroyed)return;
-      this.followCharacter(startPosition,0,true);
+      this.followCharacter(startGroundPosition,0,true);
       const restoreVisibility=[this.localCharacter.showAllForWarmup(),this.guideNpc?.showAllForWarmup(),...this.localNpcs.map(npc=>npc.character.showAllForWarmup())].filter((restore):restore is ()=>void=>!!restore);
       try{
         await this.renderer.compileAsync(this.scene,this.camera);
@@ -2074,12 +2088,14 @@ export class VillageMapRenderer{
     context.fillStyle='#9c7843';context.font='700 18px "Noto Sans KR",sans-serif';context.fillText('세종예술의전당 공식 공연',44,660);
     context.fillStyle='#1e302c';context.font='900 38px "Noto Sans KR", "Malgun Gothic", sans-serif';wrappedText(performance.title,44,720,630,48,2);
     context.fillStyle='#64726e';context.font='500 23px "Noto Sans KR", "Malgun Gothic", sans-serif';wrappedText(performance.description,44,820,630,34,2);
-    context.fillStyle='#89938f';context.font='700 18px "Noto Sans KR",sans-serif';context.fillText('일정',44,874);context.fillText('장소',44,912);
-    context.fillStyle='#31433e';context.font='700 20px "Noto Sans KR",sans-serif';context.fillText(performance.date,122,874);context.fillText(performance.venue,122,912);
-    context.fillStyle='#f8fbfa';roundedRect(44,950,632,52,16);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
-    context.textAlign='center';context.fillStyle='#54746b';context.font='800 20px "Noto Sans KR",sans-serif';context.fillText('▶  영상 선택',360,984);
-    context.fillStyle='#f8fbfa';roundedRect(44,1014,632,52,16);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
-    context.fillStyle='#54746b';context.fillText('♡  관심 있어요',360,1048);context.textAlign='left';
+    context.fillStyle='#89938f';context.font='700 18px "Noto Sans KR",sans-serif';context.fillText('일정',44,866);context.fillText('장소',44,900);
+    context.fillStyle='#31433e';context.font='700 20px "Noto Sans KR",sans-serif';context.fillText(performance.date,122,866);context.fillText(performance.venue,122,900);
+    context.fillStyle='#f8fbfa';roundedRect(44,930,632,38,14);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
+    context.textAlign='center';context.fillStyle='#54746b';context.font='800 18px "Noto Sans KR",sans-serif';context.fillText('▶  영상 선택',360,955);
+    context.fillStyle='#f8fbfa';roundedRect(44,976,632,38,14);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
+    context.fillStyle='#54746b';context.fillText('♡  관심 있어요',360,1001);
+    context.fillStyle='#f8fbfa';roundedRect(44,1022,632,38,14);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
+    context.fillStyle='#54746b';context.fillText('ⓘ  자세히 보기',360,1047);context.textAlign='left';
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=textureAnisotropy;texture.needsUpdate=true;
     const posterImage=new Image();
     posterImage.decoding='async';
@@ -2095,12 +2111,14 @@ export class VillageMapRenderer{
       context.fillStyle='#9c7843';context.font='700 18px "Noto Sans KR",sans-serif';context.fillText('세종예술의전당 공식 공연',44,660);
       context.fillStyle='#1e302c';context.font='900 38px "Noto Sans KR", "Malgun Gothic", sans-serif';wrappedText(performance.title,44,720,630,48,2);
       context.fillStyle='#64726e';context.font='500 23px "Noto Sans KR", "Malgun Gothic", sans-serif';wrappedText(performance.description,44,820,630,34,2);
-      context.fillStyle='#89938f';context.font='700 18px "Noto Sans KR",sans-serif';context.fillText('일정',44,874);context.fillText('장소',44,912);
-      context.fillStyle='#31433e';context.font='700 20px "Noto Sans KR",sans-serif';context.fillText(performance.date,122,874);context.fillText(performance.venue,122,912);
-      context.fillStyle='#f8fbfa';roundedRect(44,950,632,52,16);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
-      context.textAlign='center';context.fillStyle='#54746b';context.font='800 20px "Noto Sans KR",sans-serif';context.fillText('▶  영상 선택',360,984);
-      context.fillStyle='#f8fbfa';roundedRect(44,1014,632,52,16);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
-      context.fillStyle='#54746b';context.fillText('♡  관심 있어요',360,1048);context.textAlign='left';
+      context.fillStyle='#89938f';context.font='700 18px "Noto Sans KR",sans-serif';context.fillText('일정',44,866);context.fillText('장소',44,900);
+      context.fillStyle='#31433e';context.font='700 20px "Noto Sans KR",sans-serif';context.fillText(performance.date,122,866);context.fillText(performance.venue,122,900);
+      context.fillStyle='#f8fbfa';roundedRect(44,930,632,38,14);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
+      context.textAlign='center';context.fillStyle='#54746b';context.font='800 18px "Noto Sans KR",sans-serif';context.fillText('▶  영상 선택',360,955);
+      context.fillStyle='#f8fbfa';roundedRect(44,976,632,38,14);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
+      context.fillStyle='#54746b';context.fillText('♡  관심 있어요',360,1001);
+      context.fillStyle='#f8fbfa';roundedRect(44,1022,632,38,14);context.strokeStyle='#cbd8d4';context.lineWidth=2;context.stroke();
+      context.fillStyle='#54746b';context.fillText('ⓘ  자세히 보기',360,1047);context.textAlign='left';
       texture.needsUpdate=true;
       if(this.artsCenterPosterWebReady&&this.artsCenterPosterActive?.userData.artsCenterPerformanceIndex===index){
         gameEvents.emit('arts-center-poster-focus-mode-changed',{active:true,index,ready:true,posterDataUrl:canvas.toDataURL('image/png')});
@@ -2595,7 +2613,7 @@ export class VillageMapRenderer{
   }
   setPortalPosition(position:PortalPosition,_sharedUpdate=true){
     if(this.options.mapId&&position.mapId!==this.options.mapId)return false;
-    if(position.mapId==='arts-center')return true;
+    if(position.mapId==='arts-center'||position.mapId==='festival-experience')return true;
     const primary=this.options.portal?.destination===position.destination?this.options.portal:undefined;
     const fixedIndex=this.options.fixedPortals?.findIndex(config=>config.destination===position.destination)??-1;
     const fixed=fixedIndex>=0?this.options.fixedPortals?.[fixedIndex]:undefined;
@@ -5233,7 +5251,7 @@ export class VillageMapRenderer{
       }
     }
     const groundPosition=this.followTarget.set(nextX,sample.height+this.characterGroundClearance,this.worldToSceneZ(nextZ));
-    const position=this.localRenderPosition.copy(groundPosition);position.y+=jumpHeight;
+    const position=this.localRenderPosition.copy(groundPosition);position.y=characterVisualY(sample.height,this.characterGroundClearance,this.characterFootLift,jumpHeight);
     if(emote)this.localCharacter.playEmote(emote,emote==='talking');else this.localCharacter.stopEmote();
     this.localCharacter.update(position,sample.normal,yaw,motion,delta);
     this.followCharacter(groundPosition,delta);this.syncFestivalStageScreenRect();this.adjustQuality(delta);this.renderAccumulator+=delta;if(this.renderAccumulator>=this.renderInterval){this.renderAccumulator%=this.renderInterval;this.render()}
@@ -5247,7 +5265,7 @@ export class VillageMapRenderer{
     const ground=sampled?{...sampled,x:worldX,z:worldZ}:previousGround??{height:0,normal:new THREE.Vector3(0,1,0),x:worldX,z:worldZ};
     if(needsGroundSample)this.remoteGrounds.set(id,ground);
     if(emote)character.playEmote(emote,emote==='talking');else character.stopEmote();
-    character.update(this.remoteRenderPosition.set(worldX,ground.height+this.characterGroundClearance+jumpHeight,this.worldToSceneZ(worldZ)),ground.normal,yaw,motion,delta);
+    character.update(this.remoteRenderPosition.set(worldX,characterVisualY(ground.height,this.characterGroundClearance,this.characterFootLift,jumpHeight),this.worldToSceneZ(worldZ)),ground.normal,yaw,motion,delta);
   }
 
   removeRemoteCharacter(id:string){this.remotes.get(id)?.destroy();this.remotes.delete(id);this.remoteGrounds.delete(id)}

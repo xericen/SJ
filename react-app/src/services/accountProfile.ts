@@ -1,5 +1,3 @@
-import { API_BASE_URL } from '../config/api';
-
 type WithdrawResult = {
   deleted: boolean;
   kakaoUnlinked: boolean | null;
@@ -37,23 +35,34 @@ export async function withdrawAccount(): Promise<WithdrawResult> {
 import type { UserProfile } from '../types';
 
 export async function loadAccountProfile(): Promise<UserProfile | null> {
-  const response = await fetch(`${API_BASE_URL}/account/me`, { credentials: 'include' });
-  if (!response.ok) return null;
-  const body = await response.json() as { data?: { profile?: UserProfile | null } };
+  const response = await fetch('/wiz/api/page.home/account_profile', {
+    credentials: 'include',
+  });
+  const body = await response.json() as {
+    code?: number;
+    data?: { profile?: UserProfile | null; message?: string };
+  };
+  if (!response.ok || body.code !== 200) {
+    throw new Error(body.data?.message || '저장된 프로필을 불러오지 못했습니다.');
+  }
   return body.data?.profile ?? null;
 }
 
 export async function saveAccountProfile(profile: UserProfile): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/account/me/profile`, {
-    method: 'PUT',
+  const formData = new URLSearchParams();
+  formData.set('profile', JSON.stringify({
+    ...profile,
+    recordVisibility: profile.recordVisibility ?? 'public',
+    chatEnabled: profile.chatEnabled ?? true,
+  }));
+  const response = await fetch('/wiz/api/page.home/account_profile', {
+    method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...profile,
-      recordVisibility: profile.recordVisibility ?? 'public',
-      chatEnabled: profile.chatEnabled ?? true,
-    }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: formData,
   });
-  if (!response.ok) throw new Error('프로필을 서버에 저장하지 못했습니다.');
+  const body = await response.json() as { code?: number; data?: { message?: string } };
+  if (!response.ok || body.code !== 200) {
+    throw new Error(body.data?.message || '프로필을 서버에 저장하지 못했습니다.');
+  }
 }
-

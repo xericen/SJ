@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {buildPersistedActivity,scoreMapExit,type MapExit} from './experienceHarness.js';
+import {buildPersistedActivities,buildPersistedActivity,scoreMapExit,updateSavedExperienceInterests,type MapExit} from './experienceHarness.js';
 
 test('축제 부스 완료를 최근 활동 기록으로 만든다',()=>{
   const input:MapExit={mapId:'festival-experience',sessionId:'festival-activity-1',events:[{type:'festival-booth-complete',at:10,booth:'traditional-culture',selectedCards:['한글 도장','전통 매듭']}]};
@@ -49,6 +49,23 @@ test('세종 먹거리 상세 행동을 요약하고 세 트럭 완료 보너스
   }
   const result=scoreMapExit({mapId:'food-experience',sessionId:'food-session-rules',events});
   assert.equal(result.space,'sejong_food_trucks');assert.equal(result.sessionSummary?.restaurantsViewed,3);assert.equal(result.sessionSummary?.allTrucksCompleted,true);assert.equal(result.scores.sejongFoodExploration,10);assert.equal(result.scores.visitIntent,8);
+});
+
+test('저장한 먹거리의 이름과 메뉴를 서버 활동 기록과 관심 목록에 보존한다',()=>{
+  const input:MapExit={mapId:'food-experience',sessionId:'food-saved-item-1',events:[{type:'food_save',truck:'dessert',itemId:'cafe-1',itemName:'세종 카페',menuName:'복숭아 케이크',itemType:'cafe',categories:['카페'],tags:['디저트','복숭아'],district:'나성동',at:1}]};
+  const records=buildPersistedActivities(input,scoreMapExit(input));
+  assert.equal(records[0]?.title,'세종 카페 방문 후보 저장');
+  assert.match(records[0]?.note??'',/복숭아 케이크/);
+  const saved=updateSavedExperienceInterests([],input);
+  assert.deepEqual(saved[0]?.placeCategories,['카페']);
+  assert.deepEqual(saved[0]?.tags,['카페','디저트','복숭아']);
+});
+
+test('공연·먹거리·축제 저장 해제를 서버 관심 목록에 반영한다',()=>{
+  const saved=updateSavedExperienceInterests([], {mapId:'arts-center',sessionId:'performance-save-1',events:[{type:'favorite',performanceId:'0',saved:true,at:1}]});
+  assert.equal(saved.length,1);
+  const removed=updateSavedExperienceInterests(saved,{mapId:'arts-center',sessionId:'performance-unsave-1',events:[{type:'favorite',performanceId:'0',saved:false,at:1}]});
+  assert.equal(removed.length,0);
 });
 
 test('포스터 탐색은 관람 점수로 계산하지 않고 실제 장르 시청과 관심만 누적한다',()=>{

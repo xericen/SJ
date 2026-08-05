@@ -138,3 +138,14 @@
 | 2026-08-05 | 049 | 예술의전당 카메라 제한을 스크린샷 기준 후방 경계로 정정 | [상세](devlog/2026-08-05/049-correct-arts-camera-rear-limit.md) |
 | 2026-08-05 | 050 | 예술의전당 원본 포스터 이미지 및 하단 정보 간격 개선 | [상세](devlog/2026-08-05/050-use-original-arts-posters-and-fix-spacing.md) |
 | 2026-08-05 | 051 | 누적 기능·DB·운영 문서 정리 및 xericen/SJ 게시 | [상세](devlog/2026-08-05/051-publish-latest-reviewops-work.md) |
+| 2026-08-05 | 052 | 예술의전당 관심 저장 및 포스터 내부 상세 웹 화면 추가 | [상세](devlog/2026-08-05/052-fix-arts-favorite-and-add-inline-detail.md) |
+| 2026-08-05 | 053 | 세종호수공원 카메라 거리를 기존의 2/3로 축소 | [상세](devlog/2026-08-05/053-bring-lake-camera-closer.md) |
+| 2026-08-05 | 054 | 먹거리 부스 포탈 고정·카메라 하단 제한 및 내부 원본 웹 뷰 적용 | [상세](devlog/2026-08-05/054-freeze-food-portal-and-inline-source-web.md) |
+| 2026-08-05 | 055 | 예술의전당 캐릭터 발과 GLB 바닥 높이 정렬 | [상세](devlog/2026-08-05/055-align-arts-character-feet-with-floor.md) |
+| 2026-08-05 | 056 | 세종호수공원 카메라 거리를 1000으로 재조정 | [상세](devlog/2026-08-05/056-adjust-lake-camera-distance-1000.md) |
+| 2026-08-05 | 057 | 축제부스 귀환 포탈 공용 좌표 고정 및 편집 제거 | [상세](devlog/2026-08-05/057-freeze-festival-return-portal.md) |
+| 2026-08-05 | 058 | 런타임 엔트리 ReferenceError 캐시 복구 | [상세](devlog/2026-08-05/058-recover-runtime-entry-cache.md) |
+| 2026-08-05 | 059 | 첫 호수공원 입장 충녕이 소개·조작 온보딩 전환 | [상세](devlog/2026-08-05/059-lake-first-visit-guide.md) |
+| 2026-08-05 | 060 | 로컬 체험과 카카오 소셜 저장·복원 흐름 분리 | [상세](devlog/2026-08-05/060-separate-local-and-social-persistence.md) |
+| 2026-08-05 | 061 | 축제·먹거리·공연 관심 저장과 매칭 프로필 통합 개선 | [상세](devlog/2026-08-05/061-integrate-saved-interests-and-matching.md) |
+| 2026-08-05 | 062 | 축제부스 카메라 확대 및 호수공원 귀환 도착점 보정 | [상세](devlog/2026-08-05/062-festival-camera-and-lake-arrival.md) |

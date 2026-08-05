@@ -40,14 +40,14 @@ const journey = [
 
 type LoginPageProps = {
   loginUrl: string;
-  demoLoginUrl: string;
+  onLocalStart: () => void;
   onBack: () => void;
   errorMessage?: string;
 };
 
 export function LoginPage({
   loginUrl,
-  demoLoginUrl,
+  onLocalStart,
   onBack,
   errorMessage,
 }: LoginPageProps) {
@@ -252,23 +252,27 @@ export function LoginPage({
               <span>카카오로 시작하기</span>
             </a>
 
+            <small className="login-storage-note social">
+              캐릭터와 프로필을 계정에 저장해 다음 카카오 로그인에서도 이어서 이용할 수 있어요.
+            </small>
+
             <div className="login-design-divider">
               <span />
-              가입 전 서비스 둘러보기
+              로그인 없이 잠깐 체험하기
               <span />
             </div>
 
-            <a
+            <button
+              type="button"
               className="login-design-guest"
-              href={demoLoginUrl}
-              target="_top"
+              onClick={onLocalStart}
             >
-              체험용으로 시작하기
+              로컬 체험으로 시작하기
               <b>→</b>
-            </a>
+            </button>
 
-            <small>
-              체험 계정은 실제 계정과 분리되며, 가입 후 기록 공개 여부와 채팅 가능 여부를 직접 설정할 수 있어요.
+            <small className="login-storage-note local">
+              로컬 체험은 로그인과 DB 저장 없이 현재 웹에서만 유지되며, 화면을 나가면 캐릭터와 체험 데이터가 사라져요.
             </small>
           </section>
         </div>

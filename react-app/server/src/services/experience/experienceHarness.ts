@@ -5,7 +5,7 @@ export type HarnessMap=z.infer<typeof harnessMapSchema>;
 
 const baseEvent=z.object({at:z.number().int().nonnegative()});
 const performanceEvent=baseEvent.extend({type:z.enum(['enter','browse','watch','stop','sit','near-stage','finish','rewatch','favorite','compare']),performanceId:z.string().trim().max(80).optional(),durationSeconds:z.number().min(0).max(14400).optional(),saved:z.boolean().optional()});
-const foodEvent=baseEvent.extend({type:z.enum(['visit','dwell','detail','taste','favorite','photo','revisit','food_truck_enter','food_truck_exit','food_card_open','food_card_close','food_section_open','food_filter_apply','food_search','food_map_open','food_hours_open','food_price_open','food_origin_open','food_nearby_place_open','food_save','food_unsave','food_reopen','food_truck_complete']),truck:z.enum(['local','street','dessert']),durationSeconds:z.number().min(0).max(14400).optional(),activeDurationSec:z.number().min(0).max(14400).optional(),item:z.string().trim().max(80).optional(),itemId:z.string().trim().max(100).optional(),itemType:z.enum(['restaurant','local_food','cafe']).optional(),categories:z.array(z.string().trim().max(40)).max(12).optional(),tags:z.array(z.string().trim().max(40)).max(20).optional(),district:z.string().trim().max(80).optional(),timestamp:z.string().datetime().optional(),section:z.string().trim().max(40).optional(),query:z.string().trim().max(50).optional()});
+const foodEvent=baseEvent.extend({type:z.enum(['visit','dwell','detail','taste','favorite','photo','revisit','food_truck_enter','food_truck_exit','food_card_open','food_card_close','food_section_open','food_filter_apply','food_search','food_map_open','food_hours_open','food_price_open','food_origin_open','food_nearby_place_open','food_save','food_unsave','food_reopen','food_truck_complete']),truck:z.enum(['local','street','dessert']),durationSeconds:z.number().min(0).max(14400).optional(),activeDurationSec:z.number().min(0).max(14400).optional(),item:z.string().trim().max(80).optional(),itemId:z.string().trim().max(100).optional(),itemName:z.string().trim().max(120).optional(),menuName:z.string().trim().max(120).optional(),itemType:z.enum(['restaurant','local_food','cafe']).optional(),categories:z.array(z.string().trim().max(40)).max(12).optional(),tags:z.array(z.string().trim().max(40)).max(20).optional(),district:z.string().trim().max(80).optional(),timestamp:z.string().datetime().optional(),section:z.string().trim().max(40).optional(),query:z.string().trim().max(50).optional()});
 const festivalEvent=baseEvent.extend({type:z.enum(['zone-first','stage-watch','booth','photo','food-zone','exploration','social','festival-open','festival-close','festival-section','festival-save','festival-route-save','festival-stamps','festival-filter','festival-booth-enter','festival-booth-complete']),zone:z.string().trim().max(80).optional(),booth:z.enum(['performance','traditional-culture','art-exhibition']).optional(),filter:z.string().trim().max(40).optional(),selectedCards:z.array(z.string().trim().max(100)).max(20).optional(),actualViewMs:z.number().min(0).max(14400000).optional(),watchedMs:z.number().min(0).max(14400000).optional(),durationMs:z.number().min(0).max(14400000).optional(),progress:z.number().min(0).max(1).optional(),completed:z.boolean().optional(),festivalId:z.string().trim().max(100).optional(),festivalTitle:z.string().trim().max(120).optional(),categories:z.array(z.string().trim().max(30)).max(12).optional(),location:z.string().trim().max(120).optional(),section:z.enum(['program','schedule','location','timetable','map','transport','nearby','recommended-time','route']).optional(),nearbyPlace:z.string().trim().max(120).optional(),saved:z.boolean().optional(),durationSeconds:z.number().min(0).max(14400).optional(),count:z.number().int().min(0).max(100).optional(),percent:z.number().min(0).max(100).optional()});
 
 export const mapExitSchema=z.discriminatedUnion('mapId',[
@@ -21,25 +21,47 @@ export type ExperienceSessionSummary=Partial<FestivalSessionSummary>&Partial<Foo
 export type ExperienceSummary={scores:Record<string,number>;evidence:string[];space?:'sejong_festival_booth'|'sejong_food_trucks';sessionSummary?:ExperienceSessionSummary};
 export type ExperiencePointItem={label:string;point:number};
 export type PersistedExperienceActivity={id:string;mapId:HarnessMap;title:string;note:string;point:number;breakdown:ExperiencePointItem[];recordedAt:Date};
+export type SavedExperienceInterest={id:string;domain:'performance'|'food'|'festival';title:string;subtitle:string;tags:string[];placeCategories:string[];savedAt:Date};
 
 const add=(scores:Record<string,number>,key:string,value:number)=>{scores[key]=(scores[key]??0)+value};
 const performanceNames:Record<string,{title:string;type:string}>={
   '0':{title:'뮤지컬 〈서편제〉',type:'뮤지컬 공연'},'1':{title:'연극 〈렁스〉',type:'연극 공연'},'2':{title:'19시 야민락콘서트 〈레브드집시〉',type:'라이브 공연'},'3':{title:'국립국악원 〈연희-판, 흥으로 잇는 세상〉',type:'전통 공연'},'4':{title:'국립심포니콘서트오케스트라 〈브람스, 교향곡 1번〉',type:'클래식 공연'},
 };
-export function buildPersistedActivity(input:MapExit,summary:ExperienceSummary):PersistedExperienceActivity|null{
-  if(!Object.values(summary.scores).some(value=>value>0)&&!summary.evidence.length)return null;
+export function buildPersistedActivities(input:MapExit,summary:ExperienceSummary):PersistedExperienceActivity[]{
   if(input.mapId==='festival-experience'){
     const savedFestival=[...input.events].reverse().find(event=>event.type==='festival-save'&&event.saved!==false&&event.festivalTitle);
     const completed=[...new Set(input.events.filter(event=>event.type==='festival-booth-complete').map(event=>event.booth).filter((value):value is NonNullable<typeof value>=>Boolean(value)))];
-    if(!completed.length&&savedFestival)return {id:`${input.mapId}:${input.sessionId}`,mapId:input.mapId,title:`${savedFestival.festivalTitle} 관심 저장`,note:`${savedFestival.festivalTitle}에 관심을 표시했어요.${savedFestival.categories?.length?` 관심 키워드: ${savedFestival.categories.slice(0,4).join(' · ')}`:''}`,point:5,breakdown:[{label:'관심 축제 저장',point:5}],recordedAt:new Date()};
-    if(!completed.length)return null;
+    if(!completed.length&&savedFestival)return [{id:`${input.mapId}:saved:${savedFestival.festivalId??input.sessionId}`,mapId:input.mapId,title:`${savedFestival.festivalTitle} 관심 저장`,note:`${savedFestival.festivalTitle}에 관심을 표시했어요.${savedFestival.categories?.length?` 관심 키워드: ${savedFestival.categories.slice(0,4).join(' · ')}`:''}`,point:5,breakdown:[{label:'관심 축제 저장',point:5}],recordedAt:new Date()}];
+    if(!completed.length)return [];
     const labels:Record<string,string>={performance:'공연 무대','traditional-culture':'전통문화 체험','art-exhibition':'문화예술 전시'};
     const breakdown:ExperiencePointItem[]=completed.map(booth=>({label:`${labels[booth]??'축제'} 완료`,point:booth==='performance'?15:12}));
     const selected=input.events.filter(event=>event.type==='festival-booth-complete').flatMap(event=>event.selectedCards??[]);
     const names=completed.map(booth=>labels[booth]??booth);
-    return {id:`${input.mapId}:${input.sessionId}`,mapId:input.mapId,title:names.length===1?`${names[0]} 체험 완료`:'축제 부스 체험 완료',note:`${names.join(' · ')}${selected.length?`에서 ${selected.join(' · ')}을(를) 선택하고`:''} 축제 경험을 쌓았어요.`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date()};
+    return [{id:`${input.mapId}:${input.sessionId}`,mapId:input.mapId,title:names.length===1?`${names[0]} 체험 완료`:'축제 부스 체험 완료',note:`${names.join(' · ')}${selected.length?`에서 ${selected.join(' · ')}을(를) 선택하고`:''} 축제 경험을 쌓았어요.`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date()}];
   }
-  if(input.mapId!=='arts-center')return null;
+  if(input.mapId==='food-experience'){
+    const records:PersistedExperienceActivity[]=[];
+    const saved=new Map<string,(typeof input.events)[number]>(),viewed=new Map<string,(typeof input.events)[number]>();
+    input.events.forEach(event=>{
+      if(!event.itemId)return;
+      if(event.type==='food_save')saved.set(event.itemId,event);
+      if(event.type==='food_unsave')saved.delete(event.itemId);
+      if(event.type==='food_card_open'||event.type==='food_reopen')viewed.set(event.itemId,event);
+    });
+    saved.forEach((event,itemId)=>{
+      const title=event.itemName??event.item??'세종 먹거리',details=[event.menuName,event.district,event.tags?.slice(0,3).join(' · ')].filter(Boolean).join(' · ');
+      records.push({id:`${input.mapId}:saved:${itemId}`,mapId:input.mapId,title:`${title} 방문 후보 저장`,note:details||`${title}을(를) 가보고 싶은 곳으로 저장했어요.`,point:8,breakdown:[{label:'먹거리 상세 탐색',point:3},{label:'방문 후보 저장',point:5}],recordedAt:new Date()});
+    });
+    viewed.forEach((event,itemId)=>{
+      if(saved.has(itemId))return;
+      const title=event.itemName??event.item??'세종 먹거리',details=[event.menuName,event.district,event.tags?.slice(0,3).join(' · ')].filter(Boolean).join(' · ');
+      records.push({id:`${input.mapId}:view:${itemId}`,mapId:input.mapId,title:`${title} 상세 보기`,note:details||`${title}의 상세 정보를 살펴봤어요.`,point:event.type==='food_reopen'?4:3,breakdown:[{label:event.type==='food_reopen'?'먹거리 다시 보기':'먹거리 카드 보기',point:event.type==='food_reopen'?4:3}],recordedAt:new Date()});
+    });
+    const completed=[...input.events].reverse().find(event=>event.type==='food_truck_complete');
+    if(completed){const labels={local:'세종 로컬 맛집',street:'세종 특산물',dessert:'카페·디저트'};records.push({id:`${input.mapId}:booth:${completed.truck}`,mapId:input.mapId,title:`${labels[completed.truck]} 부스 완료`,note:'카드 3곳 이상과 상세 정보 2개 이상을 살펴보며 먹거리 취향을 기록했어요.',point:15,breakdown:[{label:'먹거리 카드 탐색',point:6},{label:'상세 정보 확인',point:4},{label:'부스 완료',point:5}],recordedAt:new Date()})}
+    return records;
+  }
+  if(input.mapId!=='arts-center')return [];
   const events=input.events,performanceId=events.find(event=>event.performanceId)?.performanceId??'',performance=performanceNames[performanceId]??{title:'세종예술의전당 공연',type:'공연'};
   const watched=Math.round(events.filter(event=>event.type==='watch').reduce((total,event)=>total+(event.durationSeconds??0),0));
   const breakdown:ExperiencePointItem[]=[];
@@ -49,9 +71,34 @@ export function buildPersistedActivity(input:MapExit,summary:ExperienceSummary):
   if(events.some(event=>event.type==='favorite'&&event.saved!==false))breakdown.push({label:'관심 공연 저장',point:3});
   if(events.some(event=>event.type==='rewatch'))breakdown.push({label:'공연 다시 감상',point:3});
   if(events.some(event=>event.type==='sit'))breakdown.push({label:'객석에서 감상',point:2});
-  if(!breakdown.length)return null;
+  if(!breakdown.length)return [];
   const finished=events.some(event=>event.type==='finish'),favorited=events.some(event=>event.type==='favorite'&&event.saved!==false);
-  return {id:`${input.mapId}:${input.sessionId}`,mapId:input.mapId,title:performance.title,note:finished?`${performance.title} 영상을 ${watched}초 동안 시청하고 끝까지 감상했어요.`:favorited?`${performance.title}을(를) 관심 공연으로 저장했어요. 장르: ${performance.type}`:watched?`${performance.title} 영상을 ${watched}초 감상했어요.`:`${performance.title} 공연 정보를 살펴봤어요. 장르: ${performance.type}`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date()};
+  return [{id:`${input.mapId}:${input.sessionId}`,mapId:input.mapId,title:performance.title,note:finished?`${performance.title} 영상을 ${watched}초 동안 시청하고 끝까지 감상했어요.`:favorited?`${performance.title}을(를) 관심 공연으로 저장했어요. 장르: ${performance.type}`:watched?`${performance.title} 영상을 ${watched}초 감상했어요.`:`${performance.title} 공연 정보를 살펴봤어요. 장르: ${performance.type}`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date()}];
+}
+export function buildPersistedActivity(input:MapExit,summary:ExperienceSummary):PersistedExperienceActivity|null{return buildPersistedActivities(input,summary)[0]??null}
+
+export function updateSavedExperienceInterests(previous:SavedExperienceInterest[],input:MapExit):SavedExperienceInterest[]{
+  const saved=new Map(previous.map(item=>[`${item.domain}:${item.id}`,item]));
+  const set=(item:SavedExperienceInterest)=>saved.set(`${item.domain}:${item.id}`,item);
+  const remove=(domain:SavedExperienceInterest['domain'],id:string)=>saved.delete(`${domain}:${id}`);
+  if(input.mapId==='arts-center')input.events.forEach(event=>{
+    if(event.type!=='favorite'||!event.performanceId)return;
+    if(event.saved===false)return remove('performance',event.performanceId);
+    const performance=performanceNames[event.performanceId]??{title:'세종예술의전당 공연',type:'공연'};
+    set({id:event.performanceId,domain:'performance',title:performance.title,subtitle:performance.type,tags:[performance.type,'문화예술'],placeCategories:['문화시설'],savedAt:new Date()});
+  });
+  if(input.mapId==='food-experience')input.events.forEach(event=>{
+    if((event.type!=='food_save'&&event.type!=='food_unsave')||!event.itemId)return;
+    if(event.type==='food_unsave')return remove('food',event.itemId);
+    const placeCategory=event.itemType==='cafe'?'카페':'음식점';
+    set({id:event.itemId,domain:'food',title:event.itemName??event.item??'세종 먹거리',subtitle:[event.menuName,event.district].filter(Boolean).join(' · '),tags:[...(event.categories??[]),...(event.tags??[])].slice(0,8),placeCategories:[placeCategory],savedAt:new Date()});
+  });
+  if(input.mapId==='festival-experience')input.events.forEach(event=>{
+    if((event.type!=='festival-save'&&event.type!=='festival-route-save')||!event.festivalId)return;
+    if(event.saved===false)return remove('festival',event.festivalId);
+    set({id:event.festivalId,domain:'festival',title:event.festivalTitle??event.festivalId,subtitle:event.location??'',tags:event.categories?.slice(0,8)??[],placeCategories:['문화시설','관광명소'],savedAt:new Date()});
+  });
+  return [...saved.values()].sort((a,b)=>b.savedAt.getTime()-a.savedAt.getTime()).slice(0,100);
 }
 export function scoreMapExit(input:MapExit):ExperienceSummary{
   const scores:Record<string,number>={},evidence:string[]=[];

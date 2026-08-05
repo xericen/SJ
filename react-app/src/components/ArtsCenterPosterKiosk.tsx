@@ -1,5 +1,6 @@
 import {useEffect,useState} from 'react';
-import {Heart,Play,X} from 'lucide-react';
+import {ArrowLeft,Check,ExternalLink,Heart,Info,Play,X} from 'lucide-react';
+import {ARTS_CENTER_FAVORITES_STORAGE_KEY,parseArtsCenterFavorites,toggleArtsCenterFavorite} from '../game/artsCenterFavorites';
 import {ARTS_CENTER_PERFORMANCES} from '../game/artsCenterPerformances';
 import {gameEvents} from '../game/events';
 import {recordExperienceAction} from '../services/experienceHarness';
@@ -11,9 +12,10 @@ type PosterRect={left:number;top:number;width:number;height:number};
 export function ArtsCenterPosterKiosk(){
   const [focus,setFocus]=useState<PosterFocus>({active:false,index:0,ready:false});
   const [rect,setRect]=useState<PosterRect|null>(null);
-  const [favorites,setFavorites]=useState<number[]>(()=>{try{return JSON.parse(localStorage.getItem('sejong-arts-center-favorites-v1')??'[]') as number[]}catch{return []}});
+  const [detailOpen,setDetailOpen]=useState(false);
+  const [favorites,setFavorites]=useState<number[]>(()=>parseArtsCenterFavorites(localStorage.getItem(ARTS_CENTER_FAVORITES_STORAGE_KEY)));
   useEffect(()=>{
-    const changed=(next:PosterFocus)=>{setFocus(next);if(!next.active)setRect(null)};
+    const changed=(next:PosterFocus)=>{setFocus(next);setDetailOpen(false);if(!next.active)setRect(null)};
     const rectChanged=(next:PosterRect|null)=>setRect(next);
     gameEvents.on('arts-center-poster-focus-mode-changed',changed);
     gameEvents.on('arts-center-poster-screen-rect',rectChanged);
@@ -31,18 +33,34 @@ export function ArtsCenterPosterKiosk(){
     gameEvents.emit('arts-center-video-select',{index:focus.index});
     closePoster(event);
   };
-  const toggleFavorite=()=>{
-    const saved=favorites.includes(focus.index),next=saved?favorites.filter(index=>index!==focus.index):[...favorites,focus.index];
-    setFavorites(next);localStorage.setItem('sejong-arts-center-favorites-v1',JSON.stringify(next));
-    recordExperienceAction({type:'favorite',performanceId:String(focus.index),saved:!saved});
+  const stopPointer=(event:React.PointerEvent<HTMLElement>)=>event.stopPropagation();
+  const toggleFavorite=(event:React.MouseEvent<HTMLButtonElement>)=>{
+    event.preventDefault();event.stopPropagation();
+    const wasSaved=favorites.includes(focus.index),next=toggleArtsCenterFavorite(favorites,focus.index);
+    setFavorites(next);
+    try{localStorage.setItem(ARTS_CENTER_FAVORITES_STORAGE_KEY,JSON.stringify(next))}catch{/* UI state remains available when storage is blocked. */}
+    recordExperienceAction({type:'favorite',performanceId:String(focus.index),saved:!wasSaved});
   };
+  const openDetail=(event:React.MouseEvent<HTMLButtonElement>)=>{event.preventDefault();event.stopPropagation();setDetailOpen(true)};
   const saved=favorites.includes(focus.index);
   return <div className="arts-center-poster-object-mode" role="dialog" aria-modal="true" aria-label={`${performance.title} 오브젝트 인터랙션`}>
     {focus.ready&&rect&&focus.posterDataUrl&&<article className="arts-center-html-poster" style={{left:rect.left,top:rect.top,width:rect.width,height:rect.height}}>
-      <img src={focus.posterDataUrl} alt={`${performance.title} 공연 포스터`} draggable={false}/>
-      <button className="arts-center-poster-close" type="button" onClick={closePoster} aria-label="포스터 닫기"><X/></button>
-      <button className="arts-center-poster-watch" type="button" onClick={selectVideo}><Play fill="currentColor"/>영상 선택</button>
-      <button className="arts-center-poster-favorite" type="button" onClick={toggleFavorite} aria-pressed={saved} aria-label={saved?'관심 공연 저장됨':'관심 공연으로 저장'}><Heart/>관심 있어요</button>
+      {!detailOpen&&<>
+        <img src={focus.posterDataUrl} alt={`${performance.title} 공연 포스터`} draggable={false}/>
+        <button className="arts-center-poster-close" type="button" onPointerDown={stopPointer} onClick={closePoster} aria-label="포스터 닫기"><X/></button>
+        <button className="arts-center-poster-watch" type="button" onPointerDown={stopPointer} onClick={selectVideo}><Play fill="currentColor"/>영상 선택</button>
+        <button className="arts-center-poster-favorite" type="button" onPointerDown={stopPointer} onClick={toggleFavorite} aria-pressed={saved}>{saved?<><Check/>관심 저장됨</>:<><Heart/>관심 있어요</>}</button>
+        <button className="arts-center-poster-detail" type="button" onPointerDown={stopPointer} onClick={openDetail}><Info/>자세히 보기</button>
+      </>}
+      {detailOpen&&<section className="arts-center-poster-web-detail">
+        <header>
+          <button type="button" onPointerDown={stopPointer} onClick={()=>setDetailOpen(false)}><ArrowLeft/>포스터</button>
+          <strong>자세히 보기</strong>
+          <a href={performance.detailUrl} target="_blank" rel="noreferrer">새 창<ExternalLink/></a>
+          <button type="button" className="arts-center-web-detail-close" onPointerDown={stopPointer} onClick={closePoster} aria-label="상세 화면 닫기"><X/></button>
+        </header>
+        <iframe src={performance.detailUrl} title={`${performance.title} 공식 상세 페이지`} loading="lazy" referrerPolicy="strict-origin-when-cross-origin"/>
+      </section>}
     </article>}
   </div>;
 }

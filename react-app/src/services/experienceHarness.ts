@@ -1,13 +1,19 @@
 import type {MapId} from '../../shared/socket-events';
 import {API_BASE_URL} from '../config/api';
 import {gameEvents} from '../game/events';
+import {sejongDiningCodeDessertPlaces,sejongDiningCodeRestaurantPlaces} from '../data/sejongDiningCodePlaces';
+import {sejongLocalFoods} from '../data/sejongLocalFoods';
 
 type HarnessMap=MapId;
 type Action={type:string;at?:number;[key:string]:unknown};
 export type GeneratedExperienceProfile={source:string;generatorSource?:'openai'|'fallback';title?:string;tags:string[];traits?:Array<{key:string;label:string;score:number;confidence:number}>;summary:string;evidence?:string[];updatedAt:string};
+export type ExperienceProfileFragment=GeneratedExperienceProfile&{scores?:Record<string,number>;sessionSummary?:Record<string,unknown>};
+export type SavedExperienceInterest={id:string;domain:'performance'|'food'|'festival';title:string;subtitle:string;tags:string[];placeCategories:string[];savedAt:string};
 export type ExperienceActivityRecord={id:string;mapId:HarnessMap;title:string;note:string;point:number;breakdown:Array<{label:string;point:number}>;recordedAt:string};
-export type ExperienceAnalysisResult={summary:{scores:Record<string,number>;evidence:string[]};profile:GeneratedExperienceProfile;activityRecords?:ExperienceActivityRecord[]};
+export type ExperienceAnalysisResult={summary:{scores:Record<string,number>;evidence:string[]};profile:GeneratedExperienceProfile;profileFragments?:ExperienceProfileFragment[];savedInterests?:SavedExperienceInterest[];activityRecords?:ExperienceActivityRecord[]};
 export const EXPERIENCE_PROFILE_KEY='sejong-ai-experience-profile-v1';
+export const EXPERIENCE_PROFILE_FRAGMENTS_KEY='sejong-ai-experience-profile-fragments-v1';
+export const SAVED_EXPERIENCE_INTERESTS_KEY='sejong-saved-experience-interests-v1';
 export const EXPERIENCE_ACTIVITY_HISTORY_KEY='sejong-experience-activity-history-v1';
 export const FESTIVAL_INTEREST_HISTORY_KEY='sejong-festival-interest-history-v1';
 type FestivalInterestEntry={id:string;title:string;categories:string[];opens:number;saved:boolean;sections:string[];updatedAt:string};
@@ -20,8 +26,11 @@ const userKey=(nickname:string)=>nickname.trim().toLowerCase()||'guest';
 let activeUserKey='guest';
 export function setActiveExperienceUser(nickname:string){activeUserKey=userKey(nickname)}
 const profileKey=()=>`${EXPERIENCE_PROFILE_KEY}:${activeUserKey}`;
+const fragmentsKey=(nickname=activeUserKey)=>`${EXPERIENCE_PROFILE_FRAGMENTS_KEY}:${userKey(nickname)}`;
+const savedInterestsKey=(nickname=activeUserKey)=>`${SAVED_EXPERIENCE_INTERESTS_KEY}:${userKey(nickname)}`;
 const historyKey=(nickname:string)=>`${EXPERIENCE_ACTIVITY_HISTORY_KEY}:${userKey(nickname)}`;
 const festivalInterestKey=(nickname:string)=>`${FESTIVAL_INTEREST_HISTORY_KEY}:${userKey(nickname)}`;
+const legacyFoodPlaces=[...sejongDiningCodeRestaurantPlaces,...sejongLocalFoods,...sejongDiningCodeDessertPlaces];
 
 function loadFestivalInterestEntries(nickname:string){
   try{const value=JSON.parse(localStorage.getItem(festivalInterestKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is FestivalInterestEntry=>Boolean(item&&typeof item==='object'&&'id' in item&&'categories' in item)):[]}catch{return []}
@@ -105,6 +114,7 @@ function trackFoodRecentAction(action:Action){
 export function recordExperienceAction(action:Action){
   trackFestivalInterest(action);
   trackFoodRecentAction(action);
+  trackSavedExperienceInterest(action);
   if(action.type==='booth'&&typeof action.zone==='string'&&action.zone.startsWith('festival-filter:')){
     gameEvents.emit('experience-action',{type:'festival-filter',filter:action.zone.slice('festival-filter:'.length)});
     return;
@@ -112,6 +122,31 @@ export function recordExperienceAction(action:Action){
   gameEvents.emit('experience-action',action);
 }
 export function loadGeneratedExperienceProfile(){try{return JSON.parse(localStorage.getItem(profileKey())??'null') as GeneratedExperienceProfile|null}catch{return null}}
+export function loadExperienceProfileFragments(nickname=activeUserKey){try{const value=JSON.parse(localStorage.getItem(fragmentsKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is ExperienceProfileFragment=>Boolean(item&&typeof item==='object'&&'source' in item&&'tags' in item)):[]}catch{return []}}
+export function loadSavedExperienceInterests(nickname=activeUserKey){try{const value=JSON.parse(localStorage.getItem(savedInterestsKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is SavedExperienceInterest=>Boolean(item&&typeof item==='object'&&'id' in item&&'domain' in item&&'title' in item)):[]}catch{return []}}
+function replaceSavedExperienceInterests(nickname:string,items:SavedExperienceInterest[]){localStorage.setItem(savedInterestsKey(nickname),JSON.stringify(items.slice(0,100)))}
+function loadLegacySavedExperienceInterests(nickname:string):SavedExperienceInterest[]{
+  const items:SavedExperienceInterest[]=[],now=new Date().toISOString();
+  try{const ids=JSON.parse(localStorage.getItem('sejong-arts-center-favorites-v1')??'[]') as unknown;if(Array.isArray(ids))ids.filter((id):id is number=>Number.isInteger(id)&&id>=0).forEach(index=>{const id=String(index),performance=performanceNames[id]??{title:'세종예술의전당 공연',type:'공연'};items.push({id,domain:'performance',title:performance.title,subtitle:performance.type,tags:[performance.type,'문화예술'],placeCategories:['문화시설'],savedAt:now})})}catch{/* Ignore malformed legacy favorites. */}
+  try{const ids=JSON.parse(localStorage.getItem('sejong-food-visit-candidates-v1')??'[]') as unknown;if(Array.isArray(ids)){const selected=new Set(ids.filter((id):id is string=>typeof id==='string'));legacyFoodPlaces.filter(place=>selected.has(place.id)).forEach(place=>items.push({id:place.id,domain:'food',title:place.name,subtitle:[place.menuName,place.district].filter(Boolean).join(' · '),tags:[...place.category,...place.tags].slice(0,8),placeCategories:[place.itemType==='cafe'?'카페':'음식점'],savedAt:now}))}}catch{/* Ignore malformed legacy food saves. */}
+  loadFestivalInterestEntries(nickname).filter(entry=>entry.saved).forEach(entry=>items.push({id:entry.id,domain:'festival',title:entry.title,subtitle:'',tags:entry.categories.slice(0,8),placeCategories:['문화시설','관광명소'],savedAt:entry.updatedAt||now}));
+  return [...new Map(items.map(item=>[`${item.domain}:${item.id}`,item])).values()];
+}
+function trackSavedExperienceInterest(action:Action){
+  let domain:SavedExperienceInterest['domain']|undefined,id='',saved=true,title='',subtitle='',tags:string[]=[],placeCategories:string[]=[];
+  if(action.type==='favorite'&&typeof action.performanceId==='string'){
+    domain='performance';id=action.performanceId;saved=action.saved!==false;const performance=performanceNames[id]??{title:'세종예술의전당 공연',type:'공연'};title=performance.title;subtitle=performance.type;tags=[performance.type,'문화예술'];placeCategories=['문화시설'];
+  }else if((action.type==='food_save'||action.type==='food_unsave')&&typeof action.itemId==='string'){
+    domain='food';id=action.itemId;saved=action.type==='food_save';title=typeof action.itemName==='string'?action.itemName:'세종 먹거리';subtitle=[typeof action.menuName==='string'?action.menuName:'',typeof action.district==='string'?action.district:''].filter(Boolean).join(' · ');tags=[...(Array.isArray(action.categories)?action.categories.map(String):[]),...(Array.isArray(action.tags)?action.tags.map(String):[])].slice(0,8);placeCategories=[action.itemType==='cafe'?'카페':'음식점'];
+  }else if((action.type==='festival-save'||action.type==='festival-route-save')&&typeof action.festivalId==='string'){
+    domain='festival';id=action.festivalId;saved=action.saved!==false;title=typeof action.festivalTitle==='string'?action.festivalTitle:id;subtitle=typeof action.location==='string'?action.location:'';tags=Array.isArray(action.categories)?action.categories.map(String).slice(0,8):[];placeCategories=['문화시설','관광명소'];
+  }
+  if(!domain||!id)return;
+  const items=loadSavedExperienceInterests(activeUserKey).filter(item=>!(item.domain===domain&&item.id===id));
+  if(saved)items.unshift({id,domain,title,subtitle,tags,placeCategories,savedAt:new Date().toISOString()});
+  replaceSavedExperienceInterests(activeUserKey,items);
+  window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{savedInterests:items,optimistic:true}}));
+}
 export function loadExperienceActivityHistory(nickname:string){
   try{
     const value=JSON.parse(localStorage.getItem(historyKey(nickname))??'[]') as unknown;
@@ -240,7 +275,7 @@ function cacheLocalFoodActivity(nickname:string,payload:{mapId:HarnessMap;sessio
   mergeExperienceActivities(nickname,records);
   window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{activityRecords:records,optimistic:true}}));
 }
-export async function hydrateGeneratedExperienceProfile(nickname:string){activeUserKey=userKey(nickname);try{const response=await fetch(`${API_BASE_URL}/account/me/experience/profile`,{credentials:'include'});if(!response.ok)return null;const body=await response.json() as {data?:{profile?:GeneratedExperienceProfile|null;activityRecords?:ExperienceActivityRecord[]}};mergeExperienceActivities(nickname,body.data?.activityRecords??[]);if(body.data?.profile)localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));else localStorage.removeItem(profileKey());window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:body.data}));return body.data?.profile??null}catch{return null}}
+export async function hydrateGeneratedExperienceProfile(nickname:string){activeUserKey=userKey(nickname);try{const response=await fetch(`${API_BASE_URL}/account/me/experience/profile`,{credentials:'include'});if(!response.ok)return null;const body=await response.json() as {data?:{profile?:GeneratedExperienceProfile|null;profileFragments?:ExperienceProfileFragment[];savedInterests?:SavedExperienceInterest[];savedInterestsInitialized?:boolean;activityRecords?:ExperienceActivityRecord[]}};mergeExperienceActivities(nickname,body.data?.activityRecords??[]);if(body.data?.profile)localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));else localStorage.removeItem(profileKey());localStorage.setItem(fragmentsKey(nickname),JSON.stringify(body.data?.profileFragments??[]));let savedInterests=body.data?.savedInterests??[];if(!body.data?.savedInterestsInitialized){savedInterests=[...new Map([...savedInterests,...loadLegacySavedExperienceInterests(nickname)].map(item=>[`${item.domain}:${item.id}`,item])).values()];void fetch(`${API_BASE_URL}/account/me/experience/saved-interests`,{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({savedInterests})}).catch(()=>{})}replaceSavedExperienceInterests(nickname,savedInterests);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{...body.data,savedInterests}}));return body.data?.profile??null}catch{return null}}
 
 export class ExperienceHarnessCollector{
   private map?:HarnessMap;private sessionId='';private startedAt=0;private events:Action[]=[];
@@ -267,7 +302,7 @@ export class ExperienceHarnessCollector{
   }
   destroy(){this.exit();gameEvents.off('experience-action',this.onAction);gameEvents.off('food-truck-kiosk-mode-changed',this.onFoodMode);gameEvents.off('arts-center-poster-focus-mode-changed',this.onPerformanceMode);gameEvents.off('arts-center-seat-proximity-changed',this.onSeat);gameEvents.off('experience-analysis-request',this.onAnalysisRequest)}
   private push=(action:Action)=>{if(this.map)this.events.push({...action,at:Math.max(0,Date.now()-this.startedAt)})};
-  private onAction=(action:Action)=>{this.push(action);if((this.map==='festival-experience'&&(action.type==='festival-open'||action.type==='festival-close'||action.type==='festival-booth-complete'||(action.type==='festival-save'&&action.saved!==false)))||(this.map==='arts-center'&&(['browse','watch','finish'].includes(action.type)||(action.type==='favorite'&&action.saved!==false)))||(this.map==='food-experience'&&['food_card_open','food_reopen','food_save','food_truck_complete'].includes(action.type))||(this.map&&!['arts-center','food-experience','festival-experience'].includes(this.map)&&action.type!=='map-enter'))this.flushCurrentSession()};
+  private onAction=(action:Action)=>{this.push(action);if((this.map==='festival-experience'&&(action.type==='festival-open'||action.type==='festival-close'||action.type==='festival-booth-complete'||action.type==='festival-save'||action.type==='festival-route-save'))||(this.map==='arts-center'&&(['browse','watch','finish','favorite'].includes(action.type)))||(this.map==='food-experience'&&['food_card_open','food_reopen','food_save','food_unsave','food_truck_complete'].includes(action.type))||(this.map&&!['arts-center','food-experience','festival-experience'].includes(this.map)&&action.type!=='map-enter'))this.flushCurrentSession()};
   private send=async(payload:{mapId:HarnessMap;sessionId:string;events:Action[]})=>{
     cacheLocalPerformanceActivity(this.nickname,payload);
     cacheLocalFestivalActivity(this.nickname,payload);
@@ -278,6 +313,8 @@ export class ExperienceHarnessCollector{
       if(!response.ok)throw new Error(`profile update ${response.status}`);
       const body=await response.json() as {data?:ExperienceAnalysisResult};if(!body.data?.profile)return;
       localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));
+      if(body.data.profileFragments)localStorage.setItem(fragmentsKey(this.nickname),JSON.stringify(body.data.profileFragments));
+      if(body.data.savedInterests)replaceSavedExperienceInterests(this.nickname,body.data.savedInterests);
       if(body.data.activityRecords)mergeExperienceActivities(this.nickname,body.data.activityRecords);
       gameEvents.emit('experience-profile-updated',body.data);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:body.data}));
     }catch(error){console.warn('[experience profile update failed]',error)}

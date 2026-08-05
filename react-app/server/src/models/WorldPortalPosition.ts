@@ -6,11 +6,17 @@ const WorldPortalPositionModel=createMysqlJsonModel('world_portal_positions');
 const fixedArtsCenterPortal=WORLD_PORTAL_DEFAULTS.find(
   position=>position.mapId==='arts-center'&&position.destination==='town',
 );
+const fixedFestivalPortal=WORLD_PORTAL_DEFAULTS.find(
+  position=>position.mapId==='festival-experience'&&position.destination==='town',
+);
 
 const normalized=(position:PortalPosition):PortalPosition=>{
-  const value=position.mapId==='arts-center'&&position.destination==='town'&&fixedArtsCenterPortal
-    ?fixedArtsCenterPortal
-    :position;
+  const value=
+    position.mapId==='arts-center'&&position.destination==='town'&&fixedArtsCenterPortal
+      ?fixedArtsCenterPortal
+      :position.mapId==='festival-experience'&&position.destination==='town'&&fixedFestivalPortal
+        ?fixedFestivalPortal
+        :position;
   return {
     mapId:value.mapId,
     destination:value.destination,

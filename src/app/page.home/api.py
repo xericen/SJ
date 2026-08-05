@@ -1,4 +1,5 @@
 import datetime
+import html
 import json
 import math
 import re
@@ -6,6 +7,7 @@ import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 
 session = wiz.model("portal/season/session").use()
 struct = wiz.model("struct")
@@ -23,8 +25,8 @@ WORLD_PORTAL_DEFAULTS = (
     ("town", "festival-experience", 1219, 1462),
     ("town", "food-experience", 491, 1556),
     ("arts-center", "town", 1000, 780),
-    ("festival-experience", "town", 1200, 1690),
-    ("food-experience", "town", 980, 1810),
+    ("festival-experience", "town", 1211, 440),
+    ("food-experience", "town", 1193, 546),
     ("club-street-festival", "campus", 1200, 1580),
     ("bear-tree-park", "town", 980, 1580),
     ("bear-tree-park", "garden", 682, 735),
@@ -49,8 +51,225 @@ WORLD_PORTAL_DEFAULTS = (
     ("sejong-smart-city", "government", 1200, 1690),
 )
 WORLD_PORTAL_KEYS = {(item[0], item[1]) for item in WORLD_PORTAL_DEFAULTS}
-FROZEN_WORLD_PORTAL_MAPS = {"town", "government", "arts-center"}
-CANONICAL_WORLD_PORTAL_KEYS = {("arts-center", "town")}
+FROZEN_WORLD_PORTAL_MAPS = {
+    "town",
+    "government",
+    "arts-center",
+    "festival-experience",
+    "food-experience",
+}
+CANONICAL_WORLD_PORTAL_KEYS = {
+    ("arts-center", "town"),
+    ("festival-experience", "town"),
+    ("food-experience", "town"),
+}
+FOOD_SOURCE_PREVIEW_HOSTS = {
+    "www.diningcode.com",
+    "diningcode.com",
+    "www2.sejong.go.kr",
+    "www.sjlocal.or.kr",
+    "sjlocal.or.kr",
+}
+FOOD_SOURCE_PREVIEW_MAX_BYTES = 2_000_000
+
+
+def _food_source_preview_url(value):
+    try:
+        parsed = urllib.parse.urlparse(value)
+        port = parsed.port
+    except (TypeError, ValueError):
+        return None
+    hostname = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme != "https"
+        or hostname not in FOOD_SOURCE_PREVIEW_HOSTS
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in (None, 443)
+    ):
+        return None
+    return value
+
+
+class _FoodSourcePreviewSanitizer(HTMLParser):
+    _blocked_container_tags = {
+        "script",
+        "noscript",
+        "iframe",
+        "object",
+        "applet",
+        "form",
+        "button",
+        "textarea",
+        "select",
+        "option",
+    }
+    _removed_tags = {"embed", "input"}
+    _url_attributes = {"href", "src", "poster", "action"}
+    _void_tags = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+
+    def __init__(self, base_url):
+        super().__init__(convert_charrefs=False)
+        self.base_url = base_url
+        self.parts = []
+        self.blocked_depth = 0
+        self.head_enhanced = False
+
+    def _safe_attributes(self, tag, attributes):
+        output = []
+        for raw_name, raw_value in attributes:
+            name = raw_name.lower()
+            value = raw_value or ""
+            if (
+                name.startswith("on")
+                or name in {"srcdoc", "nonce", "target"}
+                or (tag == "meta" and name == "http-equiv")
+            ):
+                continue
+            if name in self._url_attributes:
+                value = urllib.parse.urljoin(self.base_url, value)
+                parsed = urllib.parse.urlparse(value)
+                if parsed.scheme not in {"http", "https", "data"}:
+                    continue
+                if tag == "a" and name == "href":
+                    output.append(("data-source-href", value))
+                    value = "#"
+            output.append((name, value))
+        if tag == "a":
+            output.append(("title", "현재 화면의 웹 미리보기에서는 링크 이동을 지원하지 않습니다."))
+        return output
+
+    def handle_starttag(self, tag, attributes):
+        tag = tag.lower()
+        if tag in self._blocked_container_tags:
+            self.blocked_depth += 1
+            return
+        if self.blocked_depth or tag in self._removed_tags:
+            return
+        if tag == "base":
+            return
+        if tag == "meta" and any(
+            name.lower() == "http-equiv" and (value or "").lower() == "refresh"
+            for name, value in attributes
+        ):
+            return
+        rendered = "".join(
+            f' {name}="{html.escape(value, quote=True)}"'
+            for name, value in self._safe_attributes(tag, attributes)
+        )
+        self.parts.append(f"<{tag}{rendered}>")
+        if tag == "head" and not self.head_enhanced:
+            self.head_enhanced = True
+            self.parts.append(
+                '<base href="%s"><style>'
+                'html,body{min-height:100%%;background:#fff}'
+                'body{margin:0;overflow:auto}'
+                'a[data-source-href]{cursor:default}'
+                '</style>' % html.escape(self.base_url, quote=True)
+            )
+
+    def handle_startendtag(self, tag, attributes):
+        previous_blocked_depth = self.blocked_depth
+        self.handle_starttag(tag, attributes)
+        if tag.lower() in self._blocked_container_tags:
+            self.blocked_depth = previous_blocked_depth
+            return
+        if tag.lower() not in self._void_tags and not self.blocked_depth:
+            self.parts.append(f"</{tag.lower()}>")
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in self._blocked_container_tags:
+            self.blocked_depth = max(0, self.blocked_depth - 1)
+            return
+        if not self.blocked_depth and tag != "base":
+            self.parts.append(f"</{tag}>")
+
+    def handle_data(self, data):
+        if not self.blocked_depth:
+            self.parts.append(data)
+
+    def handle_entityref(self, name):
+        if not self.blocked_depth:
+            self.parts.append(f"&{name};")
+
+    def handle_charref(self, name):
+        if not self.blocked_depth:
+            self.parts.append(f"&#{name};")
+
+    def handle_decl(self, declaration):
+        if not self.blocked_depth:
+            self.parts.append(f"<!{declaration}>")
+
+
+def _food_source_preview_response(source_url):
+    source_url = _food_source_preview_url(source_url)
+    if source_url is None:
+        return wiz.response.status(
+            400,
+            message="허용된 먹거리 정보 출처만 확인할 수 있어요.",
+        )
+
+    request = urllib.request.Request(
+        source_url,
+        headers={
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Encoding": "identity",
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 Chrome/131 Safari/537.36"
+            ),
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            final_url = _food_source_preview_url(response.geturl())
+            if final_url is None:
+                raise ValueError("untrusted redirect")
+            content_type = response.headers.get_content_type()
+            if content_type not in {"text/html", "application/xhtml+xml"}:
+                raise ValueError("unsupported content type")
+            payload = response.read(FOOD_SOURCE_PREVIEW_MAX_BYTES + 1)
+            if len(payload) > FOOD_SOURCE_PREVIEW_MAX_BYTES:
+                raise ValueError("source page too large")
+            charset = response.headers.get_content_charset() or "utf-8"
+            document = payload.decode(charset, errors="replace")
+    except (urllib.error.URLError, ValueError, LookupError):
+        return wiz.response.status(
+            502,
+            message="원본 페이지를 현재 화면으로 불러오지 못했어요.",
+        )
+
+    sanitizer = _FoodSourcePreviewSanitizer(final_url)
+    sanitizer.feed(document)
+    sanitizer.close()
+    return wiz.response.status(
+        200,
+        html="".join(sanitizer.parts),
+        sourceUrl=final_url,
+    )
+
+
+def food_source_preview():
+    return _food_source_preview_response(
+        wiz.request.query("url", "").strip()
+    )
 
 
 def _secret_config():
@@ -168,6 +387,173 @@ def me():
     return wiz.response.status(200, user=user)
 
 
+ACCOUNT_PROFILE_MAX_BYTES = 16000
+ACCOUNT_PROFILE_MODELS = {
+    "custom",
+    "chungnyeong",
+    "girl1",
+    "boy1",
+    "cloths",
+    "women",
+}
+
+
+def _account_profile_text(value, maximum, allow_empty=False):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if (not value and not allow_empty) or len(value) > maximum:
+        return None
+    return value
+
+
+def _account_profile_list(value):
+    if not isinstance(value, list) or len(value) > 30:
+        return None
+    normalized = []
+    for item in value:
+        item = _account_profile_text(item, 50)
+        if item is None:
+            return None
+        normalized.append(item)
+    return normalized
+
+
+def _normalize_account_profile(value):
+    if not isinstance(value, dict):
+        return None
+
+    nickname = _account_profile_text(value.get("nickname"), 30)
+    mbti = _account_profile_text(value.get("mbti", ""), 10, allow_empty=True)
+    model = value.get("model")
+    character = value.get("character")
+    if (
+        nickname is None
+        or mbti is None
+        or model not in ACCOUNT_PROFILE_MODELS
+        or not isinstance(character, dict)
+    ):
+        return None
+
+    interests = _account_profile_list(value.get("interests"))
+    usage_purposes = _account_profile_list(value.get("usagePurposes"))
+    place_categories = _account_profile_list(
+        value.get("preferredPlaceCategories")
+    )
+    if (
+        interests is None
+        or usage_purposes is None
+        or place_categories is None
+    ):
+        return None
+
+    normalized_character = {}
+    for field in ("hair", "face", "top", "bottom", "shoes"):
+        item = _account_profile_text(character.get(field), 80)
+        if item is None:
+            return None
+        normalized_character[field] = item
+
+    for field in ("topLayer", "accessory"):
+        item = character.get(field)
+        if item is not None:
+            item = _account_profile_text(item, 80, allow_empty=True)
+            if item is None:
+                return None
+            normalized_character[field] = item
+
+    character_options = {
+        "hairStyle": {"hair1", "hair2", "both"},
+        "topStyle": {"style1", "style2"},
+        "bottomStyle": {"style1", "style2"},
+        "shoesStyle": {"style1", "style2"},
+        "outfitStyle": {"outfit1", "outfit2"},
+    }
+    for field, allowed in character_options.items():
+        item = character.get(field)
+        if item is not None:
+            if item not in allowed:
+                return None
+            normalized_character[field] = item
+
+    profile = {
+        "nickname": nickname,
+        "mbti": mbti,
+        "interests": interests,
+        "usagePurposes": usage_purposes,
+        "preferredPlaceCategories": place_categories,
+        "recordVisibility": value.get("recordVisibility", "public"),
+        "chatEnabled": value.get("chatEnabled", True),
+        "model": model,
+        "character": normalized_character,
+    }
+    if profile["recordVisibility"] not in ("public", "private"):
+        return None
+    if not isinstance(profile["chatEnabled"], bool):
+        return None
+
+    for field in ("residence", "sejongVisitExperience"):
+        item = value.get(field)
+        if item is not None:
+            item = _account_profile_text(item, 30)
+            if item is None:
+                return None
+            profile[field] = item
+    return profile
+
+
+def account_profile():
+    user_id = session.get("id")
+    if not user_id:
+        return wiz.response.status(401, message="카카오 로그인이 필요합니다.")
+
+    try:
+        user = struct.user.get(user_id)
+    except Exception:
+        return wiz.response.status(503, message="저장된 프로필을 확인하지 못했습니다.")
+    if user is None:
+        session.clear()
+        return wiz.response.status(404, message="사용자 정보를 찾지 못했습니다.")
+
+    payload_raw = wiz.request.query("profile", "")
+    if not payload_raw:
+        profile = None
+        stored = user.get("avatar") or ""
+        if isinstance(stored, str) and stored:
+            try:
+                profile = _normalize_account_profile(json.loads(stored))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                profile = None
+        return wiz.response.status(200, profile=profile)
+
+    if (
+        not isinstance(payload_raw, str)
+        or len(payload_raw.encode("utf-8")) > ACCOUNT_PROFILE_MAX_BYTES
+    ):
+        return wiz.response.status(413, message="프로필 데이터가 너무 큽니다.")
+    try:
+        profile = _normalize_account_profile(json.loads(payload_raw))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        profile = None
+    if profile is None:
+        return wiz.response.status(400, message="프로필 형식이 올바르지 않습니다.")
+
+    serialized = json.dumps(
+        profile,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    try:
+        struct.user.update_profile(
+            user_id,
+            name=profile["nickname"],
+            avatar=serialized,
+        )
+    except Exception:
+        return wiz.response.status(503, message="프로필을 서버에 저장하지 못했습니다.")
+    return wiz.response.status(200, profile=profile)
+
+
 def _world_portal_editor():
     user_id = session.get("id")
     if not user_id:
@@ -226,6 +612,10 @@ def _saved_world_portals(db):
 
 
 def portal_positions():
+    source_preview_url = wiz.request.query("foodSourceUrl", "").strip()
+    if source_preview_url:
+        return _food_source_preview_response(source_preview_url)
+
     db = struct.db("world_portal_layout")
     db.orm.create_table(safe=True)
     editor = _world_portal_editor()

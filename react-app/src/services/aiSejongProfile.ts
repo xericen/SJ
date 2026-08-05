@@ -2,7 +2,7 @@ import type { UserProfile } from '../types';
 import { greenhousePlantById } from '../data/greenhouse-plants';
 import { dominantEmotion,parseGreenhouseProgress,recommendRepresentativePlant } from './greenhouseProgress';
 import { loadBearHabitatProgress } from './bearHabitatDecision';
-import {loadGeneratedExperienceProfile} from './experienceHarness';
+import {loadExperienceProfileFragments,loadFestivalKeywordInsights,loadGeneratedExperienceProfile,loadSavedExperienceInterests} from './experienceHarness';
 import {buildFoodTasteProfile} from './foodTasteProfile';
 import {campusSignalKeywords} from './campusProfileSignals';
 
@@ -18,6 +18,7 @@ export type AiSejongProfile={
   recommendedCourse:string[];
   oneLineAnalysis:string;
   experienceProfile?:ReturnType<typeof loadGeneratedExperienceProfile>;
+  experienceProfiles:ReturnType<typeof loadExperienceProfileFragments>;
 };
 
 const LAKE_KEY='sejong-lake-interest-profile-v1';
@@ -60,9 +61,14 @@ function lakeInterests(){
 
 export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
   const generatedExperience=loadGeneratedExperienceProfile();
+  const experienceProfiles=loadExperienceProfileFragments(profile.nickname);
+  const festivalInterests=loadFestivalKeywordInsights(profile.nickname).map(item=>({emoji:'🎪',label:item.keyword}));
+  const savedInterests=loadSavedExperienceInterests(profile.nickname);
   const foodTaste=buildFoodTasteProfile();
   const campusInterests=campusSignalKeywords(profile.nickname).map(label=>({emoji:/자연/.test(label)?'🌿':/문화|축제/.test(label)?'🎭':/먹거리|카페/.test(label)?'🍽️':/기록/.test(label)?'📸':/교류|동행|대화|모임/.test(label)?'🤝':'🧭',label}));
-  const interests=[...new Map([...campusInterests,...lakeInterests(),...foodTaste.insights.map(item=>({emoji:'🍽️',label:item.label})),...(generatedExperience?.tags??[]).map(label=>({emoji:'🎭',label}))].map(item=>[item.label,item])).values()].slice(0,6);
+  const fragmentInterests=experienceProfiles.flatMap(fragment=>fragment.tags.map(label=>({emoji:fragment.source==='sejong_food_trucks'?'🍽️':fragment.source==='sejong_festival_booth'?'🎪':'🎭',label})));
+  const savedTags=savedInterests.flatMap(item=>item.tags.slice(0,3).map(label=>({emoji:item.domain==='food'?'🍽️':item.domain==='festival'?'🎪':'🎭',label})));
+  const interests=[...new Map([...festivalInterests,...foodTaste.insights.map(item=>({emoji:'🍽️',label:item.label})),...savedTags,...fragmentInterests,...campusInterests,...lakeInterests(),...(generatedExperience?.tags??[]).map(label=>({emoji:'🧭',label}))].map(item=>[item.label,item])).values()].slice(0,12);
   const greenhouse=parseGreenhouseProgress(readStoredValue(`greenhouse-progress-v1:${userKey(profile.nickname)}`));
   const emotionCounts=[...greenhouse.collected.reduce((counts,item)=>{
     if(item.selectedEmotion)counts.set(item.selectedEmotion,(counts.get(item.selectedEmotion)??0)+1);
@@ -114,5 +120,6 @@ export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
     recommendedCourse,
     oneLineAnalysis,
     experienceProfile:generatedExperience,
+    experienceProfiles,
   };
 }

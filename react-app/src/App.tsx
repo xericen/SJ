@@ -17,6 +17,7 @@ import { SignupCompletePage } from './pages/SignupCompletePage';
 import { TermsPage } from './pages/TermsPage';
 
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useSessionStorage } from './hooks/useSessionStorage';
 import { API_BASE_URL } from './config/api';
 import { clearAllAccountData } from './services/accountData';
 import { startBehaviorStateSync } from './services/behaviorStateSync';
@@ -103,7 +104,6 @@ type Page =
 
 const KAKAO_LOGIN_URL =
   '/wiz/api/page.home/kakao_start';
-const DEMO_LOGIN_URL = '/auth/demo';
 const KAKAO_LOGIN_MESSAGE = 'sejong-kakao-login';
 const KAKAO_LOGIN_ACK_MESSAGE =
   'sejong-kakao-login-ack';
@@ -111,6 +111,14 @@ const KAKAO_LOGIN_ACK_MESSAGE =
 function browserStorage(): Storage | null {
   try {
     return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function browserSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
   } catch {
     return null;
   }
@@ -163,6 +171,11 @@ const KAKAO_PROFILE_IMAGE_KEY =
 const ONBOARDING_COMPLETE_USER_ID_KEY =
   'jochiwon-onboarding-complete-user-id';
 
+const LOCAL_EXPERIENCE_MODE_KEY =
+  'jochiwon-local-experience-active';
+
+type ExperienceMode = 'local' | 'social' | null;
+
 export default function App() {
   const [page, setPage] =
     useState<Page>('landing');
@@ -174,26 +187,65 @@ export default function App() {
         KAKAO_USER_ID_KEY,
       )?.trim() ?? '',
     );
+  const [experienceMode, setExperienceMode] =
+    useState<ExperienceMode>(() =>
+      browserSessionStorage()?.getItem(
+        LOCAL_EXPERIENCE_MODE_KEY,
+      ) === '1'
+        ? 'local'
+        : readStoredValue(KAKAO_USER_ID_KEY)
+          ? 'social'
+          : null,
+    );
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
   const [guestMapPreview,setGuestMapPreview]=useState(false);
   const [behaviorStateReady,setBehaviorStateReady]=useState(false);
   const hydratedProfileUserIdRef=useRef<string|undefined>(undefined);
 
   const [
-    storedProfile,
-    setProfile,
+    socialStoredProfile,
+    setSocialProfile,
   ] = useLocalStorage<UserProfile>(
     PROFILE_KEY,
     defaultProfile,
   );
 
   const [
-    journey,
-    setJourney,
+    socialJourney,
+    setSocialJourney,
   ] = useLocalStorage<UserJourney>(
     USER_JOURNEY_KEY,
     defaultUserJourney,
   );
+
+  const [
+    localStoredProfile,
+    setLocalProfile,
+  ] = useSessionStorage<UserProfile>(
+    PROFILE_KEY,
+    defaultProfile,
+  );
+
+  const [
+    localJourney,
+    setLocalJourney,
+  ] = useSessionStorage<UserJourney>(
+    USER_JOURNEY_KEY,
+    defaultUserJourney,
+  );
+
+  const storedProfile = experienceMode === 'local'
+    ? localStoredProfile
+    : socialStoredProfile;
+  const setProfile = experienceMode === 'local'
+    ? setLocalProfile
+    : setSocialProfile;
+  const journey = experienceMode === 'local'
+    ? localJourney
+    : socialJourney;
+  const setJourney = experienceMode === 'local'
+    ? setLocalJourney
+    : setSocialJourney;
 
   const profile = useMemo<UserProfile>(()=>({
     ...defaultProfile,
@@ -222,14 +274,25 @@ export default function App() {
     journey.membershipComplete;
   const hasLoginIdentity =
     Boolean(loginIdentity);
+  const hasExperienceIdentity =
+    experienceMode === 'local' ||
+    (
+      experienceMode === 'social' &&
+      hasLoginIdentity
+    );
   const canExperience =
     journey.authenticated &&
     membershipComplete &&
-    hasLoginIdentity;
+    hasExperienceIdentity;
 
   useEffect(() => {
     if (!canExperience) {
       setBehaviorStateReady(false);
+      return;
+    }
+
+    if (experienceMode === 'local') {
+      setBehaviorStateReady(true);
       return;
     }
 
@@ -243,7 +306,25 @@ export default function App() {
       active = false;
       sync.stop();
     };
-  }, [canExperience]);
+  }, [canExperience, experienceMode]);
+
+  useEffect(() => {
+    if (experienceMode !== 'local') return;
+
+    const discardLocalExperience = () => {
+      const localStorage = browserStorage();
+      const sessionStorage = browserSessionStorage();
+      if (localStorage) clearAllAccountData(localStorage);
+      sessionStorage?.removeItem(PROFILE_KEY);
+      sessionStorage?.removeItem(USER_JOURNEY_KEY);
+      sessionStorage?.removeItem(LOCAL_EXPERIENCE_MODE_KEY);
+    };
+
+    window.addEventListener('pagehide', discardLocalExperience);
+    return () => {
+      window.removeEventListener('pagehide', discardLocalExperience);
+    };
+  }, [experienceMode]);
 
   useEffect(()=>{
     if(page!=='landing')return;
@@ -258,7 +339,7 @@ export default function App() {
       journey.authenticated &&
       (
         !journey.membershipComplete ||
-        !hasLoginIdentity
+        !hasExperienceIdentity
       )
     ) {
       setJourney({
@@ -268,7 +349,7 @@ export default function App() {
     }
   }, [
     journey,
-    hasLoginIdentity,
+    hasExperienceIdentity,
     setJourney,
   ]);
 
@@ -349,6 +430,30 @@ export default function App() {
     const loginResult =
       searchParams.get('login');
 
+    if (loginResult === 'local') {
+      clearStoredAccountData();
+      setLoginIdentity('');
+      hydratedProfileUserIdRef.current = undefined;
+      setLocalProfile(defaultProfile);
+      setLocalJourney({
+        authenticated: false,
+        membershipComplete: false,
+        onboardingStep: 'profile',
+      });
+      browserSessionStorage()?.setItem(
+        LOCAL_EXPERIENCE_MODE_KEY,
+        '1',
+      );
+      setExperienceMode('local');
+      setPage('create');
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname,
+      );
+      return;
+    }
+
     if (loginResult === 'error') {
       setLoginError(
         searchParams.get('message')?.trim() ||
@@ -403,60 +508,75 @@ export default function App() {
       );
     }
 
-    // OAuth success must always show setup in this browser context.
-    // Stale local demo data must never skip directly into the lake world.
-    const completedMembership = false;
-
-    const nextProfile: UserProfile = {
-      ...(completedMembership
-        ? profile
-        : defaultProfile),
-      nickname:
-        nickname ||
-        (completedMembership
-          ? profile.nickname
-          : '') ||
-        '카카오 사용자',
-    };
-
-    setProfile(nextProfile);
-
-    setJourney({
-      ...journey,
-      authenticated:
-        completedMembership,
-      membershipComplete:
-        completedMembership,
-      onboardingStep:
-        completedMembership
-          ? journey.onboardingStep
-          : 'profile',
-    });
-
-    if (completedMembership) {
-      setPage('game');
-    } else {
-      setPage('create');
-    }
-
     window.history.replaceState(
       {},
       document.title,
       window.location.pathname,
     );
+
+    browserSessionStorage()?.removeItem(
+      LOCAL_EXPERIENCE_MODE_KEY,
+    );
+    setExperienceMode('social');
+
+    const restoreSocialProfile = async () => {
+      try {
+        const savedProfile =
+          await loadAccountProfile();
+
+        if (savedProfile) {
+          setSocialProfile({
+            ...defaultProfile,
+            ...savedProfile,
+          });
+          setSocialJourney({
+            authenticated: true,
+            membershipComplete: true,
+            onboardingStep: 'character',
+          });
+          setPage('game');
+          return;
+        }
+
+        setSocialProfile({
+          ...defaultProfile,
+          nickname:
+            nickname || '카카오 사용자',
+        });
+        setSocialJourney({
+          authenticated: false,
+          membershipComplete: false,
+          onboardingStep: 'profile',
+        });
+        setPage('create');
+      } catch (error) {
+        setLoginError(
+          error instanceof Error
+            ? error.message
+            : '저장된 프로필을 불러오지 못했습니다.',
+        );
+        setPage('login');
+      }
+    };
+
+    void restoreSocialProfile();
   }, []);
 
   useEffect(() => {
-    if (!hasLoginIdentity || !membershipComplete) return;
+    if (
+      experienceMode !== 'social' ||
+      !hasLoginIdentity ||
+      !membershipComplete
+    ) return;
     const userId=localStorage.getItem(KAKAO_USER_ID_KEY)?.trim();
     if(!userId||hydratedProfileUserIdRef.current===userId)return;
     hydratedProfileUserIdRef.current=userId;
     void loadAccountProfile().then(saved => {
-      if (saved) setProfile({ ...defaultProfile, ...saved });
+      if (saved) setSocialProfile({ ...defaultProfile, ...saved });
     }).catch(() => {
       if(hydratedProfileUserIdRef.current===userId)hydratedProfileUserIdRef.current=undefined;
     });
-  }, [hasLoginIdentity, membershipComplete, setProfile]);
+  }, [experienceMode, hasLoginIdentity, membershipComplete, setSocialProfile]);
 
   const startExperience = () => {
     setPage(
@@ -483,7 +603,51 @@ export default function App() {
     setPage('game');
   };
 
+  const discardLocalExperience = () => {
+    const localStorage = browserStorage();
+    const sessionStorage = browserSessionStorage();
+    if (localStorage) clearAllAccountData(localStorage);
+    sessionStorage?.removeItem(PROFILE_KEY);
+    sessionStorage?.removeItem(USER_JOURNEY_KEY);
+    sessionStorage?.removeItem(LOCAL_EXPERIENCE_MODE_KEY);
+    setLocalProfile(defaultProfile);
+    setLocalJourney(defaultUserJourney);
+  };
+
+  const startLocalExperience = () => {
+    clearStoredAccountData();
+    setLoginIdentity('');
+    hydratedProfileUserIdRef.current = undefined;
+    setLocalProfile(defaultProfile);
+    setLocalJourney({
+      authenticated: false,
+      membershipComplete: false,
+      onboardingStep: 'profile',
+    });
+    browserSessionStorage()?.setItem(
+      LOCAL_EXPERIENCE_MODE_KEY,
+      '1',
+    );
+    setExperienceMode('local');
+    setLoginError('');
+    setPage('create');
+    void Promise.allSettled([
+      fetch('/wiz/api/page.home/logout', {
+        method: 'POST',
+        credentials: 'include',
+      }),
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      }),
+    ]);
+  };
+
   const openLogin = () => {
+    if (experienceMode === 'local') {
+      discardLocalExperience();
+      setExperienceMode(null);
+    }
     setGuestMapPreview(false);
     setLoginError('');
     setPage('login');
@@ -530,9 +694,22 @@ export default function App() {
     ],
   );
 
-  const finishSignup = (
+  const finishSignup = async (
     completedProfile: UserProfile,
   ) => {
+    if (experienceMode === 'social') {
+      try {
+        await saveAccountProfile(completedProfile);
+      } catch (error) {
+        window.alert(
+          error instanceof Error
+            ? error.message
+            : '프로필을 서버에 저장하지 못했습니다.',
+        );
+        return;
+      }
+    }
+
     setProfile(completedProfile);
     const currentUserId =
       readStoredValue(KAKAO_USER_ID_KEY)
@@ -544,9 +721,8 @@ export default function App() {
         currentUserId,
       );
     }
-    removeStoredValue('sejong-lake-tutorial-hidden-v1');
-    void saveAccountProfile(completedProfile).catch(error => console.warn('[account profile save failed]', error instanceof Error ? error.message : 'unknown'));
-
+    removeStoredValue('sejong-lake-tutorial-hidden-v2');
+    removeStoredValue('sejong-lake-tutorial-hidden-v3');
     setJourney({
       authenticated: true,
       membershipComplete: true,
@@ -604,7 +780,7 @@ export default function App() {
           setPage('landing')
         }
         loginUrl={KAKAO_LOGIN_URL}
-        demoLoginUrl={DEMO_LOGIN_URL}
+        onLocalStart={startLocalExperience}
         errorMessage={loginError}
       />
     );
@@ -625,7 +801,7 @@ export default function App() {
           setPage('landing')
         }
         loginUrl={KAKAO_LOGIN_URL}
-        demoLoginUrl={DEMO_LOGIN_URL}
+        onLocalStart={startLocalExperience}
         errorMessage={loginError}
       />
     );
@@ -677,6 +853,7 @@ export default function App() {
       <DeferredPage><CreateProfilePage
         initial={profile}
         editMode
+        experienceMode={experienceMode === 'local' ? 'local' : 'social'}
         cancelLabel={gameReturnState?'맵으로 이동':'메인 이동'}
         onCancel={() =>
           setPage(gameReturnState?'game':'landing')
@@ -686,6 +863,7 @@ export default function App() {
             .then(() => {
               clearStoredAccountData();
               setLoginIdentity('');
+              setExperienceMode(null);
               hydratedProfileUserIdRef.current=undefined;
               setGameReturnState(undefined);
               setProfile(defaultProfile);
@@ -704,8 +882,17 @@ export default function App() {
             });
         }}
         onLogout={() => {
+          if (experienceMode === 'local') {
+            discardLocalExperience();
+            setExperienceMode(null);
+            setGameReturnState(undefined);
+            setPage('landing');
+            return;
+          }
+
           setGameReturnState(undefined);
           setLoginIdentity('');
+          setExperienceMode(null);
           removeStoredValue(
             KAKAO_USER_ID_KEY,
           );
@@ -721,11 +908,22 @@ export default function App() {
 
           setPage('landing');
         }}
-        onComplete={(
+        onComplete={async (
           updatedProfile,
         ) => {
+          if (experienceMode === 'social') {
+            try {
+              await saveAccountProfile(updatedProfile);
+            } catch (error) {
+              window.alert(
+                error instanceof Error
+                  ? error.message
+                  : '프로필을 서버에 저장하지 못했습니다.',
+              );
+              return;
+            }
+          }
           setProfile(updatedProfile);
-          void saveAccountProfile(updatedProfile).catch(error => console.warn('[account profile save failed]', error instanceof Error ? error.message : 'unknown'));
           setPage(gameReturnState?'game':'landing');
         }}
       /></DeferredPage>

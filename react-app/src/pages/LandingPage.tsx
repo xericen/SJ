@@ -34,11 +34,13 @@ import foodExperiencePreview from '../assets/maps/food-experience-map-preview.pn
 import clubStreetFestivalWorldUrl from '../assets/maps/club-street-festival-map.glb?url';
 import clubStreetFestivalPreview from '../assets/maps/club-street-festival-map-preview.png';
 import type { MapId } from '../../shared/socket-events';
+import type { UserProfile } from '../types';
 import './LandingPage.css';
 
-type LandingPageProps={onStart:()=>void;onEnterWorld:(mapId:MapId)=>void;onLogin:()=>void;onUserClick?:()=>void;actionLabel?:string;userName?:string};
+type LandingPageProps={profile:UserProfile;onStart:()=>void;onEnterWorld:(mapId:MapId)=>void;onLogin:()=>void;onUserClick?:()=>void;actionLabel?:string;userName?:string};
 type WorldPlace={name:string;description:string;people:string;image:string;modelUrl:string;modelSize:string;accent:string;emoji:string;points:string[];mapId?:MapId};
 const WorldModelPreview=lazy(()=>import('../components/WorldModelPreview').then(module=>({default:module.WorldModelPreview})));
+const SmartCityWorldPreview=lazy(()=>import('../components/SmartCityWorldPreview').then(module=>({default:module.SmartCityWorldPreview})));
 
 const places:WorldPlace[]=[
   {name:'세종호수공원',description:'축제와 지역 볼거리에서 취향 발견',people:'시작',emoji:'🎪',image:lakeMapPreview,modelUrl:lakeWorldUrl,modelSize:'3.2MB',accent:'#2f72c7',mapId:'town',points:['축제·공연 체험존','지역 먹거리·상점','방문 코스 게시판']},
@@ -60,7 +62,7 @@ const guideWorldCatalog:WorldPlace[]=[
   {name:'학생회관',description:'공동캠퍼스에서 만난 이웃과 함께 머물며 대화하고 쉬어 갈 수 있는 단층 커뮤니티 로비예요.',people:'커뮤니티 로비',emoji:'🏛️',image:studentHallPreview,modelUrl:studentHallWorldUrl,modelSize:'2.3MB',accent:'#4b9279',mapId:'student-hall',points:['중앙 원형 소파와 휴게 공간','현재 활동 중인 캠퍼스 이웃 확인','공동캠퍼스로 바로 돌아가는 포털']},
   {name:'모집센터',description:'공동캠퍼스에서 관심사가 맞는 동행과 활동을 찾고, 내 프로필로 참가를 신청하는 모집 공간이에요.',people:'동행 모집',emoji:'📣',image:recruitmentCenterPreview,modelUrl:recruitmentCenterWorldUrl,modelSize:'3.7MB',accent:'#7f8ed8',mapId:'recruitment-center',points:['열린 동행 모집글과 관심 분야 확인','내 프로필로 참가 신청하기','안내 데스크와 키오스크 둘러보기']},
   {name:'정부청사',description:'기존 대화를 유지하며 함께 장소와 조건을 고르고 실제 세종 방문 코스를 완성해요.',people:'방문 계획',emoji:'🗺️',image:governmentMapPreview,modelUrl:governmentWorldUrl,modelSize:'3.9MB',accent:'#8155c3',mapId:'government',points:['도시 테마 전시와 대형 지도 탐색','공통 장소·시간·이동 방법 선택','AI 코스 생성·수정·공동 저장']},
-  {name:'세종 스마트시티 국가시범도시',description:'정부청사에서 연결되는 밝은 미래도시 전시관에서 AI, 자율주행, 에너지 서비스를 체험해요.',people:'미래도시 탐험',emoji:'🌐',image:sejongSmartCityPreview,modelUrl:sejongSmartCityWorldUrl,modelSize:'12MB',accent:'#18a8db',mapId:'sejong-smart-city',points:['중앙 스마트시티 미래지도 테이블','AI·자율주행·스마트 에너지 전시 존','정부청사로 돌아가는 이동 포털']},
+  {name:'세종 스마트시티 국가시범도시',description:'정부청사에서 연결되는 밝은 미래도시 전시관에서 AI, 자율주행, 에너지 서비스를 체험해요.',people:'미래도시 탐험',emoji:'🌐',image:sejongSmartCityPreview,modelUrl:sejongSmartCityWorldUrl,modelSize:'2.8MB',accent:'#18a8db',mapId:'sejong-smart-city',points:['중앙 스마트시티 미래지도 테이블','AI·자율주행·스마트 에너지 전시 존','정부청사로 돌아가는 이동 포털']},
   {name:'정부청사 중앙광장',description:'행정중심도시의 열린 광장을 걸으며 AI 세종 추천센터와 도시 안내 시설을 둘러보는 공간이에요.',people:'도시 안내',emoji:'🏙️',image:governmentCentralPlazaPreview,modelUrl:governmentCentralPlazaWorldUrl,modelSize:'13MB',accent:'#3979a8',mapId:'government-central-plaza',points:['열린 중앙광장과 행정 상징 공간','AI 세종 추천센터 키오스크','정부청사로 돌아가는 이동 포털']},
   {name:'전망대',description:'곡면 파노라마 창 너머로 세종의 방향을 살펴보고 망원경과 포토존을 체험하는 실내 전망 공간이에요.',people:'전경 감상',emoji:'🔭',image:observatoryPreview,modelUrl:observatoryWorldUrl,modelSize:'10MB',accent:'#1683b8',mapId:'government-observatory',points:['곡면 유리 파노라마 전망 공간','전망 망원경과 중앙 포토 스팟','정부청사로 돌아가는 이동 포털']},
   {name:'프로젝트실',description:'공동캠퍼스에서 만든 팀과 프로젝트를 찾고 추천받아 실제 협업을 시작하는 공간이에요.',people:'팀 협업',emoji:'💡',image:projectRoomPreview,modelUrl:projectRoomWorldUrl,modelSize:'3.6MB',accent:'#566171',mapId:'project-room',points:['모집 프로젝트 게시판 확인','AI 추천 프로젝트와 적합도 확인','키오스크에서 새 프로젝트 생성']},
@@ -106,7 +108,7 @@ const experienceRooms=[
   {name:'세종 카페 산책부',emoji:'☕',stage:'공동캠퍼스',status:'주말 방문 장소 투표 중',members:'5명',interests:['카페','지역상점']}
 ];
 
-export function LandingPage({onStart,onEnterWorld,onLogin,onUserClick,actionLabel='세종 월드 입장하기',userName}:LandingPageProps){
+export function LandingPage({profile,onStart,onEnterWorld,onLogin,onUserClick,actionLabel='세종 월드 입장하기',userName}:LandingPageProps){
   const [view,setView]=useState<'home'|'neighborhoods'|'neighbors'>('home');
   const [selectedChapter,setSelectedChapter]=useState<(typeof livingAreas)[number]|null>(null);
   const [selectedWorld,setSelectedWorld]=useState<WorldPlace|null>(null);
@@ -131,7 +133,7 @@ export function LandingPage({onStart,onEnterWorld,onLogin,onUserClick,actionLabe
           <button type="button" className="world-model-close" onClick={()=>setSelectedWorld(null)} aria-label="3D 월드 안내 닫기"><X/></button>
           <div className="world-model-stage" style={{'--world-accent':selectedWorld.accent} as CSSProperties}>
             <div className="world-model-stage-head"><span><i/>LIVE WORLD MODEL</span><small>{selectedWorld.modelSize} · 선택 시 로드</small></div>
-            <Suspense fallback={<div className="world-model-module-loading">3D 뷰어를 준비하고 있어요.</div>}><WorldModelPreview src={selectedWorld.modelUrl} poster={selectedWorld.image} name={selectedWorld.name}/></Suspense>
+            <Suspense fallback={<div className="world-model-module-loading">3D 뷰어를 준비하고 있어요.</div>}>{selectedWorld.mapId==='sejong-smart-city'?<SmartCityWorldPreview profile={profile}/>:<WorldModelPreview src={selectedWorld.modelUrl} poster={selectedWorld.image} name={selectedWorld.name}/>}</Suspense>
             <div className="world-model-help"><span>↻ 드래그하여 회전</span><span>＋ 휠로 확대</span><span>◇ 실제 게임 맵</span></div>
           </div>
           <aside className="world-model-info">

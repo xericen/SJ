@@ -41,7 +41,7 @@ const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;descripti
 
 const rendererOptionsFor=(mapId:MapId)=>mapId==='arts-center'?SEJONG_ARTS_CENTER_RENDERER_OPTIONS:mapId==='festival-experience'?FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:mapId==='food-experience'?FOOD_EXPERIENCE_RENDERER_OPTIONS:mapId==='club-street-festival'?CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:mapId==='town'?LAKE_PARK_RENDERER_OPTIONS:mapId==='bear-tree-park'?BEAR_TREE_PARK_RENDERER_OPTIONS:mapId==='bear-play-zone'?BEAR_PLAY_ZONE_RENDERER_OPTIONS:mapId==='garden'?GARDEN_RENDERER_OPTIONS:mapId==='campus'?CAMPUS_RENDERER_OPTIONS:mapId==='student-hall'?STUDENT_HALL_RENDERER_OPTIONS:mapId==='recruitment-center'?RECRUITMENT_CENTER_RENDERER_OPTIONS:mapId==='project-room'?PROJECT_ROOM_RENDERER_OPTIONS:mapId==='government'?GOVERNMENT_RENDERER_OPTIONS:mapId==='government-central-plaza'?GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:mapId==='government-observatory'?GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:mapId==='sejong-smart-city'?SEJONG_SMART_CITY_RENDERER_OPTIONS:undefined;
 
-export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnly=false}:{profile:UserProfile;returnState?:GameReturnState;previewOnly?:boolean}){
+export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnly=false,previewDragRotate=false}:{profile:UserProfile;returnState?:GameReturnState;previewOnly?:boolean;previewDragRotate?:boolean}){
   if(!previewOnly)setActiveExperienceUser(profile.nickname);
   const [entrySpawn,setEntrySpawn]=useState<RespawnPosition|GameReturnState|undefined>(()=>returnState);
   const ref=useRef<HTMLDivElement>(null),[loading,setLoading]=useState(true),[loadingMapId,setLoadingMapId]=useState<MapId>(()=>returnState?.mapId??'town'),[loadError,setLoadError]=useState('');
@@ -71,7 +71,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     const preloadIdleHandles:number[]=[];
     const initialMapId=returnState?.mapId??('mapId' in entrySpawn?entrySpawn.mapId:'town'),initialOptions=rendererOptionsFor(initialMapId);
     experienceHarness?.enter(initialMapId);
-    const previewOptions={hideCharacters:true,previewNavigation:true,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
+    const previewOptions={hideCharacters:true,previewNavigation:true,previewDragRotate,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
     const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
     let latestCampusFeaturePortals:CampusFeaturePortalPosition[]=[];
@@ -186,7 +186,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       game.destroy(true);
       Object.values(worldRenderers).forEach(renderer=>renderer?.destroy());
     };
-  },[profile,entrySpawn,returnState,previewOnly,WORLD_RENDERER_LAYOUT_TOKEN]);
+  },[profile,entrySpawn,returnState,previewOnly,previewDragRotate,WORLD_RENDERER_LAYOUT_TOKEN]);
   const loadingTasks=previewOnly?['입장 위치 확인',`${loadingCopy.place} GLB 불러오기`,'맵 둘러보기 카메라 준비']:loadingCopy.tasks;
   return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span>{previewOnly?'🗺️':'🧑🏻‍🌾'}</span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><BearHabitatDesignExperience userKey={profile.nickname} mapId={loadingMapId}/><GreenhouseExperience userKey={profile.nickname}/></>}</>;
 });

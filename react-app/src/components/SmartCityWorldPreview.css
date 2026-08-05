@@ -1,0 +1,10 @@
+.smart-city-world-preview{position:relative;z-index:1;flex:1;min-height:0;overflow:hidden;border:1px solid rgba(255,255,255,.18);border-radius:19px;background:#d6e4df;box-shadow:inset 0 0 70px rgba(0,0,0,.18)}
+.smart-city-world-preview .game-layout,.smart-city-world-preview .game-canvas{position:absolute;inset:0;width:100%;height:100%}
+.smart-city-world-preview .village-map-canvas{pointer-events:auto;touch-action:none;cursor:grab}
+.smart-city-world-preview .village-map-canvas:active{cursor:grabbing}
+.smart-city-world-preview .phaser-world-canvas{pointer-events:none}
+.smart-city-world-preview .game-loading{position:absolute;z-index:20;inset:0;width:100%;height:100%;padding:18px}
+.smart-city-world-preview .game-loading-brand{left:20px;top:18px}
+.smart-city-world-preview .game-loading-center{transform:scale(.72)}
+.smart-city-world-preview .smart-city-wall-layer{z-index:1002}
+.smart-city-world-preview .smart-city-prompt,.smart-city-world-preview .smart-city-control-layer{display:none!important}

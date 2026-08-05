@@ -32,6 +32,7 @@ import {
 
 import type { UserProfile } from './types';
 import type { GameReturnState } from './game/gameReturnState';
+import { worldGuideEntryState } from './game/worldGuideEntryPoints';
 import type { MapId } from '../shared/socket-events';
 import { loadAccountProfile, saveAccountProfile, withdrawAccount } from './services/accountProfile';
 
@@ -464,25 +465,7 @@ export default function App() {
   };
 
   const enterWorld = (mapId:MapId) => {
-    const entryPoints:Partial<Record<MapId,GameReturnState>>={
-      town:{mapId:'town',x:1870,z:1180,yaw:2.1},
-      'arts-center':{mapId:'arts-center',x:1200,z:370,yaw:0},
-      'festival-experience':{mapId:'festival-experience',x:1200,z:1530,yaw:Math.PI},
-      'food-experience':{mapId:'food-experience',x:1200,z:1530,yaw:Math.PI},
-      'club-street-festival':{mapId:'club-street-festival',x:1200,z:1510,yaw:Math.PI},
-      'bear-tree-park':{mapId:'bear-tree-park',x:1200,z:1610,yaw:Math.PI},
-      'bear-play-zone':{mapId:'bear-play-zone',x:1200,z:1570,yaw:Math.PI},
-      garden:{mapId:'garden',x:1200,z:1180,yaw:Math.PI},
-      campus:{mapId:'campus',x:1200,z:1500,yaw:Math.PI},
-      'student-hall':{mapId:'student-hall',x:1200,z:1510,yaw:Math.PI},
-      'recruitment-center':{mapId:'recruitment-center',x:1200,z:1535,yaw:Math.PI},
-      'project-room':{mapId:'project-room',x:1220,z:1690,yaw:Math.PI},
-      government:{mapId:'government',x:1200,z:1500,yaw:Math.PI},
-      'government-central-plaza':{mapId:'government-central-plaza',x:1200,z:1530,yaw:0},
-      'government-observatory':{mapId:'government-observatory',x:1200,z:1380,yaw:Math.PI},
-      'sejong-smart-city':{mapId:'sejong-smart-city',x:1200,z:1580,yaw:Math.PI},
-    };
-    setGameReturnState(entryPoints[mapId]);
+    setGameReturnState(worldGuideEntryState(mapId));
     setGuestMapPreview(!canExperience);
     setPage('game');
   };
@@ -580,6 +563,7 @@ export default function App() {
   if (page === 'landing') {
     return (
       <LandingPage
+        profile={profile}
         onStart={startExperience}
         onEnterWorld={enterWorld}
         onLogin={openLogin}

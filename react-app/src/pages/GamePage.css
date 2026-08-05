@@ -226,3 +226,17 @@
 @media(max-width:800px){.virtual-profile-card{grid-template-columns:1fr}.virtual-profile-hero{min-height:220px}.virtual-profile-hero .avatar{transform:scale(.72);margin-block:-30px}.virtual-profile-copy{padding:26px 24px}.game-page .direct-panel{right:12px!important;left:12px;bottom:12px;width:auto;height:70dvh}.game-friend-dock{left:12px;top:190px;width:220px}}
 
 .respawn-save-button:disabled{cursor:wait;opacity:.72;transform:translateX(-50%)}
+
+/* 미래 세종 체험 중에는 월드와 전용 홀로그램 조작부만 남긴다. */
+.game-page.is-smart-city-experience .game-layout>:not(.game-canvas):not(.game-loading),
+.game-page.is-smart-city-experience>:not(.game-layout):not(.smart-city-control-layer):not(.smart-city-wall-layer),
+.game-page:has(.smart-city-control-layer) .game-layout>:not(.game-canvas):not(.game-loading),
+.game-page:has(.smart-city-control-layer)>:not(.game-layout):not(.smart-city-control-layer):not(.smart-city-wall-layer){display:none!important}
+
+.central-plaza-sofa-prompt{position:fixed;z-index:120;left:50%;bottom:28px;min-width:260px;padding:10px 12px;display:flex;align-items:center;gap:10px;transform:translateX(-50%);border:1px solid rgba(159,225,215,.92);border-radius:17px;background:rgba(8,48,55,.95);color:#fff;box-shadow:0 16px 45px rgba(5,31,38,.4);backdrop-filter:blur(14px)}
+.central-plaza-sofa-prompt:hover{transform:translateX(-50%) translateY(-2px);background:rgba(12,65,72,.98)}
+.central-plaza-sofa-prompt>span{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(135deg,#8ee5d7,#3baaa0);color:#073b3e}
+.central-plaza-sofa-prompt>div{display:flex;flex:1;flex-direction:column;text-align:left}
+.central-plaza-sofa-prompt small{color:#9edbd3;font-size:8px;font-weight:800}
+.central-plaza-sofa-prompt b{margin-top:2px;font-size:12px}
+.central-plaza-sofa-prompt kbd{padding:5px 8px;border:1px solid #85c8c1;border-radius:8px;background:#eafffb;color:#125e5a;font-size:10px;box-shadow:inset 0 -2px 0 #a8d8d2}

@@ -173,7 +173,7 @@ export function buildProfileProgress(profile: UserProfile) {
   const smartCityResult = readJson<{completedAt?:number;visited?:string[];ratings?:Record<string,number>}|null>(`sejong-smart-city-experience-v2:${user}`, null);
   if(smartCityResult){
     const experienced=Array.isArray(smartCityResult.visited)?smartCityResult.visited.length:0;
-    records.push({id:'sejong-smart-city-experience',zone:'스마트시티 전시관',title:'미래 세종 디지털 트윈 체험 완료',note:`AI 행정·스마트 교통·친환경 에너지·디지털 트윈·스마트 헬스케어 ${experienced}/5개 기술을 체험했어요`,point:25,at:validDate(smartCityResult.completedAt),image:'/images/government-complex-diorama.png',breakdown:[{label:'미래 기술 체험',point:20},{label:'AI 결과 저장',point:5}]});
+    records.push({id:'sejong-smart-city-experience',zone:'스마트시티 전시관',title:'세종 스마트 서비스 체험 완료',note:`자율주행 BRT·UAM·AI 교통관제·스마트 에너지·디지털 트윈·스마트 헬스케어 ${experienced}/6개 서비스를 체험했어요`,point:25,at:validDate(smartCityResult.completedAt),image:'/images/government-complex-diorama.png',breakdown:[{label:'스마트 서비스 체험',point:20},{label:'체험 결과 저장',point:5}]});
   }
   const applications = readJson<Array<{ id: string; applicantId: string; createdAt?: string }>>('sejong-project-room-applications-v1', []);
   applications.filter(item => item.applicantId === profile.nickname).forEach(item => records.push({ id: `project-${item.id}`, zone: '프로젝트실', title: '공동 프로젝트 지원', note: '세종 프로젝트에 참여 의사를 남겼어요', point: 15, at: item.createdAt, image: '/images/government-complex-diorama.png' }));

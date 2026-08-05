@@ -29,6 +29,7 @@ import boyUrl from '../../assets/characters/boy_metaverse.glb?url';
 import clothsUrl from '../../assets/characters/men_total.glb?url';
 import womenUrl from '../../assets/characters/women_total.glb?url';
 import type { CharacterModel,CharacterParts,UserProfile } from '../../types';
+import { WORLD_GUIDE_PORTAL_POSITIONS } from '../worldGuideEntryPoints';
 import { FIXED_LAKE_RESPAWN,type BearTreePortalPositions,type CampusFeaturePortalId,type CampusFeaturePortalPosition,type CharacterEmote,type LakeExperienceId,type LakeExperiencePosition,type MapId,type MotionState,type PortalPosition,type WorldInteractionPosition } from '../../../shared/socket-events';
 import { gameEvents } from '../events';
 import { characterSettings } from '../character/characterSettings';
@@ -41,6 +42,7 @@ import { FESTIVAL_NPCS } from '../../data/festivalNpc';
 import { PROJECT_ROOM_INTERACTIONS,isProjectRoomKioskInteraction,type ProjectRoomInteractionId,type ProjectRoomKioskInteractionId } from '../projectRoomInteractions';
 import { GOVERNMENT_CENTRAL_PLAZA_WEB_UI,type GovernmentCentralPlazaWebUiId } from '../governmentCentralPlazaWebUi';
 import { ARTS_CENTER_PERFORMANCES,artsCenterPerformanceImageUrl,type ArtsCenterPerformance } from '../artsCenterPerformances';
+import { SmartCityHologram,type SmartCityTechnologyId } from './SmartCityHologram';
 
 const WORLD_WIDTH=2400;
 const WORLD_HEIGHT=1900;
@@ -125,9 +127,9 @@ export const FESTIVAL_EXPERIENCE_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:
 export const FOOD_EXPERIENCE_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1193,yaw:Math.PI};
 export const CLUB_STREET_FESTIVAL_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1510,yaw:Math.PI};
 // Change these x/z values to move the lake-park return portal in the festival map.
-export const FESTIVAL_LAKE_RETURN_PORTAL_POSITION={x:1200,z:1690} as const;
-export const FOOD_LAKE_RETURN_PORTAL_POSITION={x:980,z:1810} as const;
-export const BEAR_TREE_PORTAL_POSITION={x:2122,z:944} as const;
+export const FESTIVAL_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['festival-experience'];
+export const FOOD_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['food-experience'];
+export const BEAR_TREE_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS.town;
 const CAMPUS_PORTAL_POSITION={x:1178,z:122} as const;
 const LAKE_PARK_GUIDE={x:2045,z:1138,yaw:-.78} as const;
 const LAKE_WELCOME_SEEN_KEY='sejong-lake-tutorial-hidden-v2';
@@ -151,6 +153,7 @@ type CharacterState={scene:THREE.Object3D;mixer?:THREE.AnimationMixer;action?:TH
 type GroundSample={height:number;normal:THREE.Vector3};
 type ArtsCenterSeat={id:string;x:number;z:number;seatHeight:number;yaw:number};
 type ProjectRoomSeat=ArtsCenterSeat&{standX:number;standZ:number;opensCollaborationTable?:boolean};
+type PlazaSofaSeat=ArtsCenterSeat&{standX:number;standZ:number};
 type RemoteGroundSample=GroundSample&{x:number;z:number};
 type GuidePosition={x:number;z:number;yaw:number};
 type GuidePatrolFrame=GuidePosition&{motion:Extract<MotionState,'idle'|'walk'>};
@@ -211,6 +214,7 @@ export type WorldMapRendererOptions={
   spawn:{x:number;z:number;yaw:number};
   hideCharacters?:boolean;
   previewNavigation?:boolean;
+  previewDragRotate?:boolean;
   guide?:boolean;
   mapSign?:boolean;
   overview?:boolean;
@@ -269,6 +273,7 @@ export type WorldMapRendererOptions={
   projectRoomInteractions?:boolean;
   smartCityWebUi?:boolean;
   governmentCentralPlazaWebUi?:boolean;
+  centralPlazaSofaSeats?:boolean;
   recruitmentKioskWeb?:boolean;
   studentHallFeatures?:boolean;
   observatoryTelescopeInteraction?:boolean;
@@ -309,9 +314,9 @@ export function portalArrivalSpawn(options:WorldMapRendererOptions,sourceMapId:M
     yaw:Math.atan2(dx,dz),
   };
 }
-export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:1.12,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...BEAR_TREE_PORTAL_POSITION,destination:'bear-tree-park',label:'베어트리파크',theme:'blue',chargeSeconds:3},fixedPortals:[{...CAMPUS_PORTAL_POSITION,destination:'campus',label:'공동캠퍼스',theme:'blue',chargeSeconds:3},{x:603,z:452,destination:'arts-center',label:'세종예술의전당',appearance:'standing',theme:'orange',fixedPosition:true,sharedPosition:false,chargeSeconds:3},{x:1219,z:1462,destination:'festival-experience',label:'축제부스',appearance:'standing',theme:'orange',fixedPosition:true,sharedPosition:false,chargeSeconds:3},{x:491,z:1556,destination:'food-experience',label:'먹거리 부스',appearance:'standing',theme:'mint',fixedPosition:true,sharedPosition:false,chargeSeconds:3}],lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
-export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:bearTreeParkModelUrl,mapName:'베어트리파크',spawn:BEAR_TREE_PARK_SPAWN,portal:{x:980,z:1580,destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:true,chargeSeconds:3,sharedPosition:false,positionEditable:true},fixedPortals:[{x:682,z:735,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3,positionEditable:true}],interaction:{x:1616,z:601,destination:'bear-play-zone',label:'AI 탐험 연구소',buttonLabel:'자연 탐험 시작하기',fixedPosition:true,chargeSeconds:3,positionEditable:true},cameraZoom:1.12,characterHeight:125,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,lightingIntensityMultiplier:.76,performanceMode:true,balancedTextureQuality:false,maxTextureSize:512,performancePixelRatio:.75,simplifiedCollision:false,bearPhotoZone:true};
-export const BEAR_PLAY_ZONE_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:bearPlayZoneModelUrl,mapName:'AI 탐험 연구소',spawn:BEAR_PLAY_ZONE_SPAWN,interaction:{x:1200,z:1650,destination:'bear-tree-park',label:'베어트리파크',buttonLabel:'탐험 마치고 돌아가기',chargeSeconds:3},resident:{modelUrl:bearCubModelUrl,x:1125,z:1435,height:100,yaw:Math.PI,stationary:true},residentDecor:[{modelUrl:grizzlyBearModelUrl,x:1325,z:1410,height:155,yaw:-Math.PI/2,stationary:true}],wildlifeClues:[{id:'bearA',x:1325,z:1410,icon:'🐻',label:'불곰 조사'},{id:'bearB',x:1125,z:1435,icon:'🐻',label:'반달가슴곰 조사'}],cameraZoom:.86,characterHeight:140,groundFillColor:0xead9ad,performanceMode:true,balancedTextureQuality:true,performancePixelRatio:1.1};
+export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:1.12,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...BEAR_TREE_PORTAL_POSITION,destination:'bear-tree-park',label:'베어트리파크',theme:'blue',chargeSeconds:3,fixedPosition:true,sharedPosition:false},fixedPortals:[{...CAMPUS_PORTAL_POSITION,destination:'campus',label:'공동캠퍼스',theme:'blue',chargeSeconds:3},{x:603,z:452,destination:'arts-center',label:'세종예술의전당',appearance:'standing',theme:'orange',fixedPosition:true,sharedPosition:false,chargeSeconds:3},{x:1219,z:1462,destination:'festival-experience',label:'축제부스',appearance:'standing',theme:'orange',fixedPosition:true,sharedPosition:false,chargeSeconds:3},{x:491,z:1556,destination:'food-experience',label:'먹거리 부스',appearance:'standing',theme:'mint',fixedPosition:true,sharedPosition:false,chargeSeconds:3}],lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
+export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:bearTreeParkModelUrl,mapName:'베어트리파크',spawn:BEAR_TREE_PARK_SPAWN,portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:true,chargeSeconds:3,sharedPosition:false},fixedPortals:[{x:682,z:735,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3}],interaction:{x:1616,z:601,destination:'bear-play-zone',label:'AI 탐험 연구소',buttonLabel:'자연 탐험 시작하기',fixedPosition:true,chargeSeconds:3},cameraZoom:1.12,characterHeight:125,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,lightingIntensityMultiplier:.76,performanceMode:true,balancedTextureQuality:false,maxTextureSize:512,performancePixelRatio:.75,simplifiedCollision:false,bearPhotoZone:true};
+export const BEAR_PLAY_ZONE_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:bearPlayZoneModelUrl,mapName:'AI 탐험 연구소',spawn:BEAR_PLAY_ZONE_SPAWN,interaction:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-play-zone'],destination:'bear-tree-park',label:'베어트리파크',buttonLabel:'탐험 마치고 돌아가기',fixedPosition:true,chargeSeconds:3},resident:{modelUrl:bearCubModelUrl,x:1125,z:1435,height:100,yaw:Math.PI,stationary:true},residentDecor:[{modelUrl:grizzlyBearModelUrl,x:1325,z:1410,height:155,yaw:-Math.PI/2,stationary:true}],wildlifeClues:[{id:'bearA',x:1325,z:1410,icon:'🐻',label:'불곰 조사'},{id:'bearB',x:1125,z:1435,icon:'🐻',label:'반달가슴곰 조사'}],cameraZoom:.86,characterHeight:140,groundFillColor:0xead9ad,performanceMode:true,balancedTextureQuality:true,performancePixelRatio:1.1};
 export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:gardenModelUrl,
   mapName:'수목원',
@@ -323,8 +328,7 @@ export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
   balancedTextureQuality:true,
   performancePixelRatio:1.1,
   fixedPortals:[{
-    x:1200,
-    z:1260,
+    ...WORLD_GUIDE_PORTAL_POSITIONS.garden,
     destination:'bear-tree-park',
     label:'베어트리파크',
     appearance:'white-circle',
@@ -337,7 +341,7 @@ export const CAMPUS_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:campusModelUrl,
   mapName:'공동캠퍼스',
   spawn:CAMPUS_SPAWN,
-  portal:{x:1120,z:1731,destination:'town',label:'세종호수공원',theme:'blue',chargeSeconds:3},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS.campus,destination:'town',label:'세종호수공원',theme:'blue',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   campusFeaturePortals:[
     {id:'people',x:881,z:950,label:'학생회관',description:'친구 추천 · 프로필 · 게시판',color:0x56b28c},
     {id:'clubs',x:450,z:882,label:'동아리관',description:'가입 · 단체 채팅 · 활동',color:0xe9a14b},
@@ -375,7 +379,7 @@ export const CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapRotationY:Math.PI,
   mapScaleMultiplier:1.08,
   groundObjectPrefixes:['Central_Pedestrian_Plaza','PaverAccent_','Ground_Base','Garden_','CentralPlanter_'],
-  portal:{x:1200,z:1580,destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:true},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['club-street-festival'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -400,8 +404,7 @@ export const STUDENT_HALL_RENDERER_OPTIONS:WorldMapRendererOptions={
   spawn:STUDENT_HALL_SPAWN,
   studentHallFeatures:true,
   portal:{
-    x:1200,
-    z:1660,
+    ...WORLD_GUIDE_PORTAL_POSITIONS['student-hall'],
     destination:'campus',
     label:'공동캠퍼스로 돌아가기',
     appearance:'white-circle',
@@ -428,7 +431,7 @@ export const RECRUITMENT_CENTER_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:recruitmentCenterModelUrl,
   mapName:'모집센터',
   spawn:RECRUITMENT_CENTER_SPAWN,
-  portal:{x:1200,z:1690,destination:'campus',label:'공동 캠퍼스로 돌아가기',appearance:'energy-rift',theme:'mint',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:true},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['recruitment-center'],destination:'campus',label:'공동 캠퍼스로 돌아가기',appearance:'energy-rift',theme:'mint',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   localNpcs:[{
     id:'recruitment-center-guide-chungnyeong',
     nickname:'충녕이',
@@ -472,7 +475,7 @@ export const PROJECT_ROOM_RENDERER_OPTIONS:WorldMapRendererOptions={
   companionModelUrl:projectLobbyModelUrl,
   mapName:'프로젝트실',
   spawn:PROJECT_ROOM_SPAWN,
-  portal:{x:1220,z:2050,destination:'campus',label:'공동캠퍼스',appearance:'energy-rift',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['project-room'],destination:'campus',label:'공동캠퍼스',appearance:'energy-rift',theme:'orange',fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -496,7 +499,7 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:governmentModelUrl,
   mapName:'정부청사',
   spawn:GOVERNMENT_SPAWN,
-  portal:{x:1120,z:1731,destination:'campus',label:'공동캠퍼스',theme:'orange',fixedPosition:true,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',theme:'orange',fixedPosition:true,sharedPosition:false},
   fixedPortals:[
     {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'standing',theme:'blue',fixedPosition:true,sharedPosition:false},
     {x:1200,z:760,destination:'government-policy-hall',label:'정책 체험관',appearance:'standing',theme:'mint',fixedPosition:true,sharedPosition:false},
@@ -515,14 +518,14 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapName:'중앙광장',
   spawn:GOVERNMENT_CENTRAL_PLAZA_SPAWN,
   portal:{
-    x:1200,
-    z:1690,
+    ...WORLD_GUIDE_PORTAL_POSITIONS['government-central-plaza'],
     destination:'government',
     label:'정부청사로 돌아가기',
     appearance:'white-circle',
     theme:'blue',
     fixedPosition:true,
     sharedPosition:false,
+    positionEditable:true,
   },
   perspectiveCamera:true,
   fixedCameraTarget:false,
@@ -546,17 +549,30 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   toneMappingExposure:.9,
   lightingIntensityMultiplier:.78,
   sceneBackgroundColor:'#7899aa',
-  simplifiedCollision:true,
+  simplifiedCollision:false,
+  // Remove the two GLB kiosks placed between the side Web UI panels and the
+  // center panel. The outer kiosks remain available as plaza decoration.
+  hiddenObjectPrefixes:[
+    'Kiosk_Rear_Left_','Kiosk_Rear_Right_',
+    // Replace the large authored globe with the staged AI analysis experience.
+    'AI_Beam','AI_Globe','AI_Orbit_Node_',
+  ],
+  // The five sofas and three planters are separate top-level GLB props. Give
+  // them padded authored bounds so avatars cannot walk through the furniture.
+  collisionObjectPrefixes:[
+    'tripo_node_7c513070-600e-4a04-889e-a8c3c6e2d596',
+    'tripo_node_d2b5f472-a753-44d7-9b9f-42e02b7542d3',
+  ],
   cameraFollowBounds:{maxZ:1530},
   governmentCentralPlazaWebUi:true,
+  centralPlazaSofaSeats:true,
 };
 export const GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:observatoryModelUrl,
   mapName:'전망대',
   spawn:GOVERNMENT_OBSERVATORY_SPAWN,
   portal:{
-    x:1200,
-    z:1790,
+    ...WORLD_GUIDE_PORTAL_POSITIONS['government-observatory'],
     destination:'government',
     label:'정부청사로 돌아가기',
     appearance:'white-circle',
@@ -587,8 +603,7 @@ export const SEJONG_SMART_CITY_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapName:'세종 스마트시티 국가시범도시',
   spawn:SEJONG_SMART_CITY_SPAWN,
   portal:{
-    x:1200,
-    z:1690,
+    ...WORLD_GUIDE_PORTAL_POSITIONS['sejong-smart-city'],
     destination:'government',
     label:'정부청사로 돌아가기',
     appearance:'white-circle',
@@ -651,7 +666,7 @@ export const SEJONG_ARTS_CENTER_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapName:'세종예술의전당',
   spawn:SEJONG_ARTS_CENTER_SPAWN,
   // Keep the return portal visible and reachable in the entrance lobby.
-  portal:{x:1000,z:780,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'standing',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:true},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['arts-center'],destination:'town',label:'세종호수공원으로 돌아가기',appearance:'standing',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -700,7 +715,7 @@ export const FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
     {id:'central-plaza',x:1640,z:1080,label:'세종 축제 한눈에 보기',description:'E를 눌러 실제 방문 정보를 확인하세요.',color:0xe75b4f,radius:280},
   ],
   lakeExperienceObjectNames:{'activity-zone':'StageBack','food-shop-zone':'Blue_Experience_Tent_Roof','central-plaza':'Red_Experience_Tent_Roof'},
-  portal:{...FESTIVAL_LAKE_RETURN_PORTAL_POSITION,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:true},
+  portal:{...FESTIVAL_LAKE_RETURN_PORTAL_POSITION,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -733,7 +748,7 @@ export const FOOD_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapRotationY:Math.PI,
   mapScaleMultiplier:1.6,
   groundObjectPrefixes:['Map_island','Grass_island','Central_plaza','Plaza_paving_ring','North_walkway','South_walkway'],
-  portal:{...FOOD_LAKE_RETURN_PORTAL_POSITION,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'energy-rift',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:true},
+  portal:{...FOOD_LAKE_RETURN_PORTAL_POSITION,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'energy-rift',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -1325,8 +1340,15 @@ export class VillageMapRenderer{
   private lastProjectLobbyBoardRect?:ProjectLobbyBoardScreenRect;
   private smartCityScreen?:THREE.Mesh;
   private lastSmartCityScreenRect?:ProjectLobbyBoardScreenRect;
+  private smartCityWallScreens=new Map<'city'|'future'|'connected',THREE.Mesh>();
+  private lastSmartCityWallRects=new Map<'city'|'future'|'connected',ProjectLobbyBoardScreenRect>();
   private smartCityTableNearby=false;
   private smartCityTablePosition?:{x:number;z:number;radius:number};
+  private smartCityHologram?:SmartCityHologram;
+  private smartCityTechnology:SmartCityTechnologyId='brt';
+  private smartCityExperienceActive=false;
+  private smartCityFocusView?:{target:THREE.Vector3;camera:THREE.Vector3;fov:number};
+  private smartCityFocusTransition?:{target:THREE.Vector3;camera:THREE.Vector3;fov:number;elapsed:number};
   private projectLobbyBoardPosition?:{x:number;z:number;radius:number};
   private projectLobbyBoardNearby=false;
   private projectLobbyBoardFocused=false;
@@ -1354,8 +1376,17 @@ export class VillageMapRenderer{
   private projectRoomSeats:ProjectRoomSeat[]=[];
   private projectRoomSeatNearby?:ProjectRoomSeat;
   private projectRoomActiveSeat?:ProjectRoomSeat;
+  private centralPlazaSofaSeats:PlazaSofaSeat[]=[];
+  private centralPlazaSofaSeatNearby?:PlazaSofaSeat;
+  private centralPlazaSofaActiveSeat?:PlazaSofaSeat;
   private governmentWebUiNearby?:GovernmentCentralPlazaWebUiId;
   private governmentWebUiActive?:GovernmentCentralPlazaWebUiId;
+  private governmentAiCenterPosition?:{x:number;z:number;radius:number};
+  private governmentAiPlatformSurface?:{x:number;z:number;radius:number;height:number};
+  private governmentAiPlatformGrounded=false;
+  private governmentAiCenterNearby=false;
+  private governmentAiCenterActive=false;
+  private governmentAiHologram?:{root:THREE.Group;beam:THREE.Mesh;particles:THREE.Points;core:THREE.Mesh;city:THREE.Group;route:THREE.Group;stage:number;elapsed:number};
   private governmentWebUiScreens=new Map<GovernmentCentralPlazaWebUiId,THREE.Mesh>();
   private governmentWebUiPositions=new Map<GovernmentCentralPlazaWebUiId,{x:number;z:number;radius:number}>();
   private governmentWebUiViews=new Map<GovernmentCentralPlazaWebUiId,{target:THREE.Vector3;camera:THREE.Vector3;fov:number}>();
@@ -1533,10 +1564,13 @@ export class VillageMapRenderer{
     if(options.projectRoomInteractions)gameEvents.on('project-room-kiosk-activate',this.enterProjectRoomKiosk);
     if(options.projectRoomInteractions)gameEvents.on('project-lobby-board-focus-open',this.enterProjectLobbyBoardFocus);
     if(options.projectRoomInteractions)gameEvents.on('project-room-seat-toggle',this.toggleProjectRoomSeat);
+    if(options.centralPlazaSofaSeats)gameEvents.on('central-plaza-sofa-seat-toggle',this.toggleCentralPlazaSofaSeat);
     if(options.projectRoomInteractions)gameEvents.on('project-room-door-unlock',this.unlockProjectRoomDoor);
     if(options.projectRoomInteractions)window.addEventListener('pointerdown',this.onProjectRoomKioskPointerDown,true);
     if(options.governmentCentralPlazaWebUi)gameEvents.on('government-webui-open',this.enterGovernmentWebUi);
     if(options.governmentCentralPlazaWebUi)gameEvents.on('government-webui-close',this.exitGovernmentWebUi);
+    if(options.governmentCentralPlazaWebUi)gameEvents.on('government-ai-center-mode-changed',this.onGovernmentAiCenterModeChanged);
+    if(options.governmentCentralPlazaWebUi)gameEvents.on('government-ai-center-stage-changed',this.onGovernmentAiCenterStageChanged);
     if(options.recruitmentKioskWeb)gameEvents.on('recruitment-kiosk-open',this.enterRecruitmentKiosk);
     if(options.recruitmentKioskWeb)gameEvents.on('recruitment-kiosk-close',this.exitRecruitmentKiosk);
     if(options.observatoryTelescopeInteraction)gameEvents.on('observatory-telescope-enter',this.enterObservatoryTelescope);
@@ -1546,6 +1580,10 @@ export class VillageMapRenderer{
     if(options.foodTruckExperience)gameEvents.on('food-truck-kiosk-activate',this.enterFoodTruckKiosk);
     if(options.foodTruckExperience)gameEvents.on('food-truck-kiosk-close',this.exitFoodTruckKiosk);
     if(options.foodTruckExperience)gameEvents.on('food-seat-toggle',this.toggleFoodSeat);
+    if(options.smartCityWebUi){
+      gameEvents.on('smart-city-technology-changed',this.onSmartCityTechnologyChanged);
+      gameEvents.on('smart-city-experience-active-changed',this.onSmartCityExperienceActiveChanged);
+    }
     window.addEventListener('keydown',this.onWorldPortalKeyDown);
     if(options.previewNavigation)gameEvents.on('map-preview-camera-reset',this.onPreviewCameraReset);
     this.ready=this.loadVillage();
@@ -1577,11 +1615,11 @@ export class VillageMapRenderer{
     controls.maxDistance=4200;
     controls.minZoom=.35;
     controls.maxZoom=4;
-    controls.mouseButtons.LEFT=THREE.MOUSE.PAN;
+    controls.mouseButtons.LEFT=this.options.previewDragRotate?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN;
     controls.mouseButtons.MIDDLE=THREE.MOUSE.DOLLY;
-    controls.mouseButtons.RIGHT=THREE.MOUSE.ROTATE;
-    controls.touches.ONE=THREE.TOUCH.PAN;
-    controls.touches.TWO=THREE.TOUCH.DOLLY_ROTATE;
+    controls.mouseButtons.RIGHT=this.options.previewDragRotate?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE;
+    controls.touches.ONE=this.options.previewDragRotate?THREE.TOUCH.ROTATE:THREE.TOUCH.PAN;
+    controls.touches.TWO=this.options.previewDragRotate?THREE.TOUCH.DOLLY_PAN:THREE.TOUCH.DOLLY_ROTATE;
     controls.update();
     this.previewCameraInitialized=true;
   }
@@ -1602,6 +1640,7 @@ export class VillageMapRenderer{
       this.camera.position.add(offset);
     }
     controls.update();
+    this.smartCityHologram?.update(delta);
     this.cameraTarget.copy(controls.target);
     this.adjustQuality(delta);
     this.renderAccumulator+=delta;
@@ -1701,6 +1740,7 @@ export class VillageMapRenderer{
         this.setupProjectRoomSeats(model);
       }
       if(this.options.governmentCentralPlazaWebUi)this.setupGovernmentWebUi(model);
+      if(this.options.centralPlazaSofaSeats)this.setupCentralPlazaSofaSeats(model);
       if(this.options.recruitmentKioskWeb)this.setupRecruitmentKioskWeb(model);
       if(this.options.observatoryTelescopeInteraction)this.setupObservatoryTelescope(model);
       if(hasArtsCenterPosterScreens){
@@ -2228,6 +2268,55 @@ export class VillageMapRenderer{
     this.projectRoomActiveSeat=seat;this.localCharacter.setSeated(true);
     gameEvents.emit('project-room-seat-proximity-changed',{id:seat.id,seated:true});
     if(seat.opensCollaborationTable)gameEvents.emit('project-room-interaction-open','collaboration-table');
+  };
+  private setupCentralPlazaSofaSeats(model:THREE.Object3D){
+    const sofaPrefix='tripo_node_7c513070-600e-4a04-889e-a8c3c6e2d596';
+    const platform=model.getObjectByName('AI_Platform_Base');
+    const plazaCenter=platform
+      ?new THREE.Box3().setFromObject(platform).getCenter(new THREE.Vector3())
+      :new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+    const seats:PlazaSofaSeat[]=[];
+    model.updateMatrixWorld(true);
+    model.children.filter(object=>object.name.startsWith(sofaPrefix)).forEach(object=>{
+      const bounds=new THREE.Box3().setFromObject(object);if(bounds.isEmpty())return;
+      const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
+      const outward=center.clone().sub(plazaCenter);outward.y=0;
+      if(outward.lengthSq()<.001)outward.set(0,0,1);else outward.normalize();
+      const inward=outward.clone().negate(),standScene=center.clone().addScaledVector(outward,105);
+      seats.push({
+        id:object.name,
+        x:center.x,
+        z:this.sceneToWorldZ(center.z),
+        // The imported sofa is a single mesh, so derive the cushion level from
+        // the same normalized profile used by the observatory sofa asset.
+        seatHeight:bounds.min.y+size.y*.46,
+        yaw:Math.atan2(inward.x,inward.z),
+        standX:standScene.x,
+        standZ:this.sceneToWorldZ(standScene.z),
+      });
+    });
+    this.centralPlazaSofaSeats=seats;
+  }
+  private updateCentralPlazaSofaSeatProximity(x:number,z:number){
+    if(!this.centralPlazaSofaSeats.length||this.centralPlazaSofaActiveSeat)return;
+    const nearest=this.centralPlazaSofaSeats.map(seat=>({seat,distance:Math.hypot(x-seat.x,z-seat.z)})).sort((a,b)=>a.distance-b.distance)[0];
+    const same=nearest?.seat.id===this.centralPlazaSofaSeatNearby?.id;
+    const nearby=nearest&&nearest.distance<(same?185:155)?nearest.seat:undefined;
+    if(nearby?.id===this.centralPlazaSofaSeatNearby?.id)return;
+    this.centralPlazaSofaSeatNearby=nearby;
+    gameEvents.emit('central-plaza-sofa-seat-proximity-changed',nearby?{id:nearby.id}:null);
+  }
+  private toggleCentralPlazaSofaSeat=()=>{
+    if(this.centralPlazaSofaActiveSeat){
+      const seat=this.centralPlazaSofaActiveSeat;
+      this.centralPlazaSofaActiveSeat=undefined;this.centralPlazaSofaSeatNearby=undefined;this.localCharacter.setSeated(false);
+      this.pendingTeleport={x:seat.standX,z:seat.standZ};
+      gameEvents.emit('central-plaza-sofa-seat-proximity-changed',null);
+      return;
+    }
+    const seat=this.centralPlazaSofaSeatNearby;if(!seat)return;
+    this.centralPlazaSofaActiveSeat=seat;this.localCharacter.setSeated(true);
+    gameEvents.emit('central-plaza-sofa-seat-proximity-changed',{id:seat.id,seated:true});
   };
   arrivalSpawnFrom(sourceMapId:MapId){
     const spawn=portalArrivalSpawn(this.options,sourceMapId);
@@ -2868,11 +2957,51 @@ export class VillageMapRenderer{
     model.updateMatrixWorld(true);
     const screen=model.getObjectByName('Central_Table_Screen');
     const platform=model.getObjectByName('Central_Table_Platform')??screen;
-    if(!(screen instanceof THREE.Mesh)||!platform){console.warn('[미래 세종관] 중앙 테이블 스크린을 찾지 못했습니다.');return}
-    this.smartCityScreen=screen;screen.visible=false;
+    if(!platform){console.warn('[미래 세종관] 중앙 테이블을 찾지 못했습니다.');return}
+    if(screen instanceof THREE.Mesh)this.smartCityScreen=screen;
+    ([['city','AI_Exhibit_Wall'],['future','Mobility_Wall'],['connected','Energy_Wall']] as const).forEach(([id,name])=>{
+      const wall=model.getObjectByName(name);
+      if(wall instanceof THREE.Mesh)this.smartCityWallScreens.set(id,wall);
+    });
     const center=new THREE.Box3().setFromObject(platform).getCenter(new THREE.Vector3());
     this.smartCityTablePosition={x:center.x,z:this.sceneToWorldZ(center.z)+175,radius:285};
+    this.smartCityHologram=new SmartCityHologram(model);
+    this.smartCityHologram.setTechnology(this.smartCityTechnology,true);
+    this.smartCityHologram.setActive(this.smartCityExperienceActive);
   }
+  private onSmartCityTechnologyChanged=(technology:SmartCityTechnologyId)=>{
+    this.smartCityTechnology=technology;
+    this.smartCityHologram?.setTechnology(technology);
+  };
+  private onSmartCityExperienceActiveChanged=(active:boolean)=>{
+    this.smartCityExperienceActive=active;
+    this.smartCityHologram?.setActive(active);
+    this.setProjectRoomCharactersVisible(!active);
+    if(!active){
+      this.smartCityFocusView=undefined;this.smartCityFocusTransition=undefined;this.lastSmartCityScreenRect=undefined;
+      gameEvents.emit('smart-city-screen-rect',null);
+      return;
+    }
+    const mesh=this.smartCityScreen;
+    if(!mesh||!(this.camera instanceof THREE.PerspectiveCamera))return;
+    mesh.updateWorldMatrix(true,false);
+    const center=new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
+    // Keep the showroom's authored viewing angle, but shift the framing toward
+    // the hologram and leave enough distance to operate the table below it.
+    const viewBack=this.camera.position.clone().sub(this.cameraTarget).normalize();
+    const viewRight=new THREE.Vector3().crossVectors(this.camera.up,viewBack).normalize();
+    const viewUp=new THREE.Vector3().crossVectors(viewBack,viewRight).normalize();
+    const hologramCenter=this.smartCityHologram?.root.getWorldPosition(new THREE.Vector3());
+    const hologramGap=hologramCenter?Math.max(0,hologramCenter.clone().sub(center).dot(viewUp)):0;
+    // Aim higher so the rear service screen title and top frame remain visible
+    // without losing the table controls or hologram from the same view.
+    const target=center.clone().addScaledVector(viewUp,hologramGap*.56);
+    const distance=THREE.MathUtils.clamp(this.camera.position.distanceTo(this.cameraTarget)*.61,900,1100);
+    const fov=42;
+    this.smartCityFocusView={target,camera:target.clone().addScaledVector(viewBack,distance),fov};
+    this.smartCityFocusTransition={target:this.cameraTarget.clone(),camera:this.camera.position.clone(),fov:this.camera.fov,elapsed:0};
+    this.lastSmartCityScreenRect=undefined;
+  };
   private onWorldPortalKeyDown=(event:KeyboardEvent)=>{
     const focused=document.activeElement as HTMLElement|null;
     if(this.projectLobbyBoardFocused&&(event.key==='Escape'||event.code==='KeyE')){event.preventDefault();this.exitProjectLobbyBoardFocus();return}
@@ -2934,6 +3063,13 @@ export class VillageMapRenderer{
     }
     if(this.projectRoomActiveSeat||this.projectRoomSeatNearby){
       event.preventDefault();event.stopImmediatePropagation();this.toggleProjectRoomSeat();return;
+    }
+    if(this.centralPlazaSofaActiveSeat||this.centralPlazaSofaSeatNearby){
+      event.preventDefault();event.stopImmediatePropagation();this.toggleCentralPlazaSofaSeat();return;
+    }
+    if(this.governmentAiCenterNearby){
+      event.preventDefault();event.stopImmediatePropagation();
+      gameEvents.emit('government-ai-center-start');return;
     }
     if(this.observatoryTelescopeNearby){
       event.preventDefault();
@@ -3391,6 +3527,20 @@ export class VillageMapRenderer{
     if(previous&&Math.abs(previous.left-next.left)<.5&&Math.abs(previous.top-next.top)<.5&&Math.abs(previous.width-next.width)<.5&&Math.abs(previous.height-next.height)<.5)return;
     this.lastSmartCityScreenRect=next;gameEvents.emit('smart-city-screen-rect',next);
   }
+  private syncSmartCityWallScreenRects(){
+    if(!this.smartCityWallScreens.size)return;
+    const screens:Partial<Record<'city'|'future'|'connected',ProjectLobbyBoardScreenRect>>={};
+    let changed=false;
+    this.smartCityWallScreens.forEach((mesh,id)=>{
+      const rect=this.projectedMeshScreenRect(mesh),quad=this.projectedMeshScreenQuad(mesh);
+      if(!rect||!quad||rect.width<2||rect.height<2)return;
+      const next={...rect,quad},previous=this.lastSmartCityWallRects.get(id);
+      screens[id]=next;
+      if(!previous||Math.abs(previous.left-next.left)>=.5||Math.abs(previous.top-next.top)>=.5||Math.abs(previous.width-next.width)>=.5||Math.abs(previous.height-next.height)>=.5)changed=true;
+      this.lastSmartCityWallRects.set(id,next);
+    });
+    if(changed)gameEvents.emit('smart-city-wall-screen-rects',screens);
+  }
   private setupProjectRoomScreens(model:THREE.Object3D){
     // Make both lobby kiosks easier to see and use while preserving their
     // authored positions and proportions.
@@ -3538,34 +3688,21 @@ export class VillageMapRenderer{
     context.fillStyle='rgba(67,218,220,.12)';context.beginPath();context.arc(1050,100,360,0,Math.PI*2);context.fill();
     text(eyebrow,58,58,21,'#5ce8e3',900);text(label,58,112,44,'#ffffff',900);text('AI 세종 추천센터',1220,62,21,'#9bcbd0',800,'right');
     context.fillStyle='rgba(123,224,224,.22)';context.fillRect(58,150,1164,2);
-    if(true){
-      const columns=[
-        ['01','프로젝트 가져오기','프로젝트실 여행 기획'],
-        ['02','AI 코스 편집','지도 · 순서 변경 · 장소 추가'],
-        ['03','일정 확정','AI 최적화 · QR · PDF'],
-      ];
-      columns.forEach(([number,title,copy],index)=>{
-        const x=58+index*398;
-        rounded(x,205,366,342,22,index===1?'#104f61':'rgba(255,255,255,.065)',index===1?'#5de4dd':'#315f69');
-        rounded(x+26,232,48,48,14,index===1?'#35bba9':'#244e59');text(number,x+50,256,17,'#ffffff',900,'center');
-        text(title,x+26,326,27,'#ffffff',900);text(copy,x+26,370,17,'#add1d4',650);
-        if(index===0){text('📁  세종 야경 여행',x+26,440,20,'#d9f4f2',800);text('장소 4개  ·  참여자 3명',x+26,478,16,'#83b4b8',700)}
-        if(index===1){['세종수목원','이응다리','카페거리','호수공원'].forEach((place,placeIndex)=>text(`${placeIndex+1}  ${place}`,x+26,420+placeIndex*30,16,placeIndex===0?'#65e9db':'#c2dfe0',750))}
-        if(index===2){text('이동시간  4시간 20분',x+26,430,17,'#bfe5e3',750);text('추천도  96%',x+26,472,20,'#61e1b2',900)}
-      });
-      rounded(420,590,440,58,15,'#209b76','#62e3b4');text('AI 최적화  ·  일정 확정',640,619,21,'#ffffff',900,'center');
-    }else if(id==='experience-analysis'){
-      const rows=[['자연·힐링','82%',.82],['문화·전시','67%',.67],['야간 경관','54%',.54]];
-      rows.forEach(([name,value,ratio],index)=>{const y=238+index*112;text(String(name),70,y,25,'#d9f4f4',800);rounded(290,y-14,700,28,14,'rgba(255,255,255,.1)');rounded(290,y-14,700*Number(ratio),28,14,index===0?'#48d7c4':index===1?'#5caee9':'#8f88e8');text(String(value),1050,y,25,'#ffffff',900)});
-      rounded(70,588,1140,76,18,'rgba(255,255,255,.07)','#2f6671');text('지금까지의 체험 기록을 바탕으로 관심도와 여행 성향을 분석했어요.',110,626,23,'#b8dadd',700);
+    if(id==='experience-analysis'){
+      rounded(70,210,1140,320,24,'rgba(255,255,255,.055)','#315f69');text('📁',126,280,48,'#6ce9e1',800,'center');
+      text('세종 AI 라이프 프로젝트',190,270,32,'#ffffff',900);text('메타버스 활동과 방문 기록을 분석할 준비가 되었습니다.',190,320,20,'#a9d0d2',650);
+      [['프로젝트','3개'],['참여자','2명'],['수집 신호','18개']].forEach(([name,value],index)=>{const x=190+index*300;text(name,x,414,17,'#83b9bd',700);text(value,x,456,27,'#dfffff',900)});
+      rounded(410,590,460,58,15,'#167f79','#5ce4dc');text('프로젝트 데이터 준비 완료',640,619,20,'#ffffff',900,'center');
     }else if(id==='course-recommendation'){
-      const cards=[['01','세종수목원','자연 속에서 가볍게 시작'],['02','국립세종박물관','문화와 이야기를 연결'],['03','호수공원 전망대','야경으로 여정을 마무리']];
-      cards.forEach(([number,title,copy],index)=>{const x=60+index*397;rounded(x,220,365,330,24,index===0?'#13566a':'rgba(255,255,255,.07)',index===0?'#5de4dd':'#315f69');text(number,x+28,258,22,'#5de4dd',900);text(title,x+28,326,29,'#ffffff',900);text(copy,x+28,378,18,'#b6d7da',600);rounded(x+28,468,150,48,14,index===0?'#41bfae':'#244e59');text(index===0?'추천 96%':'코스 정보',x+103,492,17,'#ffffff',800,'center')});
-      text('나의 기록과 현재 선호를 반영한 오늘의 행정도시 코스',640,625,23,'#c7e8e8',700,'center');
+      text('AI READY',640,250,42,'#78eee7',950,'center');text('프로필 분석을 시작하세요.',640,318,29,'#ffffff',850,'center');
+      text('AI가 지금까지의 경험을 분석해 나만의 세종을 만들어드립니다.',640,365,18,'#9fc8cb',650,'center');
+      [110,155,200].forEach((radius,index)=>{context.beginPath();context.ellipse(640,510,radius,radius*.25,0,0,Math.PI*2);context.strokeStyle=index===0?'#73eee8':'rgba(87,214,220,.46)';context.lineWidth=index===0?4:2;context.stroke()});
+      rounded(505,585,270,58,15,'#208c75','#67e7bd');text('E  ·  AI 분석 시작',640,614,20,'#ffffff',900,'center');
     }else{
-      const routes=[['도심 행정 투어','정부청사 · 대통령기록관','92%'],['세종 자연 산책','수목원 · 호수공원','88%'],['야간 문화 코스','박물관 · 도시전망대','81%']];
-      routes.forEach(([title,places,score],index)=>{const y=214+index*126;rounded(60,y,1160,98,20,'rgba(255,255,255,.075)','#2d6470');rounded(80,y+18,62,62,15,index===0?'#36bda9':index===1?'#4c98d5':'#7c75cf');text(`0${index+1}`,111,y+50,19,'#fff',900,'center');text(title,174,y+34,25,'#ffffff',900);text(places,174,y+67,18,'#a9ced2',600);text(score,1166,y+50,25,'#64e3d8',900,'right')});
-      text('관심 있는 코스를 선택하면 상세 동선과 장소 정보를 볼 수 있어요.',60,632,21,'#b7dadd',700);
+      rounded(70,210,1140,320,24,'rgba(255,255,255,.055)','#315f69');text('일정 저장 대기 중',640,292,35,'#ffffff',900,'center');
+      text('AI 분석이 끝나면 개인 맞춤 세종 여행 일정이 이곳에 표시됩니다.',640,358,21,'#a8ced0',650,'center');
+      text('QR  ·  PDF  ·  모바일 저장',640,438,20,'#64dfd7',850,'center');
+      rounded(445,590,390,58,15,'#244e59','#356b75');text('추천 경로를 기다리는 중...',640,619,19,'#a9d0d2',800,'center');
     }
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=textureAnisotropy;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.magFilter=THREE.LinearFilter;
     this.governmentWebUiTextures.push(texture);return texture;
@@ -3580,6 +3717,27 @@ export class VillageMapRenderer{
     if(authoredRight)authoredRight.rotation.z-=sideTilt;
     model.updateMatrixWorld(true);
     const centerSurface=model.getObjectByName('WebUI_Surface_Center');
+    const aiPlatform=model.getObjectByName('AI_Platform_Base');
+    if(aiPlatform){
+      const bounds=new THREE.Box3().setFromObject(aiPlatform),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
+      const platformTopObject=model.getObjectByName('AI_Platform_Stone')??aiPlatform;
+      const platformTopBounds=new THREE.Box3().setFromObject(platformTopObject);
+      this.governmentAiCenterPosition={
+        x:center.x,
+        z:this.sceneToWorldZ(center.z),
+        radius:THREE.MathUtils.clamp(Math.min(size.x,size.z)*.42,180,290),
+      };
+      // The animated rings and inlay are separate meshes, so a generic ground
+      // ray can pick the plaza floor beneath them. Keep the authored stone top
+      // as one stable landing plane and inset it by the avatar footprint.
+      this.governmentAiPlatformSurface={
+        x:center.x,
+        z:this.sceneToWorldZ(center.z),
+        radius:Math.max(24,Math.min(size.x,size.z)*.42-COLLISION_RADIUS*.65),
+        height:platformTopBounds.max.y+.15,
+      };
+      this.setupGovernmentAiHologram(center,bounds.max.y,size);
+    }
     const entranceFrontNormal=centerSurface
       ?new THREE.Vector3(0,-1,0).transformDirection(centerSurface.matrixWorld).normalize()
       :new THREE.Vector3(0,0,-1);
@@ -3651,6 +3809,59 @@ export class VillageMapRenderer{
     this.governmentWebUiOutlines.forEach((outline,id)=>{outline.visible=id===this.governmentWebUiNearby});
     gameEvents.emit('government-webui-screen-rect',null);gameEvents.emit('government-webui-mode-changed',null);
   };
+  private onGovernmentAiCenterModeChanged=(active:boolean)=>{
+    this.governmentAiCenterActive=active;
+    if(active){
+      if(this.governmentAiCenterPosition){
+        const {x,z}=this.governmentAiCenterPosition;
+        const platform=this.governmentAiPlatformSurface;
+        const ground=platform
+          ?{height:platform.height,normal:new THREE.Vector3(0,1,0)}
+          :this.sampleGround(x,z,this.localGround,true,1200);
+        this.localX=x;this.localZ=z;
+        if(ground){this.localGround=ground.height;this.localNormal.copy(ground.normal);this.governmentAiPlatformGrounded=!!platform}
+        this.pendingTeleport={x,z,groundHeight:ground?.height};
+      }
+      this.governmentWebUiNearby=undefined;
+      this.governmentWebUiOutlines.forEach(outline=>{outline.visible=false});
+      gameEvents.emit('government-webui-proximity-changed',null);
+    }
+  };
+  private onGovernmentAiCenterStageChanged=(stage:number)=>{
+    const hologram=this.governmentAiHologram;if(!hologram)return;
+    hologram.stage=stage;hologram.elapsed=0;
+    hologram.beam.visible=stage>=1&&stage<=4;
+    hologram.particles.visible=stage>=1&&stage<=4;
+    hologram.core.visible=stage>=3&&stage<=5;
+    hologram.city.visible=stage>=7;
+    hologram.route.visible=stage>=8;
+    if(stage===7)hologram.city.children.forEach(object=>{if(object.userData.aiBuilding)object.scale.y=.02});
+  };
+  private setupGovernmentAiHologram(center:THREE.Vector3,platformTop:number,size:THREE.Vector3){
+    const root=new THREE.Group();root.name='government-ai-recommendation-hologram';root.position.set(center.x,platformTop+4,center.z);
+    const scale=THREE.MathUtils.clamp(Math.min(size.x,size.z)/600,.72,1.25);
+    const material=(color:number,opacity:number)=>new THREE.MeshBasicMaterial({color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});
+    const beam=new THREE.Mesh(new THREE.CylinderGeometry(85*scale,175*scale,420*scale,40,1,true),material(0x55e8ff,.075));beam.position.y=215*scale;beam.visible=false;root.add(beam);
+    const particleGeometry=new THREE.BufferGeometry(),positions=new Float32Array(90*3);
+    for(let index=0;index<90;index+=1){const angle=(index*2.399)% (Math.PI*2),radius=(45+(index%11)*12)*scale;positions[index*3]=Math.cos(angle)*radius;positions[index*3+1]=(index%30)*14*scale;positions[index*3+2]=Math.sin(angle)*radius}
+    particleGeometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+    const particles=new THREE.Points(particleGeometry,new THREE.PointsMaterial({color:0xb8fbff,size:5*scale,transparent:true,opacity:.78,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));particles.visible=false;root.add(particles);
+    const core=new THREE.Mesh(new THREE.SphereGeometry(58*scale,24,18),material(0x72efff,.25));core.position.y=180*scale;core.visible=false;root.add(core);
+    const city=new THREE.Group();city.position.y=16*scale;city.visible=false;
+    const grid=new THREE.GridHelper(520*scale,14,0x6be7f1,0x237f95);(grid.material as THREE.Material).transparent=true;(grid.material as THREE.Material).opacity=.32;city.add(grid);
+    for(let index=0;index<28;index+=1){const width=(18+(index%4)*6)*scale,height=(35+(index%7)*17)*scale,depth=(18+(index%3)*7)*scale,building=new THREE.Mesh(new THREE.BoxGeometry(width,height,depth),material(index%5===0?0xa6fbff:0x45dff2,.28));const column=index%7,row=Math.floor(index/7);building.position.set((column-3)*65*scale,height/2,(row-1.5)*82*scale);building.userData.aiBuilding=true;building.scale.y=.02;city.add(building)}
+    [[-210,-130],[215,-105],[-185,125],[195,135]].forEach(([x,z])=>{const landmark=new THREE.Mesh(new THREE.ConeGeometry(22*scale,95*scale,6),material(0x8ef5e2,.3));landmark.position.set(x*scale,48*scale,z*scale);landmark.userData.aiBuilding=true;landmark.scale.y=.02;city.add(landmark)});root.add(city);
+    const route=new THREE.Group();route.position.y=city.position.y;route.visible=false;const points=[[-220,-130],[-90,35],[30,-50],[130,90],[225,130]].map(([x,z],index)=>new THREE.Vector3(x*scale,(105+index*9)*scale,z*scale)),curve=new THREE.CatmullRomCurve3(points),tube=new THREE.Mesh(new THREE.TubeGeometry(curve,64,3.2*scale,8,false),material(0xffdf4f,.92));route.add(tube);points.forEach((point,index)=>{const marker=new THREE.Mesh(new THREE.SphereGeometry(9*scale,16,12),material(0xffed85,.95));marker.position.copy(point);marker.userData.routeMarker=index+1;route.add(marker)});root.add(route);
+    this.scene.add(root);this.governmentAiHologram={root,beam,particles,core,city,route,stage:0,elapsed:0};
+  }
+  private updateGovernmentAiHologram(delta:number){
+    const hologram=this.governmentAiHologram;if(!hologram)return;hologram.elapsed+=delta;
+    if(hologram.beam.visible){hologram.beam.rotation.y+=delta*.55;const pulse=.88+Math.sin(hologram.elapsed*4)*.12;hologram.beam.scale.set(pulse,1,pulse)}
+    if(hologram.particles.visible){const attribute=hologram.particles.geometry.getAttribute('position') as THREE.BufferAttribute;for(let index=0;index<attribute.count;index+=1){let y=attribute.getY(index)+delta*(85+(index%7)*9);if(y>430)y=0;attribute.setY(index,y)}attribute.needsUpdate=true;hologram.particles.rotation.y+=delta*.18}
+    if(hologram.core.visible){const pulse=1+Math.sin(hologram.elapsed*5)*.1;hologram.core.scale.setScalar(pulse);hologram.core.rotation.y+=delta*.7}
+    if(hologram.city.visible){hologram.city.children.forEach((object,index)=>{if(!object.userData.aiBuilding)return;const target=THREE.MathUtils.clamp((hologram.elapsed-index*.045)*2.4,0,1),eased=target*target*(3-2*target);object.scale.y=Math.max(.02,eased)});hologram.city.rotation.y=Math.sin(hologram.elapsed*.28)*.035}
+    if(hologram.route.visible)hologram.route.children.forEach((object,index)=>{if(index>0){const pulse=1+Math.sin(hologram.elapsed*4-index)*.16;object.scale.setScalar(pulse)}});
+  }
   private setupObservatoryTelescope(model:THREE.Object3D){
     const body=model.getObjectByName('Telescope_left_body');
     const lenses=[
@@ -4541,6 +4752,22 @@ export class VillageMapRenderer{
     return {height,normal};
   }
 
+  private sampleGovernmentAiPlatformGround(worldX:number,worldZ:number,jumpHeight:number):GroundSample|undefined{
+    const surface=this.governmentAiPlatformSurface;
+    if(!surface)return;
+    const inside=Math.hypot(worldX-surface.x,worldZ-surface.z)<=surface.radius;
+    if(!inside){this.governmentAiPlatformGrounded=false;return}
+    if(!this.governmentAiPlatformGrounded){
+      const rise=surface.height-this.localGround;
+      // Require a real jump when approaching from the plaza floor. Once the
+      // top has been acquired, keep using the exact same height until the full
+      // character footprint leaves the platform, preventing feet from sinking.
+      if(rise>3&&(jumpHeight<=8||this.localGround+jumpHeight<surface.height-4))return;
+      this.governmentAiPlatformGrounded=true;
+    }
+    return {height:surface.height,normal:new THREE.Vector3(0,1,0)};
+  }
+
   private sampleVisibleSurfaceGround(worldX:number,worldZ:number):GroundSample|undefined{
     if(!this.mapMeshes.length)return {height:this.localGround,normal:new THREE.Vector3(0,1,0)};
     this.raycaster.near=0;this.raycaster.far=Infinity;
@@ -4641,6 +4868,8 @@ export class VillageMapRenderer{
     this.updateLakeExperienceCircles();
     this.updateProjectRoomHologram();
     this.updateStudentHallAiTreeEffect(delta);
+    this.smartCityHologram?.update(delta);
+    this.updateGovernmentAiHologram(delta);
     if(this.overviewActive){this.showMapOverview();this.renderAccumulator+=delta;if(this.renderAccumulator>=this.renderInterval){this.renderAccumulator%=this.renderInterval;this.render()}return {x:this.localX,z:this.localZ,groundHeight:this.localGround}}
     // While a government display is open the WebGL canvas is hidden behind
     // the DOM interface. Keep only the short camera/rect transition alive and
@@ -4665,7 +4894,7 @@ export class VillageMapRenderer{
       }
       return {x:this.localX,z:this.localZ,groundHeight:this.localGround};
     }
-    const activeSeat=this.artsCenterActiveSeat??this.foodActiveSeat??this.projectRoomActiveSeat;
+    const activeSeat=this.artsCenterActiveSeat??this.foodActiveSeat??this.projectRoomActiveSeat??this.centralPlazaSofaActiveSeat;
     if(activeSeat){
       const seat=activeSeat,characterHeight=this.options.characterHeight??CHARACTER_HEIGHT;
       this.localX=seat.x;this.localZ=seat.z;
@@ -4673,7 +4902,8 @@ export class VillageMapRenderer{
       // Apply map-specific lifts so the avatar's hips rest on the cushion top.
       const foodSeatLift=this.foodActiveSeat?22:0;
       const projectRoomSeatLift=this.projectRoomActiveSeat?24:0;
-      const position=this.localRenderPosition.set(seat.x,seat.seatHeight-characterHeight*.53+foodSeatLift+projectRoomSeatLift,this.worldToSceneZ(seat.z));
+      const centralPlazaSeatLift=this.centralPlazaSofaActiveSeat?22:0;
+      const position=this.localRenderPosition.set(seat.x,seat.seatHeight-characterHeight*.53+foodSeatLift+projectRoomSeatLift+centralPlazaSeatLift,this.worldToSceneZ(seat.z));
       const cameraGround=this.followTarget.set(seat.x,seat.seatHeight,this.worldToSceneZ(seat.z));
       this.localCharacter.update(position,this.localNormal,seat.yaw,'idle',delta);
       this.followCharacter(cameraGround,delta);if(this.artsCenterActiveSeat)this.syncArtsCenterStageScreenRect();this.adjustQuality(delta);this.renderAccumulator+=delta;
@@ -4687,14 +4917,16 @@ export class VillageMapRenderer{
     const canCrossBody=jumpHeight>8&&this.options.mapName!=='모집센터',reachableHeight=MAX_STEP_HEIGHT;
     const pathClear=(x:number,z:number)=>canCrossBody||this.options.simplifiedCollision||this.bodyPathClear(x,z);
     const walkable=(ground:GroundSample|undefined)=>ground&&ground.normal.y>=.55?ground:undefined;
-    let nextX=proposedX,nextZ=proposedZ,sample=positionChanged?(pathClear(nextX,nextZ)?walkable(this.sampleGround(nextX,nextZ,this.localGround,false,reachableHeight)):undefined):{height:this.localGround,normal:this.localNormal};
-    if(!sample){nextZ=this.localZ;sample=pathClear(nextX,nextZ)?walkable(this.sampleGround(nextX,nextZ,this.localGround,false,reachableHeight)):undefined}
-    if(!sample){nextX=this.localX;nextZ=proposedZ;sample=pathClear(nextX,nextZ)?walkable(this.sampleGround(nextX,nextZ,this.localGround,false,reachableHeight)):undefined}
+    const groundAt=(x:number,z:number)=>this.sampleGovernmentAiPlatformGround(x,z,jumpHeight)??walkable(this.sampleGround(x,z,this.localGround,false,reachableHeight));
+    let nextX=proposedX,nextZ=proposedZ,sample=positionChanged?(pathClear(nextX,nextZ)?groundAt(nextX,nextZ):undefined):this.sampleGovernmentAiPlatformGround(nextX,nextZ,jumpHeight)??{height:this.localGround,normal:this.localNormal};
+    if(!sample){nextZ=this.localZ;sample=pathClear(nextX,nextZ)?groundAt(nextX,nextZ):undefined}
+    if(!sample){nextX=this.localX;nextZ=proposedZ;sample=pathClear(nextX,nextZ)?groundAt(nextX,nextZ):undefined}
     if(!sample){nextX=this.localX;nextZ=this.localZ;sample={height:this.localGround,normal:this.localNormal}}
     this.localX=nextX;this.localZ=nextZ;this.localGround=sample.height;this.localNormal.copy(sample.normal);
     if(this.artsCenterPosterScreens.length)this.updateArtsCenterSeatProximity(nextX,nextZ)
     if(this.options.foodTruckExperience)this.updateFoodSeatProximity(nextX,nextZ)
     if(this.options.projectRoomInteractions)this.updateProjectRoomSeatProximity(nextX,nextZ)
+    if(this.options.centralPlazaSofaSeats)this.updateCentralPlazaSofaSeatProximity(nextX,nextZ)
     const closestLocalNpc=this.localNpcs.map(npc=>({npc,distance:Math.hypot(nextX-npc.x,nextZ-npc.z)})).sort((a,b)=>a.distance-b.distance)[0];
     const sameLocalNpc=closestLocalNpc?.npc.config.id===this.localNpcNearbyId;
     const npcOpenDistance=closestLocalNpc?.npc.config.interactionRadius??180;
@@ -4866,7 +5098,20 @@ export class VillageMapRenderer{
         gameEvents.emit('observatory-telescope-proximity-changed',nearby);
       }
     }
-    if(this.options.governmentCentralPlazaWebUi&&!this.governmentWebUiActive){
+    if(this.options.governmentCentralPlazaWebUi&&this.governmentAiCenterPosition&&!this.governmentWebUiActive){
+      const distance=Math.hypot(nextX-this.governmentAiCenterPosition.x,nextZ-this.governmentAiCenterPosition.z);
+      const nearby=distance<this.governmentAiCenterPosition.radius+(this.governmentAiCenterNearby?55:0);
+      if(nearby!==this.governmentAiCenterNearby){
+        this.governmentAiCenterNearby=nearby;
+        gameEvents.emit('government-ai-center-proximity-changed',nearby);
+      }
+      if((nearby||this.governmentAiCenterActive)&&this.governmentWebUiNearby){
+        this.governmentWebUiNearby=undefined;
+        this.governmentWebUiOutlines.forEach(outline=>{outline.visible=false});
+        gameEvents.emit('government-webui-proximity-changed',null);
+      }
+    }
+    if(this.options.governmentCentralPlazaWebUi&&!this.governmentWebUiActive&&!this.governmentAiCenterNearby&&!this.governmentAiCenterActive){
       const closest=GOVERNMENT_CENTRAL_PLAZA_WEB_UI.map(config=>{
         const position=this.governmentWebUiPositions.get(config.id);
         return position?{config,position,distance:Math.hypot(nextX-position.x,nextZ-position.z)}:undefined;
@@ -4949,6 +5194,19 @@ export class VillageMapRenderer{
     if(immediate)this.cameraTarget.copy(target);else this.cameraTarget.lerp(target,1-Math.exp(-5*delta));
     const elevation=THREE.MathUtils.degToRad(this.options.cameraElevationDeg??33);
     if(this.camera instanceof THREE.PerspectiveCamera){
+      if(this.smartCityExperienceActive&&this.smartCityFocusView){
+        const view=this.smartCityFocusView,transition=this.smartCityFocusTransition;
+        if(transition){
+          transition.elapsed=Math.min(.72,transition.elapsed+delta);
+          const progress=transition.elapsed/.72,eased=progress*progress*(3-2*progress);
+          this.cameraTarget.lerpVectors(transition.target,view.target,eased);
+          this.camera.position.lerpVectors(transition.camera,view.camera,eased);
+          this.camera.fov=THREE.MathUtils.lerp(transition.fov,view.fov,eased);
+          if(progress>=1)this.smartCityFocusTransition=undefined;
+        }else{this.cameraTarget.copy(view.target);this.camera.position.copy(view.camera);this.camera.fov=view.fov}
+        this.camera.aspect=this.width/Math.max(1,this.height);this.camera.lookAt(this.cameraTarget);this.camera.updateProjectionMatrix();
+        return;
+      }
       if(this.recruitmentKioskActive&&this.recruitmentKioskView){
         const view=this.recruitmentKioskView,transition=this.recruitmentKioskTransition;
         if(transition){
@@ -5164,6 +5422,7 @@ export class VillageMapRenderer{
     this.syncStudentHallBoardScreenRects();
     this.syncProjectLobbyBoardScreenRect();
     this.syncSmartCityScreenRect();
+    this.syncSmartCityWallScreenRects();
     if(this.clubBoothCardAnchors.length){
       const rect=this.renderer.domElement.getBoundingClientRect();
       gameEvents.emit('club-booth-card-screen-positions',this.clubBoothCardAnchors.map(object=>{
@@ -5226,6 +5485,7 @@ export class VillageMapRenderer{
     if(this.options.studentHallFeatures)gameEvents.emit('student-hall-board-screen-rects',null);
     if(this.projectLobbyBoardScreen)gameEvents.emit('project-lobby-board-screen-rect',null);
     if(this.smartCityScreen)gameEvents.emit('smart-city-screen-rect',null);
+    if(this.smartCityWallScreens.size)gameEvents.emit('smart-city-wall-screen-rects',null);
     if(this.projectLobbyBoardNearby)gameEvents.emit('project-lobby-board-proximity-changed',false);
     if(this.projectLobbyBoardFocused){gameEvents.emit('project-lobby-board-focus-mode-changed',false);gameEvents.emit('game-input-lock',false)}
     if(this.studentHallBoardActive){gameEvents.emit('student-hall-board-focus-mode-changed',null);gameEvents.emit('game-input-lock',false)}
@@ -5239,6 +5499,7 @@ export class VillageMapRenderer{
     if(this.options.projectRoomInteractions)gameEvents.off('project-room-kiosk-activate',this.enterProjectRoomKiosk);
     if(this.options.projectRoomInteractions)gameEvents.off('project-lobby-board-focus-open',this.enterProjectLobbyBoardFocus);
     if(this.options.projectRoomInteractions)gameEvents.off('project-room-seat-toggle',this.toggleProjectRoomSeat);
+    if(this.options.centralPlazaSofaSeats)gameEvents.off('central-plaza-sofa-seat-toggle',this.toggleCentralPlazaSofaSeat);
     if(this.options.projectRoomInteractions)gameEvents.off('project-room-door-unlock',this.unlockProjectRoomDoor);
     if(this.options.projectRoomInteractions)window.removeEventListener('pointerdown',this.onProjectRoomKioskPointerDown,true);
     if(this.options.foodTruckExperience)gameEvents.off('food-truck-kiosk-activate',this.enterFoodTruckKiosk);
@@ -5246,12 +5507,18 @@ export class VillageMapRenderer{
     if(this.options.foodTruckExperience)gameEvents.off('food-seat-toggle',this.toggleFoodSeat);
     if(this.options.governmentCentralPlazaWebUi)gameEvents.off('government-webui-open',this.enterGovernmentWebUi);
     if(this.options.governmentCentralPlazaWebUi)gameEvents.off('government-webui-close',this.exitGovernmentWebUi);
+    if(this.options.governmentCentralPlazaWebUi)gameEvents.off('government-ai-center-mode-changed',this.onGovernmentAiCenterModeChanged);
+    if(this.options.governmentCentralPlazaWebUi)gameEvents.off('government-ai-center-stage-changed',this.onGovernmentAiCenterStageChanged);
     if(this.options.recruitmentKioskWeb)gameEvents.off('recruitment-kiosk-open',this.enterRecruitmentKiosk);
     if(this.options.recruitmentKioskWeb)gameEvents.off('recruitment-kiosk-close',this.exitRecruitmentKiosk);
     if(this.options.observatoryTelescopeInteraction)gameEvents.off('observatory-telescope-enter',this.enterObservatoryTelescope);
     if(this.options.observatoryTelescopeInteraction)gameEvents.off('observatory-telescope-exit',this.exitObservatoryTelescope);
     if(this.options.artsCenterPosterWeb)gameEvents.off('arts-center-seat-toggle',this.toggleArtsCenterSeat);
     if(this.options.artsCenterPosterWeb)gameEvents.off('arts-center-poster-focus-close',this.exitArtsCenterPosterFocus);
+    if(this.options.smartCityWebUi){
+      gameEvents.off('smart-city-technology-changed',this.onSmartCityTechnologyChanged);
+      gameEvents.off('smart-city-experience-active-changed',this.onSmartCityExperienceActiveChanged);
+    }
     if(this.artsCenterSeatNearby||this.artsCenterActiveSeat)gameEvents.emit('arts-center-seat-proximity-changed',null);
     if(this.foodSeatNearby||this.foodActiveSeat)gameEvents.emit('food-seat-proximity-changed',null);
     window.removeEventListener('keydown',this.onWorldPortalKeyDown);
@@ -5262,14 +5529,21 @@ export class VillageMapRenderer{
     this.projectRoomKioskScreens.clear();this.projectRoomKioskViews.clear();
     if(this.projectRoomSeatNearby||this.projectRoomActiveSeat)gameEvents.emit('project-room-seat-proximity-changed',null);
     this.projectRoomSeats=[];this.projectRoomSeatNearby=undefined;this.projectRoomActiveSeat=undefined;
+    if(this.centralPlazaSofaSeatNearby||this.centralPlazaSofaActiveSeat)gameEvents.emit('central-plaza-sofa-seat-proximity-changed',null);
+    this.centralPlazaSofaSeats=[];this.centralPlazaSofaSeatNearby=undefined;this.centralPlazaSofaActiveSeat=undefined;
     this.projectRoomScreenTextures.forEach(texture=>texture.dispose());
     this.projectRoomScreenTextures=[];
     this.studentHallFeatureTargets=[];this.studentHallAiTreeEffect=undefined;this.studentHallBoardScreens.clear();this.lastStudentHallBoardRects.clear();
     this.projectLobbyBoardScreen=undefined;this.lastProjectLobbyBoardRect=undefined;this.projectLobbyBoardPosition=undefined;this.projectLobbyBoardNearby=false;this.projectLobbyBoardFocused=false;this.projectLobbyBoardFocusView=undefined;this.projectLobbyBoardFocusTransition=undefined;
     if(this.smartCityTableNearby)gameEvents.emit('smart-city-table-proximity-changed',false);
-    this.smartCityScreen=undefined;this.lastSmartCityScreenRect=undefined;this.smartCityTableNearby=false;this.smartCityTablePosition=undefined;
+    this.smartCityHologram?.dispose();this.smartCityHologram=undefined;
+    this.smartCityScreen=undefined;this.lastSmartCityScreenRect=undefined;this.smartCityWallScreens.clear();this.lastSmartCityWallRects.clear();this.smartCityTableNearby=false;this.smartCityTablePosition=undefined;this.smartCityFocusView=undefined;this.smartCityFocusTransition=undefined;
     this.governmentWebUiOutlines.forEach(outline=>{outline.geometry.dispose();(outline.material as THREE.Material).dispose()});
     this.governmentWebUiOutlines.clear();this.governmentWebUiPositions.clear();this.governmentWebUiViews.clear();this.governmentWebUiScreens.clear();
+    if(this.governmentAiCenterNearby||this.governmentAiCenterActive)gameEvents.emit('government-ai-center-proximity-changed',false);
+    this.governmentAiCenterPosition=undefined;this.governmentAiCenterNearby=false;this.governmentAiCenterActive=false;
+    this.governmentAiPlatformSurface=undefined;this.governmentAiPlatformGrounded=false;
+    this.governmentAiHologram=undefined;
     this.governmentWebUiTextures.forEach(texture=>texture.dispose());this.governmentWebUiTextures=[];
     this.recruitmentKioskTexture?.dispose();this.recruitmentKioskTexture=undefined;this.recruitmentKioskPosition=undefined;this.recruitmentKioskScreen=undefined;this.recruitmentKioskView=undefined;this.recruitmentKioskTransition=undefined;
     this.artsCenterPosterTextures.forEach(texture=>texture.dispose());this.artsCenterPosterTextures=[];this.artsCenterPosterScreens=[];this.artsCenterSeats=[];this.foodSeats=[];this.artsCenterStageBackdrop=undefined;

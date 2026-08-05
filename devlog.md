@@ -80,3 +80,26 @@
 | 2026-08-04 | 003 | 전체 맵 AI 행동 데이터 MySQL 저장·복원 연결 | [상세](devlog/2026-08-04/003-connect-map-ai-behavior-to-mysql.md) |
 | 2026-08-04 | 004 | 회원 탈퇴 시 서버 계정·연관 기록 삭제 및 세션 종료 구현 | [상세](devlog/2026-08-04/004-delete-account-data-on-withdrawal.md) |
 | 2026-08-04 | 005 | ReviewOps 변경 보존 후 최신 동아리 커뮤니티·스마트시티 기능 병합 | [상세](devlog/2026-08-04/005-merge-latest-club-smartcity.md) |
+| 2026-08-04 | 006 | 미래 세종관 전면 공간 3D 홀로그램 디지털 트윈 체험 구현 | [상세](devlog/2026-08-04/006-smartcity-frontspace-hologram.md) |
+| 2026-08-04 | 007 | 미래 세종 체험 중 주변 HUD 및 반응 UI 숨김 | [상세](devlog/2026-08-04/007-hide-smartcity-surrounding-hud.md) |
+| 2026-08-04 | 008 | 스마트시티 HUD 숨김 보강 및 세종 실제 서비스 6종 체험 개편 | [상세](devlog/2026-08-04/008-sejong-smart-services-experience.md) |
+| 2026-08-04 | 009 | 스마트시티 체험 HUD DOM 직접 숨김 및 캐시 갱신 보강 | [상세](devlog/2026-08-04/009-smartcity-hud-dom-hide-cache-refresh.md) |
+| 2026-08-04 | 010 | 스마트시티 서비스별 홀로그램 차별화 및 후면 스크린 확대 | [상세](devlog/2026-08-04/010-smartcity-hologram-variants-and-screen-scale.md) |
+| 2026-08-04 | 011 | 스마트시티 중앙 테이블 인월드 HTML 키오스크 선택 UI 구현 | [상세](devlog/2026-08-04/011-smartcity-table-html-kiosk.md) |
+| 2026-08-04 | 012 | 스마트시티 E 체험 진입 시 중앙 테이블 카메라 확대 | [상세](devlog/2026-08-04/012-smartcity-table-camera-focus.md) |
+| 2026-08-05 | 001 | 스마트시티 테이블·홀로그램 균형 구도 및 서비스 버튼 겹침 수정 | [상세](devlog/2026-08-05/001-smartcity-balanced-focus-and-table-ui.md) |
+| 2026-08-05 | 002 | 중앙광장 GLB 가구 충돌 적용 및 Web UI 사이 키오스크 제거 | [상세](devlog/2026-08-05/002-central-plaza-furniture-collision-and-kiosk-removal.md) |
+| 2026-08-05 | 003 | 미래 세종관 후면 화면 고해상도화 및 좌·우 벽면 HTML 안내 패널 구현 | [상세](devlog/2026-08-05/003-smartcity-wall-html-panels.md) |
+| 2026-08-05 | 004 | 중앙광장 귀환 포털 위치 편집 및 GLB 소파 앉기 기능 추가 | [상세](devlog/2026-08-05/004-central-plaza-portal-editor-and-sofa-seating.md) |
+| 2026-08-05 | 005 | 미래 세종관 E 체험 카메라 상향 조정 | [상세](devlog/2026-08-05/005-smartcity-camera-angle-up.md) |
+| 2026-08-05 | 006 | 중앙광장 AI 세종 추천센터 단계형 홀로그램 체험 구현 | [상세](devlog/2026-08-05/006-central-plaza-ai-recommendation-center.md) |
+| 2026-08-05 | 007 | 미래 세종관 카메라 추가 상향 및 서비스별 홀로그램 구체화 | [상세](devlog/2026-08-05/007-smartcity-hologram-visual-detail.md) |
+| 2026-08-05 | 008 | 중앙광장 AI 추천센터 9단계 시네마틱 피날레 구현 | [상세](devlog/2026-08-05/008-central-plaza-ai-cinematic-finale.md) |
+| 2026-08-05 | 009 | 미래 세종관 후면 화면 품질·홀로그램 태그·캐릭터 겹침 개선 | [상세](devlog/2026-08-05/009-smartcity-screen-label-character-overlap.md) |
+| 2026-08-05 | 010 | 중앙광장 추천센터 장축 링 제거 및 분석 시작 위치 중앙 정렬 | [상세](devlog/2026-08-05/010-central-plaza-ai-center-align.md) |
+| 2026-08-05 | 011 | 공간 안내 16개 월드의 포털 기준 고정 진입 적용 | [상세](devlog/2026-08-05/011-space-guide-fixed-portal-entry.md) |
+| 2026-08-05 | 012 | 스마트시티 3D 미리보기를 실제 내부 GLB 전용 구도로 변경 | [상세](devlog/2026-08-05/012-smartcity-interior-glb-preview.md) |
+| 2026-08-05 | 013 | 중앙광장·스마트시티 정부청사 포털 위치 저장 복구 | [상세](devlog/2026-08-05/013-restore-government-portal-position-editing.md) |
+| 2026-08-05 | 014 | 스마트시티 미리보기를 수정된 실제 맵의 드래그형 라이브 렌더링으로 전환 | [상세](devlog/2026-08-05/014-smartcity-live-map-preview.md) |
+| 2026-08-05 | 015 | 중앙광장 AI 추천센터 점프 착지 높이 및 발 정렬 수정 | [상세](devlog/2026-08-05/015-central-plaza-platform-landing.md) |
+| 2026-08-05 | 016 | 누적 ReviewOps 변경 문서화·보안 검증 및 xericen/SJ 게시 | [상세](devlog/2026-08-05/016-publish-current-work-to-xericen-sj.md) |

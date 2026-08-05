@@ -15,7 +15,7 @@ import { clubsRouter } from './routes/clubs.js';
 import { loadedEnvPath } from './loadEnv.js';
 import path from 'node:path';
 import { festivalsRouter } from './routes/festivals.js';
-import { connectDatabase, disconnectDatabase } from './config/database.js';
+import { connectDatabase, databaseStatus, disconnectDatabase } from './config/database.js';
 import { authRouter } from './routes/auth.js';
 import { loadCampusFeaturePortalPositions, seedCampusFeaturePortalPositions } from './models/CampusFeaturePortal.js';
 import { roomStore } from './rooms/roomStore.js';
@@ -25,14 +25,25 @@ import { authenticatedUserIdFromCookie } from './middleware/authenticatedUser.js
 import { UserModel } from './models/User.js';
 import { profileRouter } from './routes/profile.js';
 import { jointCampusRecommendationsRouter } from './routes/jointCampusRecommendations.js';
-import { loadOrSeedWorldRespawnPosition } from './models/WorldRespawnPosition.js';
 import { FIXED_LAKE_RESPAWN } from '../../shared/socket-events.js';
 import { chungnyeongRouter } from './routes/chungnyeong.js';
+import { loadOrSeedWorldPortalPositions,loadWorldPortalPositions } from './models/WorldPortalPosition.js';
 
 const app = express();
 app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '100kb' }));
 app.get('/health', (_req, res) => res.json({ ok: true, service: '여기 사람 있음' }));
+app.get('/health/live', (_req, res) => res.json({ ok: true, service: '여기 사람 있음' }));
+app.get('/health/ready', (_req, res) => {
+  const database = databaseStatus();
+  res.status(database.connected ? 200 : 503).json({
+    ok: database.connected,
+    service: '여기 사람 있음',
+    database,
+    realtime: true,
+  });
+});
+app.get('/api/world-portals',(_req,res)=>res.json({positions:roomStore.allPortalPositions()}));
 app.use('/api', apiRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/festivals',festivalsRouter);
@@ -59,12 +70,14 @@ setSocketServer(io);
 io.use(async (socket, next) => {
   const userId = authenticatedUserIdFromCookie(socket.request.headers.cookie);
   if (!userId) return next();
-  const user = await UserModel.findById(userId).select('ageGroup profile.chatEnabled profile.recordVisibility').lean().catch(() => null);
+  const user = await UserModel.findById(userId).select('ageGroup profile.chatEnabled profile.recordVisibility portalEditor').lean().catch(() => null);
   if (user) {
     socket.data.userId = String(user._id);
     socket.data.ageGroup = user.ageGroup;
     socket.data.chatEnabled = user.profile?.chatEnabled !== false;
     socket.data.recordVisibility = user.profile?.recordVisibility === 'private' ? 'private' : 'public';
+    const configuredEditors=env.PORTAL_EDITOR_USER_IDS.split(',').map(value=>value.trim()).filter(Boolean);
+    socket.data.portalEditor=user.portalEditor===true||configuredEditors.includes(String(user._id));
   }
   return next();
 });
@@ -72,10 +85,12 @@ io.on('connection', (socket) => registerSocketHandlers(io, socket));
 
 let shuttingDown = false;
 let campusPortalSyncTimer:NodeJS.Timeout|undefined;
+let worldPortalSyncTimer:NodeJS.Timeout|undefined;
 const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   if (shuttingDown) return;
   shuttingDown = true;
   if(campusPortalSyncTimer)clearInterval(campusPortalSyncTimer);
+  if(worldPortalSyncTimer)clearInterval(worldPortalSyncTimer);
   console.log(`[Server] ${signal} received; shutting down`);
 
   if (httpServer.listening) {
@@ -91,7 +106,15 @@ process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
 const startServer = async (): Promise<void> => {
   await connectDatabase();
-  roomStore.setRespawnPosition(await loadOrSeedWorldRespawnPosition(FIXED_LAKE_RESPAWN));
+  roomStore.replacePortalPositions(await loadOrSeedWorldPortalPositions());
+  let worldPortalSignature=JSON.stringify(roomStore.allPortalPositions().sort((a,b)=>`${a.mapId}:${a.destination}`.localeCompare(`${b.mapId}:${b.destination}`)));
+  worldPortalSyncTimer=setInterval(()=>{void loadWorldPortalPositions().then(positions=>{
+    if(!positions.length)return;
+    const next=positions.map(({mapId,destination,x,z})=>({mapId,destination,x,z})).sort((a,b)=>`${a.mapId}:${a.destination}`.localeCompare(`${b.mapId}:${b.destination}`)),signature=JSON.stringify(next);
+    if(signature===worldPortalSignature)return;
+    worldPortalSignature=signature;roomStore.replacePortalPositions(next);io.emit('portalPositionsUpdated',roomStore.allPortalPositions());
+  }).catch(error=>console.error('[world portal sync failed]',error instanceof Error?error.name:'unknown'))},1500);
+  roomStore.setRespawnPosition({...FIXED_LAKE_RESPAWN});
   roomStore.replaceCampusFeaturePortalPositions(await seedCampusFeaturePortalPositions(roomStore.allCampusFeaturePortalPositions()));
   let campusPortalSignature=JSON.stringify(roomStore.allCampusFeaturePortalPositions().sort((a,b)=>a.portal.localeCompare(b.portal)));
   campusPortalSyncTimer=setInterval(()=>{void loadCampusFeaturePortalPositions().then(positions=>{

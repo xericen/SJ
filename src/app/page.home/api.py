@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import re
 import secrets
 import urllib.error
@@ -14,6 +15,42 @@ AVATAR_ID_PATTERN = re.compile(r"^[a-z0-9-]{1,64}$")
 AVATAR_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 AVATAR_TEXT_FIELDS = ("faceId", "hairStyleId", "topId", "bottomId", "shoesId")
 AVATAR_COLOR_FIELDS = ("hairColor", "skinColor", "topColor", "bottomColor", "shoesColor")
+WORLD_PORTAL_LAYOUT_ID = "shared-world-portals-v1"
+WORLD_PORTAL_DEFAULTS = (
+    ("town", "bear-tree-park", 2122, 944),
+    ("town", "campus", 1178, 122),
+    ("town", "arts-center", 603, 452),
+    ("town", "festival-experience", 1219, 1462),
+    ("town", "food-experience", 491, 1556),
+    ("arts-center", "town", 1000, 780),
+    ("festival-experience", "town", 1200, 1690),
+    ("food-experience", "town", 980, 1810),
+    ("club-street-festival", "campus", 1200, 1580),
+    ("bear-tree-park", "town", 980, 1580),
+    ("bear-tree-park", "garden", 682, 735),
+    ("bear-tree-park", "bear-play-zone", 1616, 601),
+    ("bear-play-zone", "bear-tree-park", 1200, 1650),
+    ("garden", "bear-tree-park", 1200, 1260),
+    ("campus", "town", 1120, 1731),
+    ("campus", "student-hall", 881, 950),
+    ("campus", "club-street-festival", 450, 882),
+    ("campus", "recruitment-center", 508, 1382),
+    ("campus", "project-room", 1656, 1501),
+    ("student-hall", "campus", 1200, 1660),
+    ("recruitment-center", "campus", 1200, 1690),
+    ("project-room", "campus", 1220, 2050),
+    ("government", "campus", 1120, 1731),
+    ("government", "government-central-plaza", 720, 1010),
+    ("government", "government-policy-hall", 1200, 760),
+    ("government", "government-observatory", 1680, 1010),
+    ("government", "sejong-smart-city", 1200, 1190),
+    ("government-central-plaza", "government", 1200, 1690),
+    ("government-observatory", "government", 1200, 1790),
+    ("sejong-smart-city", "government", 1200, 1690),
+)
+WORLD_PORTAL_KEYS = {(item[0], item[1]) for item in WORLD_PORTAL_DEFAULTS}
+FROZEN_WORLD_PORTAL_MAPS = {"town", "government", "arts-center"}
+CANONICAL_WORLD_PORTAL_KEYS = {("arts-center", "town")}
 
 
 def _secret_config():
@@ -129,6 +166,134 @@ def me():
     if user is None:
         session.clear()
     return wiz.response.status(200, user=user)
+
+
+def _world_portal_editor():
+    user_id = session.get("id")
+    if not user_id:
+        return None
+    user = struct.user.get(user_id)
+    if user and user.get("role") in ("admin", "portal_editor"):
+        return user
+    return None
+
+
+def _default_world_portals():
+    return [
+        {"mapId": map_id, "destination": destination, "x": x, "z": z}
+        for map_id, destination, x, z in WORLD_PORTAL_DEFAULTS
+    ]
+
+
+def _saved_world_portals(db):
+    record = db.get(id=WORLD_PORTAL_LAYOUT_ID)
+    if record is None:
+        return _default_world_portals()
+    try:
+        positions = json.loads(record.get("payload") or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return _default_world_portals()
+    if not isinstance(positions, list):
+        return _default_world_portals()
+    valid = {}
+    for position in positions:
+        if not isinstance(position, dict):
+            continue
+        key = (position.get("mapId"), position.get("destination"))
+        x, z = position.get("x"), position.get("z")
+        if (
+            key in WORLD_PORTAL_KEYS
+            and key not in CANONICAL_WORLD_PORTAL_KEYS
+            and isinstance(x, (int, float))
+            and isinstance(z, (int, float))
+            and math.isfinite(x)
+            and math.isfinite(z)
+            and 0 <= x <= 4800
+            and 0 <= z <= 2600
+        ):
+            valid[key] = {
+                "mapId": key[0],
+                "destination": key[1],
+                "x": round(x),
+                "z": round(z),
+            }
+    merged = {
+        (position["mapId"], position["destination"]): position
+        for position in _default_world_portals()
+    }
+    merged.update(valid)
+    return list(merged.values())
+
+
+def portal_positions():
+    db = struct.db("world_portal_layout")
+    db.orm.create_table(safe=True)
+    editor = _world_portal_editor()
+    payload = wiz.request.query("payload", "")
+
+    if not payload:
+        return wiz.response.status(
+            200,
+            positions=_saved_world_portals(db),
+            canEdit=editor is not None,
+        )
+
+    if editor is None:
+        return wiz.response.status(403, message="포탈 위치를 변경할 권한이 없어요.")
+
+    try:
+        position = json.loads(payload)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return wiz.response.status(400, message="포탈 위치 값이 올바르지 않아요.")
+
+    if not isinstance(position, dict):
+        return wiz.response.status(400, message="포탈 위치 값이 올바르지 않아요.")
+    key = (position.get("mapId"), position.get("destination"))
+    x, z = position.get("x"), position.get("z")
+    if key[0] in FROZEN_WORLD_PORTAL_MAPS:
+        return wiz.response.status(403, message="현재 맵의 포탈 위치는 고정되어 있어요.")
+    if (
+        key not in WORLD_PORTAL_KEYS
+        or not isinstance(x, (int, float))
+        or not isinstance(z, (int, float))
+        or not math.isfinite(x)
+        or not math.isfinite(z)
+        or not 0 <= x <= 4800
+        or not 0 <= z <= 2600
+    ):
+        return wiz.response.status(400, message="현재 위치에는 포탈을 저장할 수 없어요.")
+
+    normalized = {
+        "mapId": key[0],
+        "destination": key[1],
+        "x": round(x),
+        "z": round(z),
+    }
+    positions = _saved_world_portals(db)
+    positions = [
+        normalized
+        if (item["mapId"], item["destination"]) == key
+        else item
+        for item in positions
+    ]
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    record = db.get(id=WORLD_PORTAL_LAYOUT_ID)
+    values = {
+        "payload": json.dumps(positions, ensure_ascii=False, separators=(",", ":")),
+        "updated_by": editor["id"],
+        "updated": now,
+    }
+    if record is None:
+        db.insert({"id": WORLD_PORTAL_LAYOUT_ID, "created": now, **values})
+    else:
+        db.update(values, id=WORLD_PORTAL_LAYOUT_ID)
+    return wiz.response.status(
+        200,
+        position=normalized,
+        positions=positions,
+        canEdit=True,
+        message="모든 사용자에게 적용되는 포탈 위치로 저장했어요.",
+    )
 
 
 def _validated_avatar():

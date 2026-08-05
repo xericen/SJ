@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { FIXED_LAKE_RESPAWN } from '../../../shared/socket-events.js';
+import { WORLD_PORTAL_DEFAULTS,worldPortalKey } from '../../../shared/world-portals.js';
 import type { BearExplorationAnalysis,BearExplorationCardId,BearExplorationMember,BearExplorationPointId,BearExplorationReport,BearExplorationRole,BearExplorationState,BearTreePortalPositions,CampusFeaturePortalId,CampusFeaturePortalPosition,ChatMessage,DirectMessage,DirectRecommendationPlace,DirectRoom,GovernmentPlanState,GovernmentPlanUpdate,GovernmentSessionProposal,GroupRoom,LakeDailyStats,LakeExperienceId,LakeExperiencePosition,LakeWish,MapId,PlayerState,PortalPosition,RespawnPosition,WorldInteractionPosition } from '../../../shared/socket-events.js';
 export class RoomStore {
  players=new Map<string,PlayerState>(); groups=new Map<string,GroupRoom>(); pendingDirect=new Map<string,{fromId:string;toId:string}>(); directRooms=new Map<string,DirectRoom>(); directMessages=new Map<string,DirectMessage[]>(); governmentProposals=new Map<string,GovernmentSessionProposal>(); governmentPlans=new Map<string,GovernmentPlanState>(); recommendationCache=new Map<string,{roomId:string;places:DirectRecommendationPlace[];expiresAt:number}>(); blockedPairs=new Set<string>();
  bearExplorationCards=new Map<BearExplorationCardId,string>();bearExplorationAnalyzed=new Set<BearExplorationCardId>();bearExplorationAnalyses=new Map<BearExplorationCardId,BearExplorationAnalysis>();bearExplorationJoinedAt=new Map<string,number>();bearExplorationStory='';bearExplorationReport?:BearExplorationReport;completedBearRoutes:string[][]=[];
- portalPositions=new Map<PortalPosition['destination'],PortalPosition>([['bear-tree-park',{destination:'bear-tree-park',x:2122,z:944}],['town',{destination:'town',x:1120,z:1731}],['garden',{destination:'garden',x:682,z:735}],['campus',{destination:'campus',x:1178,z:122}]]);
+ portalPositions=new Map<string,PortalPosition>(WORLD_PORTAL_DEFAULTS.map(position=>[worldPortalKey(position),{...position}]));
  bearTreePortalPositions:BearTreePortalPositions={town:{x:980,z:1580},photo:{x:1569,z:1525}};
  interactionPositions=new Map<WorldInteractionPosition['destination'],WorldInteractionPosition>([['bear-play-zone',{destination:'bear-play-zone',x:1616,z:601}],['bear-tree-park',{destination:'bear-tree-park',x:1200,z:1650}]]);
  lakeExperiencePositions=new Map<LakeExperienceId,LakeExperiencePosition>([['central-plaza',{experience:'central-plaza',x:1219,z:1462}],['activity-zone',{experience:'activity-zone',x:603,z:452}],['food-shop-zone',{experience:'food-shop-zone',x:491,z:1556}],['wind-hill',{experience:'wind-hill',x:1908,z:549}]]);
@@ -15,10 +16,13 @@ export class RoomStore {
  lakeWishes:LakeWish[]=[];
  nearbyChatMessages=new Map<MapId,ChatMessage[]>();
  private dailyDate='';private dailyVisitors=new Set<string>();private dailyExperienceVisits:Record<LakeExperienceId,Set<string>>={'central-plaza':new Set(),'activity-zone':new Set(),'food-shop-zone':new Set(),'wind-hill':new Set()};
- private dataDirectory=path.basename(process.cwd()).toLowerCase()==='server'?process.cwd():path.resolve(process.cwd(),'server');
+ private dataDirectory=process.env.RUNTIME_DATA_DIR?.trim()
+  ?path.resolve(process.env.RUNTIME_DATA_DIR.trim())
+  :path.basename(process.cwd()).toLowerCase()==='server'?process.cwd():path.resolve(process.cwd(),'server');
  private lakeWishFile=path.resolve(this.dataDirectory,'lake-wishes.json');
  private nearbyChatFile=path.resolve(this.dataDirectory,'nearby-chat.json');
  constructor(){
+  try{fs.mkdirSync(this.dataDirectory,{recursive:true})}catch{/* Read-only deployments can still use MySQL-backed features. */}
   try{const saved=JSON.parse(fs.readFileSync(this.lakeWishFile,'utf8')) as LakeWish[];this.lakeWishes=saved.filter(wish=>wish&&typeof wish.message==='string'&&typeof wish.nickname==='string').slice(-80)}catch{/* Wishes begin empty on a new server. */}
   try{
    const saved=JSON.parse(fs.readFileSync(this.nearbyChatFile,'utf8')) as Partial<Record<MapId,ChatMessage[]>>;
@@ -31,7 +35,13 @@ export class RoomStore {
  private roundBearTreePortalPositions(value:BearTreePortalPositions):BearTreePortalPositions{return {town:{x:Math.round(value.town.x),z:Math.round(value.town.z)},photo:{x:Math.round(value.photo.x),z:Math.round(value.photo.z)}}}
  migrateBearTreePortalPositions(_value:BearTreePortalPositions){return false}
  allPortalPositions(){return [...this.portalPositions.values()]}
- setPortalPosition(_position:PortalPosition,_persist=true){return false}
+ setPortalPosition(position:PortalPosition){
+  if(position?.mapId==='arts-center')return false;
+  const key=worldPortalKey(position),existing=this.portalPositions.get(key);
+  if(!existing||!Number.isFinite(position?.x)||!Number.isFinite(position?.z)||position.x<0||position.x>4800||position.z<0||position.z>2600)return false;
+  this.portalPositions.set(key,{mapId:existing.mapId,destination:existing.destination,x:Math.round(position.x),z:Math.round(position.z)});return true;
+ }
+ replacePortalPositions(positions:PortalPosition[]){positions.forEach(position=>this.setPortalPosition(position))}
  allInteractionPositions(){return [...this.interactionPositions.values()]}
  setInteractionPosition(_position:WorldInteractionPosition,_persist=true){return false}
  allLakeExperiencePositions(){return [...this.lakeExperiencePositions.values()]}

@@ -33,8 +33,10 @@ import {
 import type { UserProfile } from './types';
 import type { GameReturnState } from './game/gameReturnState';
 import { worldGuideEntryState } from './game/worldGuideEntryPoints';
-import type { MapId } from '../shared/socket-events';
+import type { MapId,PortalPosition } from '../shared/socket-events';
 import { loadAccountProfile, saveAccountProfile, withdrawAccount } from './services/accountProfile';
+import { socket } from './game/systems/socketClient';
+import {loadSharedWorldPortalState} from './services/worldPortalPositions';
 
 const CharacterTestPage=lazy(()=>import('./pages/CharacterTestPage').then(module=>({default:module.CharacterTestPage})));
 const CommunityPage=lazy(()=>import('./pages/CommunityPage').then(module=>({default:module.CommunityPage})));
@@ -464,8 +466,19 @@ export default function App() {
     );
   };
 
-  const enterWorld = (mapId:MapId) => {
-    setGameReturnState(worldGuideEntryState(mapId));
+  const enterWorld = async (mapId:MapId) => {
+    let positions:PortalPosition[]=[];
+    try{
+      positions=(await loadSharedWorldPortalState()).positions;
+      if(!positions.length)positions=await new Promise<PortalPosition[]>(resolve=>{
+        let settled=false;
+        const finish=(value:PortalPosition[])=>{if(settled)return;settled=true;window.clearTimeout(timer);socket.off('connect',request);resolve(value)};
+        const request=()=>socket.emit('getPortalPositions',value=>finish(Array.isArray(value)?value:[]));
+        const timer=window.setTimeout(()=>finish([]),2500);
+        if(socket.connected)request();else{socket.on('connect',request);socket.connect()}
+      });
+    }catch{/* The authored portal remains a safe offline fallback. */}
+    setGameReturnState(worldGuideEntryState(mapId,positions));
     setGuestMapPreview(!canExperience);
     setPage('game');
   };

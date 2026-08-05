@@ -1,4 +1,4 @@
-import type { MapId } from '../../shared/socket-events';
+import type { MapId,PortalPosition } from '../../shared/socket-events';
 import type { GameReturnState } from './gameReturnState';
 
 type GuideWorldMapId=Extract<MapId,
@@ -36,8 +36,8 @@ export const WORLD_GUIDE_PORTAL_POSITIONS:Record<GuideWorldMapId,PortalPoint>={
 
 const PORTAL_SAFE_ENTRY_DISTANCE=140;
 
-export function worldGuideEntryState(mapId:MapId):GameReturnState|undefined{
-  const portal=WORLD_GUIDE_PORTAL_POSITIONS[mapId as GuideWorldMapId];
+export function worldGuideEntryState(mapId:MapId,sharedPositions:readonly PortalPosition[]=[]):GameReturnState|undefined{
+  const portal=sharedPositions.find(position=>position.mapId===mapId)??WORLD_GUIDE_PORTAL_POSITIONS[mapId as GuideWorldMapId];
   if(!portal)return undefined;
   const center=mapId==='project-room'?{x:2350,z:1200}:{x:1200,z:950};
   let dx=center.x-portal.x,dz=center.z-portal.z;

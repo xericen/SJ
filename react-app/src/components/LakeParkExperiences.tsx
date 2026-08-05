@@ -6,6 +6,7 @@ import { socket } from '../game/systems/socketClient';
 import { API_BASE_URL } from '../config/api';
 import { analyzeLakeTaste,lakeTasteQuestions,type LakeTasteAnswers,type LakeTasteDomain,type LakeTasteInsights } from '../services/lakeTasteAnalysis';
 import {recordExperienceAction,syncFestivalInterest} from '../services/experienceHarness';
+import {isYoutubeEmbedOrigin,YOUTUBE_POST_MESSAGE_TARGET} from '../services/youtubeMessaging';
 import './LakeParkExperiences.css';
 
 type NearbyExperience={id:LakeExperienceId;label:string;description:string};
@@ -503,10 +504,10 @@ export function LakeParkExperiences(){
   useEffect(()=>{
     if(!isFestivalExperience||active!=='activity-zone')return;
     const iframe=festivalStageVideoRef.current;if(!iframe)return;
-    const send=(func:string)=>iframe.contentWindow?.postMessage(JSON.stringify({event:'command',func,args:[]}), 'https://www.youtube-nocookie.com');
-    const listen=()=>iframe.contentWindow?.postMessage(JSON.stringify({event:'listening'}), 'https://www.youtube-nocookie.com');
+    const send=(func:string)=>iframe.contentWindow?.postMessage(JSON.stringify({event:'command',func,args:[]}),YOUTUBE_POST_MESSAGE_TARGET);
+    const listen=()=>iframe.contentWindow?.postMessage(JSON.stringify({event:'listening'}),YOUTUBE_POST_MESSAGE_TARGET);
     const receive=(event:MessageEvent)=>{
-      if(event.origin!=='https://www.youtube-nocookie.com')return;
+      if(event.source!==iframe.contentWindow||!isYoutubeEmbedOrigin(event.origin))return;
       let payload:{event?:string;info?:{currentTime?:number;duration?:number;playerState?:number}};
       try{payload=typeof event.data==='string'?JSON.parse(event.data):event.data}catch{return}
       if(payload.event!=='infoDelivery'||!payload.info)return;
@@ -551,7 +552,7 @@ export function LakeParkExperiences(){
     </button>}
 
     {isFestivalExperience&&active==='activity-zone'&&festivalStageRect&&<section className="festival-stageback-video" style={{left:festivalStageRect.left,top:festivalStageRect.top,width:festivalStageRect.width,height:festivalStageRect.height}} role="dialog" aria-label={`${FESTIVAL_STAGE_VIDEO.title} 무대 영상`}>
-      <iframe ref={festivalStageVideoRef} src={`https://www.youtube-nocookie.com/embed/${FESTIVAL_STAGE_VIDEO.youtubeId}?enablejsapi=1&rel=0&playsinline=1`} title={FESTIVAL_STAGE_VIDEO.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
+      <iframe ref={festivalStageVideoRef} src={`https://www.youtube-nocookie.com/embed/${FESTIVAL_STAGE_VIDEO.youtubeId}?enablejsapi=1&rel=0&playsinline=1&origin=${encodeURIComponent(window.location.origin)}`} title={FESTIVAL_STAGE_VIDEO.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
       <div className="festival-stageback-status"><span>{festivalStamps.performance?'영상 관람 확인 · 공연장 스탬프 지급 완료':`영상 화면을 열면 공연장 스탬프가 지급돼요.`}</span><i><em style={{width:`${Math.min(100,festivalStageProgress*100)}%`}}/></i></div>
       <button type="button" onClick={()=>setActive(null)} aria-label="축제 영상 닫기"><X size={14}/> 닫기</button>
     </section>}
@@ -560,7 +561,7 @@ export function LakeParkExperiences(){
         <button type="button" className="lake-experience-close" onClick={()=>setActive(null)} aria-label="부스 닫기"><X size={18}/></button>
         <header className="festival-plaza-header"><div className="festival-plaza-title"><span>{active==='activity-zone'?'🎤':active==='food-shop-zone'?(isFestivalExperience?'🎭':'🍑'):'🎪'}</span><div><small>{isFestivalExperience?'2026 세종 축제 체험':'충녕이가 알아가는 나의 취향'}</small><h2 id="festival-title">{isFestivalExperience?experienceName(active):active==='food-shop-zone'?'세종 맛 발견소':experienceName(active)}</h2><p>{isFestivalExperience?(active==='central-plaza'?'2026 세종의 축제와 문화 예술 전시를 한눈에 살펴보세요.':active==='activity-zone'?'세종의 밤을 밝히는 축제 공연과 무대를 만나보세요.':'전통 놀이와 공예, 한글 문화를 직접 체험해 보세요.'):active==='central-plaza'?'끌리는 축제를 고르면 충녕이가 좋아하는 분위기를 분석해요.':active==='activity-zone'?'끌리는 공연과 짧은 답변으로 나만의 공연 취향을 찾아요.':'장소를 고른 뒤 충녕이가 나의 여행 미식 스타일을 알아가요.'}</p></div></div><div className="festival-live"><Users size={15}/><span><b>{onlineCount}명</b>이 지금 각자의 취향을 찾고 있어요</span></div></header>
         {isFestivalExperience&&active==='activity-zone'&&<section className="festival-stage-video-detail">
-          <iframe ref={festivalStageVideoRef} src={`https://www.youtube-nocookie.com/embed/${FESTIVAL_STAGE_VIDEO.youtubeId}?enablejsapi=1&rel=0&playsinline=1`} title={FESTIVAL_STAGE_VIDEO.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
+          <iframe ref={festivalStageVideoRef} src={`https://www.youtube-nocookie.com/embed/${FESTIVAL_STAGE_VIDEO.youtubeId}?enablejsapi=1&rel=0&playsinline=1&origin=${encodeURIComponent(window.location.origin)}`} title={FESTIVAL_STAGE_VIDEO.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
           <div><small>STAGE VIDEO · 2026 SEJONG FESTIVAL</small><h3>{FESTIVAL_STAGE_VIDEO.title}</h3><p>{FESTIVAL_STAGE_VIDEO.description}</p><div className="festival-detail-progress"><i><em style={{width:`${Math.min(100,festivalStageProgress*100)}%`}}/></i><span>{completedBooths.activity?'공연장 체험 완료 · 스탬프 지급':'영상을 70% 이상 시청하면 스탬프를 받아요.'}</span></div></div>
         </section>}
         {isFestivalExperience&&active==='food-shop-zone'&&<section className="festival-explorer"><nav className="festival-explore-filters" aria-label="축제 필터">{festivalExploreFilters.map(filter=><button type="button" className={festivalExploreFilter===filter?'active':''} key={filter} onClick={()=>{setFestivalExploreFilter(filter);recordExperienceAction({type:'booth',zone:`festival-filter:${filter}`,count:1})}}>{filter}</button>)}</nav><div className="festival-explore-summary"><b>{visibleExploreFestivals.length}개의 세종 축제</b><span>카드를 열어본 시간과 저장한 축제 유형이 AI 취향 분석에 반영돼요.</span></div><div className="festival-explore-grid">{visibleExploreFestivals.map(content=>{const info=getFestivalVisitInfo(content),saved=profile.savedContentIds.includes(content.id);return <article className={`festival-explore-card ${saved?'is-saved':''}`} key={content.id}><button type="button" className="festival-card-open" onClick={()=>setSelectedFestival(content)}><div className="festival-explore-image"><img src={content.image} alt={`${content.title} 대표 이미지`}/><span>{info.dayNight} · {info.price}</span></div><div className="festival-explore-copy"><small>{content.status}</small><h3>{content.title}</h3><dl><div><dt>장소</dt><dd>{content.venue}</dd></div><div><dt>일정</dt><dd>{content.schedule}</dd></div></dl><p>{info.programs.join(' · ')}</p><em>추천: {info.recommendation}</em></div></button><button type="button" className="festival-explore-save" onClick={()=>saveFestivalInterest(content.id)}>{saved?<><Check size={14}/> 저장됨</>:<><Bookmark size={14}/> 관심 축제 저장</>}</button></article>})}</div></section>}

@@ -103,3 +103,38 @@
 | 2026-08-05 | 014 | 스마트시티 미리보기를 수정된 실제 맵의 드래그형 라이브 렌더링으로 전환 | [상세](devlog/2026-08-05/014-smartcity-live-map-preview.md) |
 | 2026-08-05 | 015 | 중앙광장 AI 추천센터 점프 착지 높이 및 발 정렬 수정 | [상세](devlog/2026-08-05/015-central-plaza-platform-landing.md) |
 | 2026-08-05 | 016 | 누적 ReviewOps 변경 문서화·보안 검증 및 xericen/SJ 게시 | [상세](devlog/2026-08-05/016-publish-current-work-to-xericen-sj.md) |
+| 2026-08-05 | 017 | 3D·번들 로딩 최적화 및 Node 실시간 운영 배포 검증 | [상세](devlog/2026-08-05/017-optimize-assets-and-validate-node-realtime.md) |
+| 2026-08-05 | 018 | 정부청사 전체 포탈 현재 위치 이동 및 좌표 저장 | [상세](devlog/2026-08-05/018-government-all-portal-position-editing.md) |
+| 2026-08-05 | 019 | 관리자 전용 전체 맵 포탈 편집 및 공용 DB 동기화 | [상세](devlog/2026-08-05/019-admin-shared-world-portal-layout.md) |
+| 2026-08-05 | 020 | 동아리 거리제 포탈 위치 이동 버튼 이벤트 연결 수정 | [상세](devlog/2026-08-05/020-fix-club-street-portal-editor.md) |
+| 2026-08-05 | 021 | 요청자 전용 전체 맵 포탈 권한 및 WIZ 공용 저장 연결 | [상세](devlog/2026-08-05/021-grant-requester-shared-portal-editor.md) |
+| 2026-08-05 | 022 | 중앙광장 화분의 소파 오인식 제거 및 실제 소파 앉기 연결 | [상세](devlog/2026-08-05/022-fix-central-plaza-sofa-targets.md) |
+| 2026-08-05 | 023 | 정부청사 공용 포탈 위치 고정 및 자동 계획 웹 제거 | [상세](devlog/2026-08-05/023-freeze-government-portals-and-hide-planner.md) |
+| 2026-08-05 | 024 | 세종호수공원 포탈 편집 제거 및 공용 좌표 고정 | [상세](devlog/2026-08-05/024-freeze-lake-park-portals.md) |
+| 2026-08-05 | 025 | 세종호수공원 점프 이동 보정 및 캐릭터 명찰 가독성 개선 | [상세](devlog/2026-08-05/025-lake-jump-and-nameplate-visibility.md) |
+| 2026-08-05 | 026 | 세종호수공원 상시 걸림 제거 및 사용자 이름 고해상도화 | [상세](devlog/2026-08-05/026-lake-movement-and-hd-nameplates.md) |
+| 2026-08-05 | 027 | 충녕이·사용자 이름표 크기 통일 및 예술의전당 이동 구간 보정 | [상세](devlog/2026-08-05/027-arts-route-and-nameplate-size.md) |
+| 2026-08-05 | 028 | 세종호수공원 5개 포탈 3초 대기 이동 판정 보강 | [상세](devlog/2026-08-05/028-lake-five-portals-charge-fix.md) |
+| 2026-08-05 | 029 | 세종호수공원 포탈 3초 충전 중단 방지 | [상세](devlog/2026-08-05/029-stabilize-lake-portal-charge.md) |
+| 2026-08-05 | 030 | 세종호수공원 포탈 충전 대상 고정 및 중간 종료 방지 | [상세](devlog/2026-08-05/030-lock-lake-portal-charge-target.md) |
+| 2026-08-05 | 031 | 실제 운영 번들의 세종호수공원 포탈 충전 중단 수정 | [상세](devlog/2026-08-05/031-fix-active-portal-runtime-bundle.md) |
+| 2026-08-05 | 032 | 포탈 위치 주기 동기화로 인한 2.5초 충전 초기화 제거 | [상세](devlog/2026-08-05/032-preserve-charge-during-portal-polling.md) |
+| 2026-08-05 | 033 | 예술의전당 세종호수공원 포탈 좌표 고정 및 편집 버튼 제거 | [상세](devlog/2026-08-05/033-freeze-arts-center-lake-portal.md) |
+| 2026-08-05 | 034 | 세종호수공원 5개 포탈 이동 수락 확인 및 재시도 보강 | [상세](devlog/2026-08-05/034-fix-lake-portal-travel-ack.md) |
+| 2026-08-05 | 035 | 세종호수공원 충녕이 경사면 기울어짐 제거 | [상세](devlog/2026-08-05/035-keep-chungnyeong-upright.md) |
+| 2026-08-05 | 036 | 예술의전당 갈색 객석 단차 점프 이동 허용 | [상세](devlog/2026-08-05/036-enable-arts-center-auditorium-jump.md) |
+| 2026-08-05 | 037 | 운영 번들 구문 오류 및 postMessage origin 불일치 수정 | [상세](devlog/2026-08-05/037-fix-runtime-syntax-and-postmessage-origin.md) |
+| 2026-08-05 | 038 | 예술의전당 공식 포스터 이미지 및 오브젝트 인터랙션 개선 | [상세](devlog/2026-08-05/038-fix-arts-center-poster-object-interaction.md) |
+| 2026-08-05 | 039 | 포탈 3초 연속 체류 조건 복구 | [상세](devlog/2026-08-05/039-require-continuous-portal-presence.md) |
+| 2026-08-05 | 040 | 예술의전당 카메라 후진 고정 및 호수공원 추적 거리 통일 | [상세](devlog/2026-08-05/040-lock-arts-camera-and-match-lake-distance.md) |
+| 2026-08-05 | 041 | 예술의전당 클릭 전후 동일한 HTML 포스터 적용 | [상세](devlog/2026-08-05/041-match-arts-center-html-poster.md) |
+| 2026-08-05 | 042 | 세종호수공원 공용 리스폰 편집 제거 및 좌표 고정 | [상세](devlog/2026-08-05/042-freeze-shared-lake-respawn.md) |
+| 2026-08-05 | 043 | 내 프로필 활동 기록 사진 배포 경로 수정 | [상세](devlog/2026-08-05/043-fix-profile-activity-images.md) |
+| 2026-08-05 | 044 | 내 프로필 활동 이미지 캐시 무효화 및 운영 재배포 | [상세](devlog/2026-08-05/044-republish-profile-images-with-cache-bust.md) |
+| 2026-08-05 | 045 | 충녕이 이름표를 사용자 이름표 크기로 통일 | [상세](devlog/2026-08-05/045-match-chungnyeong-nameplate-size.md) |
+| 2026-08-05 | 046 | 내 프로필 활동 이미지 직접 정적 경로 전환 및 성향 영역 정렬 | [상세](devlog/2026-08-05/046-fix-profile-images-and-radar-alignment.md) |
+| 2026-08-05 | 047 | 충녕이 이름표 운영 캐시 우회 및 신규 번들 발행 | [상세](devlog/2026-08-05/047-publish-nameplate-cache-bust.md) |
+| 2026-08-05 | 048 | 먹거리 부스 포탈 편집·카카오 지도·상세 UX 및 로컬 트럭 카메라 수정 | [상세](devlog/2026-08-05/048-food-booth-portal-map-detail-camera.md) |
+| 2026-08-05 | 049 | 예술의전당 카메라 제한을 스크린샷 기준 후방 경계로 정정 | [상세](devlog/2026-08-05/049-correct-arts-camera-rear-limit.md) |
+| 2026-08-05 | 050 | 예술의전당 원본 포스터 이미지 및 하단 정보 간격 개선 | [상세](devlog/2026-08-05/050-use-original-arts-posters-and-fix-spacing.md) |
+| 2026-08-05 | 051 | 누적 기능·DB·운영 문서 정리 및 xericen/SJ 게시 | [상세](devlog/2026-08-05/051-publish-latest-reviewops-work.md) |

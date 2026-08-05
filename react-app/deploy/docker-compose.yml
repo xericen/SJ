@@ -1,0 +1,25 @@
+services:
+  realtime-api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    env_file:
+      - ../server/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      RUNTIME_DATA_DIR: /app/runtime
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - realtime-runtime:/app/runtime
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  realtime-runtime:

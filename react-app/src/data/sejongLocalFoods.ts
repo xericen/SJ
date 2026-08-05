@@ -1,4 +1,4 @@
-import type {SejongFoodPlace} from './sejongFoodTypes';
+import {kakaoMapSearchUrl,type SejongFoodPlace} from './sejongFoodTypes';
 
 const verifiedAt='2026-08-02';
 const peachSource='https://www2.sejong.go.kr/sejongmaeul/archive/collection/ArchiveCollectionView.do?con_id=2523';
@@ -21,7 +21,7 @@ const specialty=(seed:SpecialtySeed):SejongFoodPlace=>({
   openingHours:'판매처별 상이 · 방문 전 확인',closedDays:'판매처별 확인',
   nearbyPlaces:['세종전통시장','세종로컬푸드 싱싱장터'],
   imageUrl:seed.imageUrl??'',imageSource:seed.imageUrl?.includes('/specialties/')?generatedSpecialtyImage:seed.imageUrl?'세종시·프로젝트 보유 이미지':'대표 이미지 준비 중',
-  mapUrl:`https://map.naver.com/p/search/${encodeURIComponent(`${seed.name} 세종`)}`,
+  mapUrl:kakaoMapSearchUrl(seed.name,seed.address),
   festival:seed.name.includes('복숭아')?'세종조치원복숭아축제':undefined,
   localIngredient:seed.origin,verifiedAt,active:true,
 });

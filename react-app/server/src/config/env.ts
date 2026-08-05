@@ -78,6 +78,8 @@ const schema = z.object({
 
   AUTH_SESSION_SECRET: optionalSecret,
 
+  PORTAL_EDITOR_USER_IDS: z.string().trim().default(''),
+
   OPENAI_MODEL: z.preprocess(
     (value) =>
       typeof value === 'string' && value.trim() === ''

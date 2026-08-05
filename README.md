@@ -25,8 +25,11 @@
 - 세종 생활권 및 주요 장소를 3D 월드로 탐색
 - 키보드 이동, 달리기, 점프, 카메라 회전과 줌
 - 비회원의 캐릭터 없는 맵 미리보기 및 자유 카메라 탐색
-- 월드별 포털 기준 고정 진입과 공용 리스폰 위치
+- 월드별 포털 기준 진입, 3초 연속 체류 이동과 서버 수락 재시도
+- 세종호수공원 5개 포털 및 공용 리스폰 위치 고정
+- 권한 기반 공용 포털 좌표 저장과 접속 사용자 동기화
 - 비버·충녕이·사람형 GLB 캐릭터 및 Idle/Walk/Run 애니메이션
+- 사용자·충녕이 고해상도 이름표와 경사면 수직 자세 보정
 - 대형 GLB 실패 시 안전한 fallback 처리
 
 대표 공간:
@@ -45,7 +48,16 @@
 - 실제 GLB 기반 드래그형 스마트시티 라이브 미리보기
 - 정부청사 중앙광장 AI 세종 추천센터
 - 단계형 분석·추천·시네마틱 피날레 연출
-- 소파 앉기, 가구 충돌, 포털 위치 편집·저장
+- 실제 소파 앉기, 가구 충돌과 공간별 카메라 제약
+
+### 문화·관광·먹거리 체험
+
+- 세종예술의전당 공식 공연 5종의 원본 포스터와 3D/HTML 연속 인터랙션
+- 공연 영상 선택, 관심 표시와 안전한 YouTube `postMessage` origin 검증
+- 객석 단차 점프 이동과 전당 후방 카메라 경계
+- 축제·먹거리 부스의 활동 기록 및 프로필 추천 근거 반영
+- 세종 로컬푸드·특산물·카페 상세 패널과 Kakao Map 검색 연결
+- 외부 이미지 실패 시 배포 정적 자산으로 대체
 
 ### 이웃·동아리·프로젝트
 
@@ -65,6 +77,15 @@
 - Kakao Local 기반 주변 장소 검색
 - API 키가 없는 개발 환경을 위한 mock provider 지원
 
+### 공간 이동과 공용 좌표 정책
+
+- 공용 포털 정의는 `react-app/shared/world-portals.ts`에 한 번만 선언합니다.
+- WIZ 운영 화면은 `/wiz/api/page.home/portal_positions`를 통해 MySQL의 공용 좌표를 조회합니다.
+- `admin` 또는 `portal_editor` 역할만 허용된 공간의 좌표를 변경할 수 있습니다.
+- 세종호수공원, 정부청사, 세종예술의전당 포털은 서버에서 고정되어 편집 요청이 차단됩니다.
+- 세종예술의전당의 호수공원 귀환 포털은 코드의 canonical 좌표를 항상 우선합니다.
+- 별도 Node 서버를 사용할 때는 같은 기본 좌표를 `world_portal_positions` collection에 시드하고 Socket.IO로 변경을 전파합니다.
+
 ## 2. 시스템 구성
 
 ```text
@@ -79,7 +100,7 @@ Browser
 
 WIZ Python
   ├─ 카카오·체험 로그인과 서버 세션
-  ├─ 사용자·캐릭터·AI 행동 상태
+  ├─ 사용자·캐릭터·AI 행동 상태와 공용 포털 좌표
   └─ Peewee/WIZ ORM → MySQL
 
 Express + Socket.IO
@@ -93,6 +114,7 @@ React 원본과 WIZ 배포 번들은 다음처럼 분리되어 있습니다.
 ```text
 react-app/                         React·Vite·Express 원본
 react-app/dist/                    Vite 빌드 결과, Git 제외
+react-app/deploy/                  Docker Compose·Nginx 운영 배포 예시
 src/assets/jochwon-app/            WIZ가 제공하는 버전 관리 정적 번들
 src/app/page.home/                 /home iframe과 WIZ App API
 src/portal/season/route/auth/      인증·체험 로그인·번들 CORS 라우트
@@ -131,6 +153,7 @@ MongoDB와 Mongoose는 현재 런타임에서 사용하지 않습니다. 기존 
 │   ├── public/                     공개 이미지·폰트·정적 파일
 │   ├── scripts/                    GLB 검사·생성·미리보기 도구
 │   ├── shared/                     클라이언트·서버 공용 타입과 이벤트
+│   ├── deploy/                     Node 컨테이너·프록시 배포 문서
 │   └── server/
 │       ├── .env.example            Express 운영 환경변수 예시
 │       └── src/                    API, Socket.IO, MySQL 모델, 테스트
@@ -143,7 +166,7 @@ MongoDB와 Mongoose는 현재 런타임에서 사용하지 않습니다. 기존 
 └── tools/                           캐릭터·GLB 회귀 검증 도구
 ```
 
-`react-app/src/assets/maps/`에는 운영에 필요한 GLB와 미리보기가 포함됩니다. 일부 파일이 수십 MB이므로 새 대형 자산을 추가하기 전 저장소 크기와 Git LFS 적용 여부를 검토해야 합니다.
+`react-app/src/assets/maps/`에는 운영에 필요한 GLB와 미리보기가 포함됩니다. 빌드는 GLB 25 MiB, gzip JavaScript 400 KiB, 초기 진입 JavaScript 300 KiB 예산을 자동 검사합니다. 새 대형 자산을 추가하기 전 저장소 크기와 Git LFS 적용 여부도 검토해야 합니다.
 
 ## 5. 데이터베이스
 
@@ -155,6 +178,7 @@ WIZ ORM은 `config/database.py`의 `base` namespace를 사용합니다.
 |---|---|---|
 | `user` | WIZ 로그인·프로필 | 이메일, bcrypt 비밀번호, 이름, 캐릭터, 역할 |
 | `ai_behavior_state` | 월드 행동 상태 | 사용자 ID, 버전, JSON payload |
+| `world_portal_layout` | 공용 포털 배치 | 30개 포털 좌표 JSON, 수정자, 생성·수정 시각 |
 
 `src/model/struct.py`가 시작 시 테이블을 `safe=True`로 생성합니다. 회원 탈퇴는 트랜잭션 안에서 행동 상태를 먼저 삭제하고 사용자 레코드를 삭제합니다.
 
@@ -175,7 +199,7 @@ CREATE TABLE IF NOT EXISTS jochwon_documents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-주요 collection은 `users`, `clubs`, `community_posts`, `direct_rooms`, `direct_messages`, `ai_place_recommendations`, `joint_campus_recommendations`, `campus_feature_portals`, `recruitment_profile_requests`, `world_respawn_positions`입니다.
+주요 활성 collection은 `users`, `clubs`, `community_posts`, `direct_rooms`, `direct_messages`, `ai_place_recommendations`, `joint_campus_recommendations`, `campus_feature_portals`, `world_portal_positions`, `recruitment_profile_requests`입니다. `world_respawn_positions` 모델은 이전 데이터 호환을 위해 남아 있지만 현재 런타임은 `FIXED_LAKE_RESPAWN` 공용 상수를 사용합니다.
 
 운영 DB 계정에는 해당 스키마에 대한 `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE` 권한이 필요합니다. `root` 대신 이 서비스 전용 최소 권한 계정을 사용하세요.
 
@@ -218,6 +242,7 @@ SJ_DB_NAME=jochwon
 | `NODE_ENV` | `production` 권장 |
 | `PORT` | Express/Socket.IO 포트 |
 | `CLIENT_ORIGIN` | 허용할 프런트 origin 한 개 |
+| `RUNTIME_DATA_DIR` | 소원·근처 채팅 등 Node 런타임 JSON의 영속 저장 경로 |
 | `MYSQL_HOST`, `MYSQL_PORT` | MySQL 접속 위치 |
 | `MYSQL_USER`, `MYSQL_PASSWORD` | 애플리케이션 DB 계정 |
 | `MYSQL_DATABASE` | 사용할 스키마 이름 |
@@ -236,6 +261,7 @@ SJ_DB_NAME=jochwon
 | `SEJONG_API_KEY` | 세종시 축제 API |
 | `TOUR_API_KEY` | 한국관광공사 API |
 | `ALLOW_MOCK_FALLBACK` | 외부 provider 실패 시 mock 허용 여부 |
+| `PORTAL_EDITOR_USER_IDS` | 사용자 문서 권한을 보완하는 공용 포털 편집 사용자 ID 허용 목록(쉼표 구분) |
 
 타임아웃, 재시도, 검색 반경, 추천 개수와 캐시 한도는 `react-app/server/.env.example`에 모두 정리되어 있습니다.
 
@@ -254,7 +280,7 @@ SJ_DB_NAME=jochwon
 
 요구사항:
 
-- Node.js 20 이상
+- Node.js `^20.19.0` 또는 `>=22.12.0`
 - npm
 - MySQL 8 계열
 - WIZ Framework 개발 환경
@@ -278,6 +304,7 @@ npm run dev
 - Vite: `http://localhost:5173`
 - Express: `http://localhost:3001`
 - 상태 확인: `GET http://localhost:3001/health`
+- 준비 상태: `GET http://localhost:3001/health/ready`
 
 Vite 개발 서버는 `/api`와 `/socket.io`를 로컬 Express 서버로 프록시합니다.
 
@@ -294,7 +321,8 @@ npm run build
 
 1. React TypeScript project build
 2. Vite 프로덕션 번들 생성
-3. Express TypeScript build
+3. JavaScript·GLB 성능 예산 검사
+4. Express TypeScript build
 
 React 수정 후 `react-app/dist/`를 WIZ 정적 자산에 정확히 동기화해야 합니다. 해시가 바뀐 이전 파일이 남지 않도록 삭제 동기화를 사용합니다.
 
@@ -304,7 +332,7 @@ rsync -a --delete react-app/dist/ src/assets/jochwon-app/
 
 이후 WIZ 프로젝트 일반 빌드(`clean=false`)를 실행하고 `/home`을 확인합니다. `src/app/page.home/view.pug`의 `_build` 쿼리도 새 배포 식별자로 갱신하면 브라우저 캐시로 인한 빈 화면을 방지할 수 있습니다.
 
-Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 이 API를 운영에서 사용할 경우 별도 Node 프로세스로 배포하고 `/api`, `/socket.io` 리버스 프록시를 구성해야 합니다.
+Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 운영용 Docker Compose, 상태 검사, Nginx WebSocket 프록시와 실행 절차는 [`react-app/deploy/README.md`](react-app/deploy/README.md)에 있습니다. Node 서버는 `/health/live`로 프로세스 상태를, `/health/ready`로 MySQL과 실시간 기능의 준비 상태를 제공합니다.
 
 ## 9. API 개요
 
@@ -317,6 +345,7 @@ Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 이
 | `kakao_start` | 카카오 OAuth 시작 |
 | `withdraw` | 계정·연관 데이터 삭제 |
 | `behavior_state` | 월드별 AI 행동 상태 조회·저장 |
+| `portal_positions` | 권한·고정 정책이 적용된 공용 포털 좌표 조회·저장 |
 | `api_config_status` | 비밀값 노출 없는 provider 설정 상태 |
 
 ### Express REST API
@@ -324,6 +353,8 @@ Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 이
 | 경로 | 설명 |
 |---|---|
 | `/health` | 서버 상태 |
+| `/health/live`, `/health/ready` | 프로세스 및 MySQL·실시간 준비 상태 |
+| `/api/world-portals` | 현재 Node 공용 포털 좌표 조회 |
 | `/api/auth` | 로그인·카카오 인증·세션 |
 | `/api/account`, `/api/profile` | 계정 삭제와 프로필 |
 | `/api/community` | 커뮤니티 게시물 |
@@ -333,7 +364,7 @@ Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 이
 | `/api/chungnyeong` | 충녕이 AI 도구 |
 | `/api/festivals` | 세종·관광공사 축제 데이터 |
 
-Socket.IO는 룸 입장·퇴장, 캐릭터 이동, 채팅, 공용 리스폰, 공동캠퍼스 포털 위치와 프로젝트룸 상태를 동기화합니다.
+Socket.IO는 룸 입장·퇴장, 캐릭터 이동, 채팅, 공용 포털 위치, 공동캠퍼스 포털 위치와 프로젝트룸 상태를 동기화합니다. 세종호수공원 리스폰은 네트워크 수정 없이 공용 상수로 고정됩니다.
 
 ## 10. 테스트와 검증
 
@@ -350,7 +381,15 @@ npm test
 cd react-app
 npm run test:character
 npm run test:greenhouse
+npm run test:greenhouse-ai
+npm run test:lake-portals
+npm run test:camera-follow
+npm run test:postmessage
+npm run test:multiplayer
+npm run verify:performance
 npm run verify:providers
+npx tsx --test scripts/artsCenterPoster.test.ts scripts/artsCenterJump.test.ts
+npx tsx --test scripts/foodExperience.test.ts
 ```
 
 커밋 전 최소 확인 항목:
@@ -373,7 +412,9 @@ npm run verify:providers
 - Express 세션 쿠키는 서명하고 운영에서는 HTTPS·보안 쿠키를 사용합니다.
 - API 요청 크기, 추천 입력 길이, provider 타임아웃과 캐시 크기를 제한합니다.
 - 회원 탈퇴는 서버에서 인증한 현재 사용자만 수행할 수 있어야 합니다.
+- 공용 포털 변경은 서버에서 세션 역할을 다시 확인하며 프런트의 버튼 표시만 신뢰하지 않습니다.
 - 운영 CORS의 `CLIENT_ORIGIN`은 실제 서비스 origin 하나로 제한합니다.
+- 외부 iframe 메시지는 대상 window와 허용 origin을 함께 검증합니다.
 - DB는 외부 공개를 피하고 애플리케이션 전용 최소 권한 계정을 사용합니다.
 - 커밋 전 비밀정보 패턴과 대용량 파일을 다시 검사합니다.
 
@@ -381,9 +422,11 @@ npm run verify:providers
 
 - WIZ Python API와 Express API가 공존하므로 운영 기능별 책임과 프록시 구성을 명확히 유지해야 합니다.
 - 일부 커뮤니티·알림 데이터는 프로토타입용 seed 또는 브라우저 상태를 사용합니다.
-- 실시간 다중 사용자 기능은 단일 브라우저 테스트만으로 완전히 검증할 수 없습니다.
+- 실시간 입장·이동·근처 채팅·방 격리는 두 WebSocket 클라이언트 자동 검증을 거칩니다. 실제 운영 프록시와 네트워크 환경은 배포 후 별도 점검해야 합니다.
 - 외부 AI·지역 API 기능은 키, 할당량, 응답 지연과 제공기관 장애의 영향을 받습니다.
-- 일부 JavaScript 청크가 500KB를 넘고 대형 GLB가 있어 초기 로딩 최적화가 필요합니다.
+- Kakao Map·YouTube 등 외부 임베드 정책이 바뀌면 화면 내 지도·영상 기능이 제한될 수 있습니다.
+- WebGL 화면의 포스터 크롭, 카메라 경계와 포털 체감은 자동 단위 테스트 외에 운영 브라우저 육안 확인이 필요합니다.
+- Phaser는 초기 화면에서 분리된 지연 로딩 청크이며 gzip 기준 약 310 KiB입니다. 동아리 거리 GLB는 Meshopt·WebP로 약 45.75 MB에서 1.81 MB로 축소했고, 현재 최대 GLB는 약 21.64 MiB입니다.
 - 현재 대형 3D 자산은 일반 Git으로 관리됩니다. 자산 증가 시 Git LFS 또는 별도 CDN을 권장합니다.
 
 ## 13. 변경 이력

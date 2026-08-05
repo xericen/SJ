@@ -48,7 +48,36 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260805-central-plaza-platform-landing-v27';
+      if (window.parent === window) return;
+      let immediateParentOrigin = '';
+      try {
+        immediateParentOrigin = window.parent.location.origin;
+      } catch {
+        try {
+          immediateParentOrigin = new URL(document.referrer).origin;
+        } catch {
+          return;
+        }
+      }
+      if (!immediateParentOrigin) return;
+      let sdkConfig;
+      Object.defineProperty(window, 'ReviewOpsSDK', {
+        configurable: true,
+        get() {
+          return sdkConfig;
+        },
+        set(value) {
+          sdkConfig = {
+            ...(value && typeof value === 'object' ? value : {}),
+            parentOrigin: immediateParentOrigin,
+          };
+        },
+      });
+    })();
+  </script>
+  <script>
+    (() => {
+      const buildId = '20260805-arts-original-poster-v64';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
       if ('caches' in window) {

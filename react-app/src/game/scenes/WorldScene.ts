@@ -54,13 +54,14 @@ export class WorldScene extends Phaser.Scene{
  destinationPin(x:number,y:number,label:string,destination:IllustratedDetailMapId){const pin=this.add.circle(x,y,34,0x294c49,.92).setStrokeStyle(5,0xffdf83).setInteractive({useHandCursor:true}).setData('destination',destination).setDepth(4500);this.add.text(pin.x,pin.y-54,label,{fontFamily:'Noto Sans KR, sans-serif',fontSize:'17px',fontStyle:'bold',color:'#173b36',backgroundColor:'#ffffffdd',padding:{x:9,y:5}}).setOrigin(.5).setDepth(4500);this.add.text(pin.x,pin.y,'입장',{fontSize:'11px',fontStyle:'bold',color:'#fff'}).setOrigin(.5).setDepth(4501)}
  showDevelopmentError(message:string){this.add.text(20,80,`맵 렌더링 오류\n${message}`,{fontFamily:'monospace',fontSize:'14px',color:'#ffffff',backgroundColor:'#9b2c2c',padding:{x:12,y:10},wordWrap:{width:620}}).setScrollFactor(0).setDepth(10000)}
  road(x:number,y:number,w:number,h:number){this.add.rectangle(x,y,w,h,0x768080).setStrokeStyle(8,0xe9dfbd);if(w>h)for(let px=x-w/2+60;px<x+w/2;px+=90)this.add.rectangle(px,y,42,5,0xfff3bf);else for(let py=y-h/2+60;py<y+h/2;py+=90)this.add.rectangle(x,py,5,42,0xfff3bf)}tree(x:number,y:number){this.add.rectangle(x,y+18,12,44,0x73513c);this.add.circle(x,y-12,32,0x4f9266).setStrokeStyle(4,0x87b879);this.obstacles.push(new Phaser.Geom.Rectangle(x-25,y-40,50,75))}
- onTravelToMap=(mapId:MapId)=>this.changeMap(mapId)
- async changeMap(mapId:MapId){
+ onTravelToMap=(mapId:MapId,accept?:()=>void)=>{void this.changeMap(mapId,accept)}
+ async changeMap(mapId:MapId,accept?:()=>void){
   if(this.transitioning||mapId===this.mapId)return;
   const sourceMapId=this.mapId;
-  if(sourceMapId==='town'&&(mapId==='arts-center'||mapId==='food-experience'||mapId==='festival-experience'))gameEvents.emit('lake-portal-used',mapId);
-  this.transitioning=true;gameEvents.emit('map-travel-started',mapId);this.cameras.main.fadeOut(120,22,43,40);
+  this.transitioning=true;accept?.();
   try{
+   if(sourceMapId==='town'&&(mapId==='arts-center'||mapId==='food-experience'||mapId==='festival-experience'))gameEvents.emit('lake-portal-used',mapId);
+   gameEvents.emit('map-travel-started',mapId);this.cameras.main.fadeOut(120,22,43,40);
    const renderer=this.ensureWorldRenderer?.(mapId);
    const minimumTransition=new Promise<void>(resolve=>this.time.delayedCall(320,resolve));
    await Promise.all([renderer?.ready??Promise.resolve(),minimumTransition]);

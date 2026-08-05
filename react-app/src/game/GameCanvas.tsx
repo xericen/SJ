@@ -9,11 +9,12 @@ import { GreenhouseExperience } from '../components/GreenhouseExperience';
 import { NatureDiscoveryGuide } from '../components/NatureDiscoveryGuide';
 import { BearHabitatDesignExperience } from '../components/BearHabitatDesignExperience';
 import { BEAR_PLAY_ZONE_RENDERER_OPTIONS,BEAR_TREE_PARK_RENDERER_OPTIONS,CAMPUS_RENDERER_OPTIONS,CLUB_STREET_FESTIVAL_RENDERER_OPTIONS,FESTIVAL_EXPERIENCE_RENDERER_OPTIONS,FOOD_EXPERIENCE_RENDERER_OPTIONS,GARDEN_RENDERER_OPTIONS,GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS,GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS,GOVERNMENT_RENDERER_OPTIONS,LAKE_PARK_RENDERER_OPTIONS,LAKE_PARK_SPAWN,preloadBearTreeParkDownload,PROJECT_ROOM_RENDERER_OPTIONS,RECRUITMENT_CENTER_RENDERER_OPTIONS,SEJONG_ARTS_CENTER_RENDERER_OPTIONS,SEJONG_SMART_CITY_RENDERER_OPTIONS,STUDENT_HALL_RENDERER_OPTIONS,VillageMapRenderer,WORLD_RENDERER_LAYOUT_TOKEN } from './renderers/VillageMapRenderer';
-import type { CampusFeaturePortalId,CampusFeaturePortalPosition,MapId,RespawnPosition } from '../../shared/socket-events';
+import type { CampusFeaturePortalId,CampusFeaturePortalPosition,MapId,PortalPosition,PortalSaveResult,RespawnPosition } from '../../shared/socket-events';
 import { buildExperienceRecommendationProfile,recordMapExperience } from '../services/experienceRecommendationProfile';
 import type { GameReturnState } from './gameReturnState';
 import { getSharedRespawnPosition } from '../services/respawnPosition';
 import {ExperienceHarnessCollector,hydrateGeneratedExperienceProfile,setActiveExperienceUser} from '../services/experienceHarness';
+import {loadSharedWorldPortalState,saveSharedWorldPortalPosition} from '../services/worldPortalPositions';
 
 const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;description:string;tasks:string[]}>>={
   'recruitment-center':{place:'모집센터',title:'모집센터로 이동 중...',description:'함께할 사람과 활동을 찾는 모집 공간을 준비하고 있어요.',tasks:['모집센터 입구 확인','모집센터 GLB 불러오기','캐릭터 배치','안내 데스크 동선 연결','공동 캠퍼스 귀환 포털 연결']},
@@ -72,14 +73,16 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     const initialMapId=returnState?.mapId??('mapId' in entrySpawn?entrySpawn.mapId:'town'),initialOptions=rendererOptionsFor(initialMapId);
     experienceHarness?.enter(initialMapId);
     const previewOptions={hideCharacters:true,previewNavigation:true,previewDragRotate,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
-    const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
+    const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,mapId:initialMapId,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
     let latestCampusFeaturePortals:CampusFeaturePortalPosition[]=[];
+    let latestPortalPositions:PortalPosition[]=[],activeMapId=initialMapId;
     const ensureWorldRenderer=(mapId:MapId)=>{
       const existing=worldRenderers[mapId];if(existing)return existing;
       const options=rendererOptionsFor(mapId);
       if(!options)return;
-      const renderer=new VillageMapRenderer(ref.current!,profile,{...options,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
+      const renderer=new VillageMapRenderer(ref.current!,profile,{...options,mapId,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
+      latestPortalPositions.filter(position=>position.mapId===mapId).forEach(position=>renderer.setPortalPosition(position));
       if(mapId==='campus')latestCampusFeaturePortals.forEach(position=>renderer.setCampusFeaturePortalPosition(position));
       return renderer;
     };
@@ -116,6 +119,19 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       latestCampusFeaturePortals=positions;
       positions.forEach(position=>worldRenderers.campus?.setCampusFeaturePortalPosition(position));
     };
+    const syncPortalPositions=(positions:PortalPosition[])=>{
+      latestPortalPositions=positions;
+      positions.forEach(position=>worldRenderers[position.mapId]?.setPortalPosition(position));
+    };
+    const placeWorldPortal=(destination:MapId)=>{
+      const position=worldRenderers[activeMapId]?.placePortalAtPlayer(destination);
+      if(!position)return;
+      void saveSharedWorldPortalPosition(position).then(result=>{
+        syncPortalPositions(latestPortalPositions.map(item=>item.mapId===position.mapId&&item.destination===position.destination?result.position??position:item));
+        gameEvents.emit('portal-position-save-result',result);
+        socket.emit('savePortalPosition',position,()=>undefined);
+      }).catch(error=>gameEvents.emit('portal-position-save-result',{ok:false,message:error instanceof Error?error.message:'포탈 위치를 저장하지 못했어요.'}));
+    };
     const placeCampusFeaturePortal=(portal:CampusFeaturePortalId)=>{
       const renderer=worldRenderers.campus;
       if(!renderer)return;
@@ -136,6 +152,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     const enrich=()=>socket.emit('joinMap',{mapId:initialMapId,nickname:profile.nickname,appearance:profile.character,model:profile.model,matchProfile:recommendationProfile(),x:entrySpawn.x,y:entrySpawn.z});
     const experienceChanged=()=>publishRecommendationProfile();
     const mapExperienceChanged=(mapId:MapId)=>{
+      activeMapId=mapId;
       experienceHarness?.enter(mapId);
       if(!previewOnly){recordMapExperience(profile.nickname,mapId);publishRecommendationProfile()}
       // Keep only the active WebGL world. Retaining the lake renderer while
@@ -147,7 +164,10 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
         delete worldRenderers[storedMapId as MapId];
       });
     };
-    if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals)}
+    let sharedPortalTimer=0;
+    const refreshSharedPortals=()=>{void loadSharedWorldPortalState().then(({positions})=>{if(!cancelled&&positions.length)syncPortalPositions(positions)}).catch(()=>undefined)};
+    if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('portalPositionsUpdated',syncPortalPositions);socket.on('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals);refreshSharedPortals();sharedPortalTimer=window.setInterval(refreshSharedPortals,2500)}
+    gameEvents.on('world-portal-place-at-player',placeWorldPortal);
     gameEvents.on('campus-feature-portal-place-at-player',placeCampusFeaturePortal);
     if(!previewOnly){
       socket.once('currentMapUsers',enrich);
@@ -166,10 +186,13 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     return()=>{
       cancelled=true;
       window.clearTimeout(gardenReleaseTimer);
+      window.clearInterval(sharedPortalTimer);
       preloadIdleHandles.forEach(handle=>window.cancelIdleCallback(handle));
       socket.off('worldClock',syncWorldClock);
+      socket.off('portalPositionsUpdated',syncPortalPositions);
       socket.off('campusFeaturePortalPositionsUpdated',syncCampusFeaturePortals);
       gameEvents.off('campus-feature-portal-place-at-player',placeCampusFeaturePortal);
+      gameEvents.off('world-portal-place-at-player',placeWorldPortal);
       socket.off('currentMapUsers',enrich);
       window.removeEventListener('sejong-lake-interest-updated',experienceChanged);
       window.removeEventListener('sejong-experience-profile-updated',experienceChanged);

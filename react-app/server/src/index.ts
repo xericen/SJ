@@ -28,6 +28,7 @@ import { jointCampusRecommendationsRouter } from './routes/jointCampusRecommenda
 import { FIXED_LAKE_RESPAWN } from '../../shared/socket-events.js';
 import { chungnyeongRouter } from './routes/chungnyeong.js';
 import { loadOrSeedWorldPortalPositions,loadWorldPortalPositions } from './models/WorldPortalPosition.js';
+import { personalFarmRouter } from './routes/personalFarm.js';
 
 const app = express();
 app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
@@ -54,6 +55,7 @@ app.use('/api/clubs', clubsRouter);
 app.use('/api/ai', placeRecommendationsRouter);
 app.use('/api/ai', jointCampusRecommendationsRouter);
 app.use('/api/account', accountRouter);
+app.use('/api/account', personalFarmRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/chungnyeong', chungnyeongRouter);
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

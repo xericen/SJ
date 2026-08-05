@@ -31,8 +31,13 @@ WORLD_PORTAL_DEFAULTS = (
     ("bear-tree-park", "town", 980, 1580),
     ("bear-tree-park", "garden", 682, 735),
     ("bear-tree-park", "bear-play-zone", 1616, 601),
+    ("bear-tree-park", "personal-farm", 1450, 1440),
     ("bear-play-zone", "bear-tree-park", 1200, 1650),
     ("garden", "bear-tree-park", 1200, 1260),
+    ("garden", "personal-farm", 1840, 1130),
+    ("personal-farm", "town", 1960, 1580),
+    ("personal-farm", "bear-tree-park", 1780, 1510),
+    ("personal-farm", "garden", 500, 1510),
     ("campus", "town", 1120, 1731),
     ("campus", "student-hall", 881, 950),
     ("campus", "club-street-festival", 450, 882),
@@ -1103,6 +1108,263 @@ def _kakao_callback():
         nickname=nickname,
         profileImage=profile_image,
     )
+
+
+PERSONAL_FARM_FLOWERS = ("tulip", "sunflower", "hydrangea", "camellia", "iris")
+PERSONAL_FARM_FEEDS = ("apple", "carrot", "acorn")
+PERSONAL_FARM_FEED_SPOTS = tuple(
+    f"BEAR_FEED_SPOT_0{index}" for index in range(1, 6)
+)
+PERSONAL_FARM_REWARDS = (
+    "flower-garden",
+    "bear-statue",
+    "nature-complete-emblem",
+    "real-visit-missions-unlocked",
+)
+
+
+def _personal_farm_default(now=None):
+    timestamp = (now or datetime.datetime.now()).isoformat()
+    visit = {
+        "status": "locked",
+        "submittedAt": None,
+        "reviewedAt": None,
+        "metadata": {},
+    }
+    return {
+        "gardenMission": {
+            "collectedFlowerIds": [],
+            "plantedFlowerIds": [],
+            "completed": False,
+            "completedAt": None,
+        },
+        "bearMission": {
+            "collectedFeedIds": [],
+            "completedFeedSpotIds": [],
+            "completed": False,
+            "completedAt": None,
+        },
+        "farm": {
+            "unlocked": False,
+            "unlockedRewardIds": [],
+            "activeRewardIds": [],
+            "bearGrowthStage": "locked",
+        },
+        "realVisit": {"garden": dict(visit), "bearTree": dict(visit)},
+        "layoutVersion": 1,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
+    }
+
+
+def _personal_farm_allowed_list(value, allowed):
+    if not isinstance(value, list):
+        return []
+    return list(dict.fromkeys(item for item in value if item in allowed))
+
+
+def _normalize_personal_farm(value):
+    result = _personal_farm_default()
+    if not isinstance(value, dict):
+        return result
+    garden = value.get("gardenMission") or {}
+    bear = value.get("bearMission") or {}
+    farm = value.get("farm") or {}
+    visits = value.get("realVisit") or {}
+    result["gardenMission"]["collectedFlowerIds"] = _personal_farm_allowed_list(
+        garden.get("collectedFlowerIds"), PERSONAL_FARM_FLOWERS
+    )
+    result["gardenMission"]["plantedFlowerIds"] = _personal_farm_allowed_list(
+        garden.get("plantedFlowerIds"), PERSONAL_FARM_FLOWERS
+    )
+    result["bearMission"]["collectedFeedIds"] = _personal_farm_allowed_list(
+        bear.get("collectedFeedIds"), PERSONAL_FARM_FEEDS
+    )
+    result["bearMission"]["completedFeedSpotIds"] = _personal_farm_allowed_list(
+        bear.get("completedFeedSpotIds"), PERSONAL_FARM_FEED_SPOTS
+    )
+    result["farm"]["activeRewardIds"] = _personal_farm_allowed_list(
+        farm.get("activeRewardIds"), PERSONAL_FARM_REWARDS
+    )
+    for section in ("gardenMission", "bearMission"):
+        completed_at = (value.get(section) or {}).get("completedAt")
+        if isinstance(completed_at, str):
+            result[section]["completedAt"] = completed_at
+    for mission in ("garden", "bearTree"):
+        source = visits.get(mission) if isinstance(visits, dict) else None
+        if not isinstance(source, dict):
+            continue
+        status = source.get("status")
+        if status in ("locked", "available", "submitted", "verified", "rejected"):
+            result["realVisit"][mission]["status"] = status
+        for field in ("submittedAt", "reviewedAt"):
+            if isinstance(source.get(field), str):
+                result["realVisit"][mission][field] = source[field]
+        metadata = source.get("metadata")
+        if isinstance(metadata, dict):
+            result["realVisit"][mission]["metadata"] = {
+                str(key)[:40]: str(item)[:300]
+                for key, item in list(metadata.items())[:20]
+            }
+    created_at = value.get("createdAt")
+    if isinstance(created_at, str):
+        result["createdAt"] = created_at
+    return result
+
+
+def _apply_personal_farm_rules(progress, now=None):
+    timestamp = (now or datetime.datetime.now()).isoformat()
+    garden = progress["gardenMission"]
+    bear = progress["bearMission"]
+    garden_complete = all(
+        item in garden["collectedFlowerIds"] and item in garden["plantedFlowerIds"]
+        for item in PERSONAL_FARM_FLOWERS
+    )
+    bear_complete = (
+        all(item in bear["collectedFeedIds"] for item in PERSONAL_FARM_FEEDS)
+        and all(item in bear["completedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS)
+    )
+    if garden_complete and not garden.get("completedAt"):
+        garden["completedAt"] = timestamp
+    if bear_complete and not bear.get("completedAt"):
+        bear["completedAt"] = timestamp
+    garden["completed"] = garden_complete
+    bear["completed"] = bear_complete
+    rewards = []
+    if garden_complete:
+        rewards.append("flower-garden")
+    if bear_complete:
+        rewards.append("bear-statue")
+    if garden_complete and bear_complete:
+        rewards.extend(("nature-complete-emblem", "real-visit-missions-unlocked"))
+    farm = progress["farm"]
+    farm["unlocked"] = garden_complete and bear_complete
+    farm["unlockedRewardIds"] = rewards
+    farm["activeRewardIds"] = [item for item in farm["activeRewardIds"] if item in rewards]
+    farm["bearGrowthStage"] = "locked"
+    for mission in ("garden", "bearTree"):
+        record = progress["realVisit"][mission]
+        if not farm["unlocked"]:
+            record["status"] = "locked"
+        elif record["status"] == "locked":
+            record["status"] = "available"
+    progress["layoutVersion"] = 1
+    progress["updatedAt"] = timestamp
+    return progress
+
+
+def _personal_farm_db():
+    db = struct.db("personal_farm_progress")
+    db.orm.create_table(safe=True)
+    return db
+
+
+def _load_personal_farm(db, user_id):
+    record = db.get(id=user_id)
+    if record is None:
+        return _personal_farm_default(), None
+    try:
+        stored = json.loads(record.get("payload") or "{}")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        stored = {}
+    return _normalize_personal_farm(stored), record
+
+
+def _save_personal_farm(db, user_id, progress, record):
+    now = datetime.datetime.now()
+    progress = _apply_personal_farm_rules(progress, now)
+    values = {
+        "user_id": user_id,
+        "version": 1,
+        "payload": json.dumps(progress, ensure_ascii=False, separators=(",", ":")),
+        "updated": now,
+    }
+    if record is None:
+        db.insert({"id": user_id, "created": now, **values})
+    else:
+        db.update(values, id=user_id)
+    return progress
+
+
+def _personal_farm_error(status, code, message):
+    return wiz.response.status(status, errorCode=code, message=message)
+
+
+def personal_farm_progress():
+    user_id = session.get("id")
+    if not user_id:
+        return _personal_farm_error(401, "UNAUTHENTICATED", "로그인이 필요합니다.")
+    db = _personal_farm_db()
+    progress, record = _load_personal_farm(db, user_id)
+    action = wiz.request.query("action", "").strip()
+    if not action:
+        progress = _save_personal_farm(db, user_id, progress, record)
+        return wiz.response.status(200, progress=progress)
+
+    garden = progress["gardenMission"]
+    bear = progress["bearMission"]
+    if action in ("collectFlower", "plantFlower"):
+        flower_id = wiz.request.query("flowerId", "").strip()
+        if flower_id not in PERSONAL_FARM_FLOWERS:
+            return _personal_farm_error(400, "INVALID_FLOWER_ID", "지원하지 않는 꽃입니다.")
+        if action == "collectFlower":
+            if flower_id in garden["collectedFlowerIds"]:
+                return _personal_farm_error(409, "FLOWER_ALREADY_COLLECTED", "이미 수집한 꽃입니다.")
+            garden["collectedFlowerIds"].append(flower_id)
+        else:
+            if flower_id not in garden["collectedFlowerIds"]:
+                return _personal_farm_error(409, "FLOWER_NOT_COLLECTED", "꽃을 먼저 수집해 주세요.")
+            if flower_id in garden["plantedFlowerIds"]:
+                return _personal_farm_error(409, "FLOWER_ALREADY_PLANTED", "이미 심은 꽃입니다.")
+            garden["plantedFlowerIds"].append(flower_id)
+    elif action == "collectFeed":
+        feed_id = wiz.request.query("feedId", "").strip()
+        if feed_id not in PERSONAL_FARM_FEEDS:
+            return _personal_farm_error(400, "INVALID_FEED_ID", "지원하지 않는 먹이입니다.")
+        if feed_id in bear["collectedFeedIds"]:
+            return _personal_farm_error(409, "FEED_ALREADY_COLLECTED", "이미 수집한 먹이입니다.")
+        bear["collectedFeedIds"].append(feed_id)
+    elif action == "completeFeedSpot":
+        spot_id = wiz.request.query("spotId", "").strip()
+        if spot_id not in PERSONAL_FARM_FEED_SPOTS:
+            return _personal_farm_error(400, "INVALID_FEED_SPOT_ID", "지원하지 않는 먹이 지점입니다.")
+        if not bear["collectedFeedIds"]:
+            return _personal_farm_error(409, "FEED_NOT_COLLECTED", "먹이를 먼저 수집해 주세요.")
+        if spot_id in bear["completedFeedSpotIds"]:
+            return _personal_farm_error(409, "FEED_SPOT_ALREADY_COMPLETED", "이미 완료한 먹이 지점입니다.")
+        bear["completedFeedSpotIds"].append(spot_id)
+    elif action == "activeRewards":
+        try:
+            reward_ids = json.loads(wiz.request.query("rewardIds", "[]"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            reward_ids = None
+        if not isinstance(reward_ids, list) or len(reward_ids) > 4 or any(
+            item not in progress["farm"]["unlockedRewardIds"] for item in reward_ids
+        ):
+            return _personal_farm_error(409, "REWARD_NOT_UNLOCKED", "잠금 해제된 보상만 배치할 수 있습니다.")
+        progress["farm"]["activeRewardIds"] = list(dict.fromkeys(reward_ids))
+    elif action == "visitProof":
+        mission = wiz.request.query("mission", "").strip()
+        try:
+            metadata = json.loads(wiz.request.query("metadata", "{}"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            metadata = None
+        if mission not in ("garden", "bearTree") or not isinstance(metadata, dict) or len(metadata) > 20:
+            return _personal_farm_error(400, "INVALID_VISIT_PROOF", "방문 인증 정보가 올바르지 않습니다.")
+        target = progress["realVisit"][mission]
+        if target["status"] == "locked":
+            return _personal_farm_error(409, "VISIT_MISSION_LOCKED", "현장 방문 미션이 아직 잠겨 있습니다.")
+        target.update({
+            "status": "submitted",
+            "submittedAt": datetime.datetime.now().isoformat(),
+            "reviewedAt": None,
+            "metadata": {str(key)[:40]: str(value)[:300] for key, value in metadata.items()},
+        })
+    else:
+        return _personal_farm_error(400, "INVALID_ACTION", "지원하지 않는 개인 팜 작업입니다.")
+
+    progress = _save_personal_farm(db, user_id, progress, record)
+    return wiz.response.status(200, progress=progress)
 
 
 # Map AI behavior persistence is intentionally handled by the WIZ runtime.

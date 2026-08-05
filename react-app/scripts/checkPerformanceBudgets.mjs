@@ -6,7 +6,7 @@ const root = path.resolve(process.cwd(), 'dist');
 const assets = path.join(root, 'assets');
 const MAX_JS_GZIP = 400 * 1024;
 const MAX_ENTRY_RAW = 300 * 1024;
-const MAX_GLB = 25 * 1024 * 1024;
+const MAX_3D_ASSET = 25 * 1024 * 1024;
 
 const files = readdirSync(assets).map((name) => ({
   name,
@@ -17,10 +17,10 @@ const files = readdirSync(assets).map((name) => ({
 const javascript = files
   .filter((file) => file.name.endsWith('.js'))
   .map((file) => ({ ...file, gzip: gzipSync(readFileSync(file.path)).length }));
-const glbs = files.filter((file) => file.name.endsWith('.glb'));
+const modelAssets = files.filter((file) => /\.(?:glb|fbx)$/i.test(file.name));
 const entry = javascript.find((file) => /^index-.*\.js$/.test(file.name));
 const oversizedJs = javascript.filter((file) => file.gzip > MAX_JS_GZIP);
-const oversizedGlb = glbs.filter((file) => file.bytes > MAX_GLB);
+const oversizedModels = modelAssets.filter((file) => file.bytes > MAX_3D_ASSET);
 
 if (!entry) throw new Error('Vite entry chunk was not found.');
 if (entry.bytes > MAX_ENTRY_RAW) {
@@ -29,14 +29,14 @@ if (entry.bytes > MAX_ENTRY_RAW) {
 if (oversizedJs.length) {
   throw new Error(`Gzip JavaScript budget exceeded: ${oversizedJs.map((file) => `${file.name}=${file.gzip}`).join(', ')}`);
 }
-if (oversizedGlb.length) {
-  throw new Error(`GLB budget exceeded: ${oversizedGlb.map((file) => `${file.name}=${file.bytes}`).join(', ')}`);
+if (oversizedModels.length) {
+  throw new Error(`3D asset budget exceeded: ${oversizedModels.map((file) => `${file.name}=${file.bytes}`).join(', ')}`);
 }
 
 const largestJs = [...javascript].sort((a, b) => b.gzip - a.gzip)[0];
-const largestGlb = [...glbs].sort((a, b) => b.bytes - a.bytes)[0];
+const largestModel = [...modelAssets].sort((a, b) => b.bytes - a.bytes)[0];
 console.log(
   `[Performance] entry=${entry.name} ${Math.round(entry.bytes / 1024)}KiB, ` +
   `largest-js-gzip=${largestJs.name} ${Math.round(largestJs.gzip / 1024)}KiB, ` +
-  `largest-glb=${largestGlb.name} ${(largestGlb.bytes / 1024 / 1024).toFixed(2)}MiB`,
+  `largest-3d=${largestModel.name} ${(largestModel.bytes / 1024 / 1024).toFixed(2)}MiB`,
 );

@@ -149,3 +149,4 @@
 | 2026-08-05 | 060 | 로컬 체험과 카카오 소셜 저장·복원 흐름 분리 | [상세](devlog/2026-08-05/060-separate-local-and-social-persistence.md) |
 | 2026-08-05 | 061 | 축제·먹거리·공연 관심 저장과 매칭 프로필 통합 개선 | [상세](devlog/2026-08-05/061-integrate-saved-interests-and-matching.md) |
 | 2026-08-05 | 062 | 축제부스 카메라 확대 및 호수공원 귀환 도착점 보정 | [상세](devlog/2026-08-05/062-festival-camera-and-lake-arrival.md) |
+| 2026-08-05 | 063 | 원격 개인 팜 생태 미션 병합 및 MySQL·WIZ 연동 | [상세](devlog/2026-08-05/063-merge-personal-farm-missions.md) |

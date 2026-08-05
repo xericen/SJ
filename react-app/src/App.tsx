@@ -579,11 +579,7 @@ export default function App() {
   }, [experienceMode, hasLoginIdentity, membershipComplete, setSocialProfile]);
 
   const startExperience = () => {
-    setPage(
-      canExperience
-        ? 'game'
-        : 'login',
-    );
+    setPage('game');
   };
 
   const enterWorld = async (mapId:MapId) => {

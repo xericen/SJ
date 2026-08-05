@@ -59,6 +59,16 @@
 - 세종 로컬푸드·특산물·카페 상세 패널과 Kakao Map 검색 연결
 - 외부 이미지 실패 시 배포 정적 자산으로 대체
 
+### 개인 팜 생태 미션
+
+- 국립세종수목원에서 튤립·해바라기·수국·동백꽃·붓꽃을 수집
+- 개인 팜의 고정 꽃밭에서 수집한 꽃을 선택해 심고 진행도를 서버에 저장
+- 베어트리파크에서 사과·당근·도토리를 모으고 5개 가상 먹이 체험 지점을 완료
+- 수목원과 베어트리파크 미션 완료 여부를 서버 규칙으로 재계산해 클라이언트 값 위조 방지
+- 완료 단계에 따라 꽃밭·곰 조형물·자연 완주 엠블럼·현장 방문 미션 보상 해금
+- 개인 팜 코티지 GLB와 곰 FBX 모델, 진행도 기반 보상 오브젝트 표시
+- 로그인 사용자의 진행도는 MySQL `personal_farm_progress` collection에 계정별로 분리 저장
+
 ### 이웃·동아리·프로젝트
 
 - 관심사와 생활권 기반 이웃·동아리 탐색
@@ -166,7 +176,7 @@ MongoDB와 Mongoose는 현재 런타임에서 사용하지 않습니다. 기존 
 └── tools/                           캐릭터·GLB 회귀 검증 도구
 ```
 
-`react-app/src/assets/maps/`에는 운영에 필요한 GLB와 미리보기가 포함됩니다. 빌드는 GLB 25 MiB, gzip JavaScript 400 KiB, 초기 진입 JavaScript 300 KiB 예산을 자동 검사합니다. 새 대형 자산을 추가하기 전 저장소 크기와 Git LFS 적용 여부도 검토해야 합니다.
+`react-app/src/assets/maps/`에는 운영에 필요한 GLB와 미리보기가 포함됩니다. 빌드는 GLB·FBX 3D 자산 25 MiB, gzip JavaScript 400 KiB, 초기 진입 JavaScript 300 KiB 예산을 자동 검사합니다. 새 대형 자산을 추가하기 전 저장소 크기와 Git LFS 적용 여부도 검토해야 합니다.
 
 ## 5. 데이터베이스
 
@@ -178,7 +188,8 @@ WIZ ORM은 `config/database.py`의 `base` namespace를 사용합니다.
 |---|---|---|
 | `user` | WIZ 로그인·프로필 | 이메일, bcrypt 비밀번호, 이름, 캐릭터, 역할 |
 | `ai_behavior_state` | 월드 행동 상태 | 사용자 ID, 버전, JSON payload |
-| `world_portal_layout` | 공용 포털 배치 | 30개 포털 좌표 JSON, 수정자, 생성·수정 시각 |
+| `personal_farm_progress` | 개인 팜 생태 미션 | 사용자 ID, 버전, 꽃·먹이·보상 진행도 JSON |
+| `world_portal_layout` | 공용 포털 배치 | 35개 포털 좌표 JSON, 수정자, 생성·수정 시각 |
 
 `src/model/struct.py`가 시작 시 테이블을 `safe=True`로 생성합니다. 회원 탈퇴는 트랜잭션 안에서 행동 상태를 먼저 삭제하고 사용자 레코드를 삭제합니다.
 
@@ -199,7 +210,7 @@ CREATE TABLE IF NOT EXISTS jochwon_documents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-주요 활성 collection은 `users`, `clubs`, `community_posts`, `direct_rooms`, `direct_messages`, `ai_place_recommendations`, `joint_campus_recommendations`, `campus_feature_portals`, `world_portal_positions`, `recruitment_profile_requests`입니다. `world_respawn_positions` 모델은 이전 데이터 호환을 위해 남아 있지만 현재 런타임은 `FIXED_LAKE_RESPAWN` 공용 상수를 사용합니다.
+주요 활성 collection은 `users`, `personal_farm_progress`, `clubs`, `community_posts`, `direct_rooms`, `direct_messages`, `ai_place_recommendations`, `joint_campus_recommendations`, `campus_feature_portals`, `world_portal_positions`, `recruitment_profile_requests`입니다. `personal_farm_progress`는 사용자 ID를 문서 기본키로 사용해 꽃·먹이·먹이 지점·보상·현장 방문 상태를 계정별로 격리합니다. `world_respawn_positions` 모델은 이전 데이터 호환을 위해 남아 있지만 현재 런타임은 `FIXED_LAKE_RESPAWN` 공용 상수를 사용합니다.
 
 운영 DB 계정에는 해당 스키마에 대한 `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE` 권한이 필요합니다. `root` 대신 이 서비스 전용 최소 권한 계정을 사용하세요.
 
@@ -345,6 +356,7 @@ Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 운
 | `kakao_start` | 카카오 OAuth 시작 |
 | `withdraw` | 계정·연관 데이터 삭제 |
 | `behavior_state` | 월드별 AI 행동 상태 조회·저장 |
+| `personal_farm_progress` | MySQL 개인 팜 진행도 및 생태 미션 조회·저장 |
 | `portal_positions` | 권한·고정 정책이 적용된 공용 포털 좌표 조회·저장 |
 | `api_config_status` | 비밀값 노출 없는 provider 설정 상태 |
 
@@ -357,6 +369,7 @@ Express·Socket.IO는 WIZ 정적 빌드에 자동 포함되지 않습니다. 운
 | `/api/world-portals` | 현재 Node 공용 포털 좌표 조회 |
 | `/api/auth` | 로그인·카카오 인증·세션 |
 | `/api/account`, `/api/profile` | 계정 삭제와 프로필 |
+| `/api/account/me/personal-farm` | 개인 팜 진행도 조회, 꽃·먹이 수집, 꽃 심기, 먹이 지점·보상·방문 미션 저장 |
 | `/api/community` | 커뮤니티 게시물 |
 | `/api/clubs` | 동아리 생성·가입·역할·활동 |
 | `/api/direct-rooms` | 1:1 대화 추천과 만남 장소 |

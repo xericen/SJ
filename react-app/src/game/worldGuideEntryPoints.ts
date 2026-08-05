@@ -2,7 +2,7 @@ import type { MapId,PortalPosition } from '../../shared/socket-events';
 import type { GameReturnState } from './gameReturnState';
 
 type GuideWorldMapId=Extract<MapId,
-  'town'|'arts-center'|'festival-experience'|'food-experience'|'club-street-festival'|
+  'personal-farm'|'town'|'arts-center'|'festival-experience'|'food-experience'|'club-street-festival'|
   'bear-tree-park'|'bear-play-zone'|'garden'|'campus'|'student-hall'|
   'recruitment-center'|'project-room'|'government'|'government-central-plaza'|
   'government-observatory'|'sejong-smart-city'
@@ -16,6 +16,7 @@ type PortalPoint={x:number;z:number};
  * portal overrides from producing a different arrival point for each user.
  */
 export const WORLD_GUIDE_PORTAL_POSITIONS:Record<GuideWorldMapId,PortalPoint>={
+  'personal-farm':{x:1050,z:1510},
   town:{x:2122,z:944},
   'arts-center':{x:1000,z:780},
   'festival-experience':{x:1211,z:440},

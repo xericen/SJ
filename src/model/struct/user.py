@@ -149,9 +149,11 @@ class User:
             return False
 
         behavior_db = self.core.db("ai_behavior_state")
+        farm_db = self.core.db("personal_farm_progress")
         database = self.db.orm._meta.database
         with database.atomic():
             behavior_db.delete(user_id=id)
+            farm_db.delete(user_id=id)
             self.db.delete(id=id)
         return True
 

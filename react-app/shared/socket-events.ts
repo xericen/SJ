@@ -1,4 +1,4 @@
-export type MapId = 'town' | 'arts-center' | 'festival-experience' | 'food-experience' | 'club-street-festival' | 'bear-tree-park' | 'bear-play-zone' | 'garden' | 'campus' | 'student-hall' | 'recruitment-center' | 'project-room' | 'government' | 'government-central-plaza' | 'government-policy-hall' | 'government-observatory' | 'sejong-smart-city' | 'jochwon-station' | 'traditional-market' | 'jochwon-park' | 'college-street';
+export type MapId = 'personal-farm' | 'town' | 'arts-center' | 'festival-experience' | 'food-experience' | 'club-street-festival' | 'bear-tree-park' | 'bear-play-zone' | 'garden' | 'campus' | 'student-hall' | 'recruitment-center' | 'project-room' | 'government' | 'government-central-plaza' | 'government-policy-hall' | 'government-observatory' | 'sejong-smart-city' | 'jochwon-station' | 'traditional-market' | 'jochwon-park' | 'college-street';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type MotionState = 'idle' | 'walk' | 'run';
 export type CharacterEmote = 'hi' | 'clapping' | 'talking';

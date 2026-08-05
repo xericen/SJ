@@ -42,6 +42,7 @@ export const PROFILE_ZONES: ProfileZone[] = [
 ];
 
 const MAP_LABELS: Record<MapId, string> = {
+  'personal-farm': '개인 팜',
   'club-street-festival': '동아리 거리제',
   town: '세종호수공원', 'arts-center': '세종예술의전당', 'festival-experience': '축제 체험장', 'food-experience': '먹거리 체험장',
   'bear-tree-park': '베어트리파크', 'bear-play-zone': 'AI 생태 연구소', garden: '국립세종수목원', campus: '공동캠퍼스',

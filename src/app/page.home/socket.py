@@ -1,5 +1,6 @@
-import datetime
 import math
+import os
+import sqlite3
 import threading
 import time
 import uuid
@@ -108,34 +109,98 @@ class Controller:
             history = list(self.state.nearby_messages.get(map_id, []))
         io.emit("nearbyChatHistory", history, to=sid)
 
+    def _chat_database(self, wiz):
+        runtime_dir = os.path.join(wiz.project.fs().abspath(), "runtime")
+        os.makedirs(runtime_dir, exist_ok=True)
+        connection = sqlite3.connect(
+            os.path.join(runtime_dir, "realtime-chat.sqlite3"),
+            timeout=5,
+        )
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS realtime_direct_rooms (
+                id TEXT PRIMARY KEY,
+                member_a TEXT NOT NULL,
+                member_b TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                accepted_at INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS realtime_direct_messages (
+                id TEXT PRIMARY KEY,
+                room_id TEXT NOT NULL,
+                sender_user_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                sent_at INTEGER NOT NULL,
+                FOREIGN KEY(room_id) REFERENCES realtime_direct_rooms(id)
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_realtime_messages_room "
+            "ON realtime_direct_messages(room_id, sent_at)"
+        )
+        return connection
+
     def _persist_room(self, wiz, room, member_user_ids):
-        struct = wiz.model("struct")
-        db = struct.db("realtime_direct_room")
-        db.orm.create_table(safe=True)
-        now = datetime.datetime.now()
-        db.insert({
-            "id": room["id"],
-            "member_a": str(member_user_ids[0]),
-            "member_b": str(member_user_ids[1]),
-            "active": True,
-            "accepted_at": now,
-            "created": now,
-            "updated": now,
-        })
+        now = _now_ms()
+        connection = self._chat_database(wiz)
+        try:
+            with connection:
+                connection.execute(
+                    """
+                    INSERT INTO realtime_direct_rooms (
+                        id, member_a, member_b, active,
+                        accepted_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, 1, ?, ?, ?)
+                    """,
+                    (
+                        room["id"],
+                        str(member_user_ids[0]),
+                        str(member_user_ids[1]),
+                        now,
+                        now,
+                        now,
+                    ),
+                )
+        finally:
+            connection.close()
 
     def _persist_message(self, wiz, message_id, room_id, user_id, message):
-        struct = wiz.model("struct")
-        db = struct.db("realtime_direct_message")
-        db.orm.create_table(safe=True)
-        now = datetime.datetime.now()
-        db.insert({
-            "id": message_id,
-            "room_id": room_id,
-            "sender_user_id": str(user_id),
-            "message": message,
-            "sent_at": now,
-            "created": now,
-        })
+        connection = self._chat_database(wiz)
+        try:
+            with connection:
+                connection.execute(
+                    """
+                    INSERT INTO realtime_direct_messages (
+                        id, room_id, sender_user_id, message, sent_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (message_id, room_id, str(user_id), message, _now_ms()),
+                )
+        finally:
+            connection.close()
+
+    def _close_persisted_room(self, wiz, room_id):
+        connection = self._chat_database(wiz)
+        try:
+            with connection:
+                connection.execute(
+                    """
+                    UPDATE realtime_direct_rooms
+                    SET active = 0, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (_now_ms(), room_id),
+                )
+        finally:
+            connection.close()
 
     def connect(self, wiz, flask):
         sid = self._sid(flask)
@@ -425,11 +490,7 @@ class Controller:
                 return
             entry["room"]["active"] = False
         try:
-            db = wiz.model("portal/season/orm").use("realtime_direct_room")
-            db.update(
-                {"active": False, "updated": datetime.datetime.now()},
-                id=room_id,
-            )
+            self._close_persisted_room(wiz, room_id)
         except Exception:
             pass
         io.emit(

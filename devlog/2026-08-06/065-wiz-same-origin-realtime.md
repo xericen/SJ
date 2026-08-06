@@ -7,7 +7,7 @@
 
 ## 작업 요약
 
-외부 Render 주소와 별도 프록시 대신 WIZ가 기본 제공하는 앱 전용 Socket.IO 네임스페이스를 사용하도록 운영 구조를 전환했다. `page.home` 소켓 컨트롤러가 맵별 입장·이동·이모티콘·채팅·그룹을 처리하며, WIZ 로그인 세션을 사용한 1:1 채팅 요청과 MySQL 메시지 저장 경로도 추가했다. React 운영 번들은 동일 출처의 `/wiz/app/main/page.home`에 연결하고 WIZ 정적 자산으로 게시했다.
+외부 Render 주소와 별도 프록시 대신 WIZ가 기본 제공하는 앱 전용 Socket.IO 네임스페이스를 사용하도록 운영 구조를 전환했다. `page.home` 소켓 컨트롤러가 맵별 입장·이동·이모티콘·채팅·그룹을 처리하며, WIZ 로그인 세션을 사용한 1:1 채팅 요청과 영속 SQLite 메시지 저장 경로도 추가했다. React 운영 번들은 동일 출처의 `/wiz/app/main/page.home`에 연결하고 WIZ 정적 자산으로 게시했다.
 
 ## 원문 요청사항
 
@@ -22,8 +22,7 @@
 
 - `src/app/page.home/socket.py`
   - WIZ 앱 전용 네임스페이스에 맵 방, 사용자 입장·퇴장, 이동, 이모티콘, 주변·그룹 채팅과 로그인 기반 1:1 채팅 이벤트를 구현했다.
-- `src/model/db/realtime_direct_room.py`, `src/model/db/realtime_direct_message.py`
-  - 1:1 채팅방과 메시지 영구 저장 모델을 추가했다.
+  - 사설 MySQL 장애와 무관하게 `runtime/realtime-chat.sqlite3`에 채팅방과 메시지를 저장하도록 구성했다.
 - `react-app/src/config/api.ts`
   - 운영 빌드의 기본 소켓 주소를 동일 출처 WIZ 네임스페이스로 설정했다.
 - `react-app/src/runtimeBuild.ts`, `src/app/page.home/view.pug`, `src/assets/jochwon-app/`
@@ -39,11 +38,11 @@
 - 로컬 WIZ에서 두 WebSocket 클라이언트 입장·이동·주변 채팅·맵 격리 검증 통과
 - 운영 `sj.wizide.com`에서 두 WebSocket 클라이언트 입장·이동·맵 격리 검증 통과
 - 운영 비로그인 사용자의 1:1 채팅 로그인 요구 검증 통과
+- SQLite 채팅방·메시지 저장 및 채팅방 종료 상태 갱신 검증 통과
 - 운영 `main.js`와 런타임 index의 v162 제공 및 HTTP 200 확인
 - React `dist`와 WIZ 운영 정적 자산 144개 파일 일치 확인
 
 ## 남은 리스크
 
-- 인증된 브라우저 두 개로 1:1 채팅을 수락하고 MySQL에 메시지가 저장되는 전체 흐름은 운영 계정 쿠키가 없어 자동 검증하지 못했다.
-- 현재 작업 환경에서는 사설 MySQL 주소 연결이 시간 초과되어 DB 저장 경로의 실연결 검증이 불가능했다.
-- 로컬 Git 커밋은 만들 수 있지만 이 작업 환경에는 GitHub 인증 정보가 없어 원격 푸시는 별도 인증이 필요하다.
+- 인증된 브라우저 두 개로 1:1 채팅을 수락하는 전체 화면 흐름은 운영 계정 쿠키가 없어 자동 검증하지 못했다.
+- SQLite 저장소는 현재 단일 WIZ 인스턴스에 적합하다. 여러 서버 인스턴스로 확장할 때는 공유 DB와 Socket.IO 어댑터가 필요하다.

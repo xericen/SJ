@@ -231,3 +231,4 @@
 | 2026-08-06 | 059 | 마이홈 맵 이동·나가기 버튼 우측 상단 가로 정렬 | [상세](devlog/2026-08-06/059-my-home-actions-horizontal.md) |
 | 2026-08-06 | 060 | 누적 해커톤 기능·MySQL 구성 문서화 및 GitHub 공개 배포 | [상세](devlog/2026-08-06/060-publish-hackathon-release.md) |
 | 2026-08-06 | 063 | Render 실시간 전용 배포 구성 | [상세](devlog/2026-08-06/063-render-realtime-only-deployment.md) |
+| 2026-08-06 | 065 | WIZ 동일 출처 실시간 멀티플레이 운영 연결 | [상세](devlog/2026-08-06/065-wiz-same-origin-realtime.md) |

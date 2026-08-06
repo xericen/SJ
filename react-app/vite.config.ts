@@ -48,9 +48,12 @@ const runtimeEntryCachePlugin={
         '  })();',
         '</script>',
       ].join('\n');
-      const staticEntry=`<script type="module" crossorigin src="${entry[1]}?_build=${encodeURIComponent(RUNTIME_BUILD_ID)}" onerror="void window.__recoverJochwonRuntime?.()"></script>`;
+      // The content hash already gives this module a unique cache key. Adding a
+      // query here creates a second module identity when lazy chunks import the
+      // same entry without that query, which mounts React twice after login.
+      const staticEntry=`<script type="module" crossorigin src="${entry[1]}" onerror="void window.__recoverJochwonRuntime?.()"></script>`;
       const renderBlockingStylesheet=stylesheet
-        ?`<link rel="stylesheet" crossorigin href="${stylesheet[1]}?_build=${encodeURIComponent(RUNTIME_BUILD_ID)}" onerror="void window.__recoverJochwonRuntime?.()">`
+        ?`<link rel="stylesheet" crossorigin href="${stylesheet[1]}" onerror="void window.__recoverJochwonRuntime?.()">`
         :'';
       const withoutOriginalStylesheet=versioned.replace(stylesheetPattern,'');
       return withoutOriginalStylesheet.replace(
@@ -65,6 +68,11 @@ export default defineConfig({
   base: '/auth/jochwon-assets/',
   plugins: [react(),runtimeEntryCachePlugin],
   build: {
+    // The default Oxc minifier emitted a runtime-only variable reference error
+    // in some Kakao login return browsers. Use the mature esbuild transform and
+    // an explicit target so the authentication callback can always mount React.
+    target: 'es2020',
+    minify: 'esbuild',
     // Phaser is only needed after entering a 3D world. Keep the engine in a
     // deferred cacheable chunk instead of pulling it into profile helpers.
     chunkSizeWarningLimit: 1500,

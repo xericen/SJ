@@ -2,18 +2,31 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {foodImageUrl,kakaoMapSearchUrl} from '../src/data/sejongFoodTypes';
+import {sejongDiningCodeDessertPlaces,sejongDiningCodeRestaurantPlaces} from '../src/data/sejongDiningCodePlaces';
+import {sejongLocalFoods} from '../src/data/sejongLocalFoods';
 import {loadFoodSourcePreview} from '../src/services/foodSourcePreview';
 
 const read=(path:string)=>readFileSync(new URL(path,import.meta.url),'utf8');
 
 test('먹거리 장소는 카카오맵 검색 링크와 배포 이미지 경로를 사용한다',()=>{
-  const mapUrl=kakaoMapSearchUrl('카페 노호','세종특별자치시 부강면 금강자전거길 13020');
+  const mapUrl=kakaoMapSearchUrl('세종특별자치시 부강면 금강자전거길 13020');
   assert.match(mapUrl,/^https:\/\/map\.kakao\.com\/link\/search\//);
-  assert.match(decodeURIComponent(mapUrl),/카페 노호 세종특별자치시/);
+  assert.equal(decodeURIComponent(mapUrl),'https://map.kakao.com/link/search/세종특별자치시 부강면 금강자전거길 13020');
+  assert.doesNotMatch(decodeURIComponent(mapUrl),/카페 노호/);
   assert.equal(
     foodImageUrl('/images/food-shops/specialties/sejong-pear.png','/auth/jochwon-assets/'),
     '/auth/jochwon-assets/images/food-shops/specialties/sejong-pear.png',
   );
+});
+
+test('세 트럭의 모든 카카오맵 링크는 장소명 없이 주소만 검색한다',()=>{
+  const places=[...sejongDiningCodeRestaurantPlaces,...sejongLocalFoods,...sejongDiningCodeDessertPlaces];
+  assert.ok(places.some(place=>place.truckId==='local'));
+  assert.ok(places.some(place=>place.truckId==='street'));
+  assert.ok(places.some(place=>place.truckId==='dessert'));
+  places.forEach(place=>{
+    assert.equal(decodeURIComponent(place.mapUrl),`https://map.kakao.com/link/search/${place.address}`);
+  });
 });
 
 test('지도와 출처는 카페 상세와 같은 현재 화면 패널 흐름을 사용한다',()=>{
@@ -27,7 +40,8 @@ test('지도와 출처는 카페 상세와 같은 현재 화면 패널 흐름을
   assert.doesNotMatch(component,/target="_top"/);
   assert.doesNotMatch(component,/target="_blank"/);
   assert.match(previewService,/\/wiz\/api\/page\.home\/portal_positions/);
-  assert.match(previewService,/foodSourceUrl:url/);
+  assert.match(previewService,/new URLSearchParams\(\{\[field\]:url\}\)/);
+  assert.match(previewService,/loadSourcePreview\(url,'foodSourceUrl'/);
   assert.match(previewService,/https:\/\/r\.jina\.ai\/http:\/\//);
   assert.match(previewService,/renderReaderDocument/);
   assert.match(component,/foodImageUrl\(selected\.imageUrl,import\.meta\.env\.BASE_URL\)/);

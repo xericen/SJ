@@ -22,6 +22,22 @@ test('호수공원 5개 포탈 설정과 공용 좌표가 일치한다',()=>{
   });
 });
 
+test('먹거리 부스에서 돌아오면 노란 건물을 피해 호수공원 남동쪽 지면에 도착한다',()=>{
+  const portal=LAKE_PARK_PORTALS.find(item=>item.destination==='food-experience');
+  assert.ok(portal);
+  assert.deepEqual(portal.arrivalDirection,{x:1,z:1});
+  assert.equal(portal.arrivalClearance,220);
+  assert.equal(portal.arrivalClearance>portal.activationRadius,true);
+  const directionLength=Math.hypot(portal.arrivalDirection.x,portal.arrivalDirection.z);
+  assert.deepEqual(
+    {
+      x:Math.round(portal.x+portal.arrivalDirection.x/directionLength*portal.arrivalClearance),
+      z:Math.round(portal.z+portal.arrivalDirection.z/directionLength*portal.arrivalClearance),
+    },
+    {x:647,z:1712},
+  );
+});
+
 for(const portal of LAKE_PARK_PORTALS){
   test(`${portal.label} 포탈은 반경을 벗어나면 충전을 취소하고 재진입 후 3초를 다시 센다`,()=>{
     const gate=new PortalTravelGate();

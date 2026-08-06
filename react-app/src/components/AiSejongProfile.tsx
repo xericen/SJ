@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { BarChart3, BookOpen, Bookmark, Camera, ChevronDown, ChevronRight, Edit3, Flower2, Heart, Leaf, LockKeyhole, Music2, Sparkles, Trophy, Utensils, X } from 'lucide-react';
+import { BarChart3, BookOpen, Bookmark, Camera, ChevronRight, Edit3, Flower2, Heart, Leaf, LockKeyhole, Music2, Sparkles, Trophy, Utensils, X } from 'lucide-react';
 import type { UserProfile } from '../types';
 import { CharacterPreview } from './CharacterPreview';
 import { buildAiSejongProfile } from '../services/aiSejongProfile';
@@ -27,7 +27,6 @@ const handleProfileImageError = (event: React.SyntheticEvent<HTMLImageElement>) 
 export function AiSejongProfile({ profile, onClose, onEdit }: { profile: UserProfile; onClose: () => void; onEdit: () => void }) {
   const [revision, setRevision] = useState(0);
   const [detail, setDetail] = useState<'zones' | 'keywords' | 'records' | 'growth' | null>(null);
-  const [showAllRecords, setShowAllRecords] = useState(false);
   useEffect(() => {
     const update = () => setRevision(value => value + 1);
     window.addEventListener('sejong-profile-progress-updated', update);
@@ -68,7 +67,7 @@ export function AiSejongProfile({ profile, onClose, onEdit }: { profile: UserPro
   const foodKeywords=foodTaste.insights.map(item=>({icon:<Utensils/>,label:item.label,description:`저장한 ${item.evidence.join(' · ')}에서 발견한 취향이에요`,value:item.score,tone:'orange'}));
   const keywords=[...coreKeywords,...foodKeywords,...festivalKeywords];
   const hasProfileExperience = progress.experienceCount > 0;
-  const visibleRecords = progress.records.slice(0, showAllRecords ? 20 : 4);
+  const visibleRecords = progress.records.slice(0, 4);
   const level = Math.max(1, Math.floor(progress.points / 100) + 1);
   const courses = ai.recommendedCourse.map((title, index) => ({
     ...courseSeed[index % courseSeed.length],
@@ -90,7 +89,7 @@ export function AiSejongProfile({ profile, onClose, onEdit }: { profile: UserPro
         <section className="profile-card radar-card"><div className="section-title"><h3><Flower2 /> 관심사 레이더</h3></div>{hasProfileExperience ? <div className="radar-content"><div className="radar-chart"><i className="axis a1"/><i className="axis a2"/><i className="axis a3"/><div className="radar-shape" style={{clipPath:radarPolygon([s.nature,s.culture,s.explore,s.record,s.relation,s.food])}}/><span className="r1">자연·힐링 <b>{s.nature}</b></span><span className="r2">문화·예술 <b>{s.culture}</b></span><span className="r3">탐험·발견 <b>{s.explore}</b></span><span className="r4">사진·기록 <b>{s.record}</b></span><span className="r5">사람·교류 <b>{s.relation}</b></span><span className="r6">먹거리·로컬 <b>{s.food}</b></span></div><div className="radar-copy"><b>맵에서 발견한 나의 성향</b><p><Leaf /> 자연 체험 {progress.greenhouse.collected.length}개가 반영됐어요</p><p><Music2 /> 축제 관심 키워드 {progress.festivalKeywords.length}개와 방문 맵 {progress.visits.length}곳이 분석됐어요</p><p><Utensils /> 먹거리 선택과 부스 행동 {progress.records.filter(item=>item.id.startsWith('harness-food-experience:')||item.id.startsWith('lake-food-')).length}개가 반영됐어요</p><p><Heart /> 교류 공간 {progress.campus.length}곳을 경험했어요</p></div></div> : <ProfileInsightEmpty title="아직 분석할 관심사가 없어요" copy="각 공간의 체험을 완료하면 관심 분야가 레이더에 나타나요." />}</section>
       </div>
       {ai.experienceProfiles.map(fragment=>{const domain=fragment.source==='sejong_food_trucks'?'먹거리':fragment.source==='sejong_festival_booth'?'축제':'공연',icon=domain==='먹거리'?'🍽️':domain==='축제'?'🎪':'🎭';return <section className={`profile-card festival-self-card domain-${fragment.source}`} key={fragment.source}><div className="section-title"><div><small>{domain}에서 발견한 나</small><h3>{icon} {fragment.title}</h3></div></div><p>{fragment.summary}</p><div className="festival-self-traits">{fragment.traits?.map(trait=><span key={trait.key}><b>{trait.label} {Math.round(trait.score)}%</b><small>신뢰도 {Math.round(trait.confidence*100)}%</small></span>)}</div><details><summary>판단 근거 보기</summary>{fragment.evidence?.map(item=><p key={item}>✓ {item}</p>)}</details></section>})}
-      <section className="profile-card activity-card"><div className="section-title"><h3><BookOpen /> 최근 활동 기록</h3><button onClick={() => setDetail('records')}>전체 보기 <ChevronRight /></button></div><div className="activity-list">{visibleRecords.length ? visibleRecords.map(item => <article key={item.id}><img src={profileAssetUrl(item.image)} alt="" onError={handleProfileImageError}/><div><small>{item.zone}</small><b>{item.title}</b><p>{item.note}</p><PointBreakdown item={item}/></div><aside><time>{formatTime(item.at)}</time><strong>+{item.point}P</strong></aside></article>) : <div className="profile-empty"><BookOpen /><b>아직 활동 기록이 없어요</b><p>공간 안에서 관찰·선택·저장·신청 같은 체험을 해보세요.</p></div>}</div>{progress.records.length > 4 && <button className="more-records" onClick={() => setShowAllRecords(value => !value)}>{showAllRecords ? '최근 기록만 보기' : '모든 기록 더보기'} <ChevronDown /></button>}</section></div>
+      <section className="profile-card activity-card"><div className="section-title"><h3><BookOpen /> 최근 활동 기록</h3><button onClick={() => setDetail('records')}>전체 보기 <ChevronRight /></button></div><div className="activity-list">{visibleRecords.length ? visibleRecords.map(item => <article key={item.id}><img src={profileAssetUrl(item.image)} alt="" onError={handleProfileImageError}/><div><small>{item.zone}</small><b>{item.title}</b><p>{item.note}</p><PointBreakdown item={item}/></div><aside><time>{formatTime(item.at)}</time><strong>+{item.point}P</strong></aside></article>) : <div className="profile-empty"><BookOpen /><b>아직 활동 기록이 없어요</b><p>공간 안에서 관찰·선택·저장·신청 같은 체험을 해보세요.</p></div>}</div></section></div>
 
       <section className="profile-card saved-interest-card"><div className="section-title"><div><h3><Bookmark /> 내가 저장한 관심사</h3><small>공연·먹거리·축제에서 저장한 항목이 매칭 취향에도 반영돼요</small></div><strong>{savedInterests.length}개 저장</strong></div><div className="saved-interest-groups">{savedGroups.map(group=>{const items=savedInterests.filter(item=>item.domain===group.domain);return <article key={group.domain}><header><span>{group.icon}</span><div><b>{group.label}</b><small>{items.length}개</small></div></header>{items.length?<ul>{items.map(item=><li key={item.id}><b>{item.title}</b>{item.subtitle&&<small>{item.subtitle}</small>}{item.tags.length>0&&<p>{item.tags.slice(0,4).map(tag=>`#${tag}`).join(' ')}</p>}</li>)}</ul>:<p className="saved-interest-empty">{group.empty}</p>}</article>})}</div></section>
 

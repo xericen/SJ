@@ -22,13 +22,13 @@ export const WORLD_GUIDE_PORTAL_POSITIONS:Record<GuideWorldMapId,PortalPoint>={
   'arts-center':{x:1000,z:780},
   'festival-experience':{x:1211,z:440},
   'food-experience':{x:1193,z:546},
-  'club-street-festival':{x:1200,z:1580},
+  'club-street-festival':{x:1209,z:502},
   'bear-tree-park':{x:1185,z:1616},
   'bear-play-zone':{x:1200,z:1650},
   garden:{x:1200,z:1260},
   campus:{x:1120,z:1731},
   'student-hall':{x:1200,z:1660},
-  'recruitment-center':{x:1200,z:1690},
+  'recruitment-center':{x:1200,z:2014},
   'project-room':{x:1220,z:2050},
   government:{x:1120,z:1731},
   'government-central-plaza':{x:1200,z:1690},
@@ -40,7 +40,9 @@ const PORTAL_SAFE_ENTRY_DISTANCE=140;
 
 export function worldGuideEntryState(mapId:MapId,sharedPositions:readonly PortalPosition[]=[]):GameReturnState|undefined{
   if(mapId==='garden')return {mapId,...GARDEN_SAFE_ARRIVAL};
-  const portal=sharedPositions.find(position=>position.mapId===mapId)??WORLD_GUIDE_PORTAL_POSITIONS[mapId as GuideWorldMapId];
+  const portal=mapId==='project-room'
+    ?WORLD_GUIDE_PORTAL_POSITIONS['project-room']
+    :sharedPositions.find(position=>position.mapId===mapId)??WORLD_GUIDE_PORTAL_POSITIONS[mapId as GuideWorldMapId];
   if(!portal)return undefined;
   const center=mapId==='project-room'?{x:2350,z:1200}:{x:1200,z:950};
   let dx=center.x-portal.x,dz=center.z-portal.z;

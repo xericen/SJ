@@ -113,7 +113,7 @@ export function CampusClubRoom({
   const voterCount=(items:ClubActivityBoard['placeVotes'])=>Math.max(1,...items.map(item=>item.voters.length));
 
   return <section className="campus-club-room" style={{'--club-room-color':club.color} as CSSProperties}>
-    <header><button type="button" onClick={onBack}><ChevronLeft size={15}/> 동아리관</button><div><small>{club.category} · 동아리방</small><h2>{club.name}</h2><p>{club.description}</p></div><span><Users size={13}/> {club.members.length}명</span></header>
+    <header><button type="button" onClick={onBack}><ChevronLeft size={15}/> 동아리 거리제</button><div><small>{club.category} · 동아리방</small><h2>{club.name}</h2><p>{club.description}</p></div><span><Users size={13}/> {club.members.length}명</span></header>
     <nav aria-label="동아리방 메뉴">{tabs.map(item=><button type="button" key={item.id} className={tab===item.id?'active':''} onClick={()=>setTab(item.id)}>{item.label}</button>)}</nav>
     <div className={`campus-club-room-layout ${tab==='activities'?'is-activities':''}`}><main>
       {tab==='intro'&&<div className="club-room-intro"><span>☕</span><small>우리 동아리를 소개합니다</small><h3>{club.name}</h3><p>{club.description}</p><dl><div><dt>운영자</dt><dd>{club.ownerName}</dd></div><div><dt>주요 활동</dt><dd>{club.activity||'세종 곳곳을 함께 경험하고 기록하기'}</dd></div><div><dt>모임 정보</dt><dd>{club.location||'세종 공동캠퍼스'} · {club.schedule||'일정 협의'}</dd></div></dl></div>}

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AnimationMixer,
   Box3,
-  Clock,
   Color,
   DirectionalLight,
   HemisphereLight,
@@ -83,7 +82,6 @@ export function ThreeCharacterPreview({
     controls.autoRotateSpeed = 1.6;
 
     let mixer: AnimationMixer | undefined;
-    const clock = new Clock();
     const resize = () => {
       const width = Math.max(host.clientWidth, 1);
       const height = Math.max(host.clientHeight, 1);
@@ -140,7 +138,7 @@ export function ThreeCharacterPreview({
       if(document.hidden||!inViewport||time-lastRender<1000/30)return;
       const delta=Math.min((time-lastRender)/1000,.05);
       lastRender=time;
-      if (animationTime === undefined) mixer?.update(delta||clock.getDelta());
+      if (animationTime === undefined) mixer?.update(delta);
       controls.update();
       renderer.render(scene, camera);
     });

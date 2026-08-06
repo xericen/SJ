@@ -9,7 +9,6 @@ export class AvatarPreviewRenderer {
     private readonly renderer: THREE.WebGLRenderer;
     private readonly scene = new THREE.Scene();
     private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
-    private readonly clock = new THREE.Clock(false);
     private readonly characterManager = new CharacterManager(this.scene);
     private readonly root = this.characterManager.characterRoot;
     private readonly directionRoot = this.characterManager.directionRoot;
@@ -33,6 +32,7 @@ export class AvatarPreviewRenderer {
     private customizationSignature = '';
     private loadedPath = '';
     private loadVersion = 0;
+    private lastFrameTime: number | null = null;
 
     constructor(private readonly canvas: HTMLCanvasElement) {
         this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
@@ -108,7 +108,7 @@ export class AvatarPreviewRenderer {
     public dispose() {
         this.disposed = true;
         this.loadVersion += 1;
-        this.clock.stop();
+        this.lastFrameTime = null;
         if (this.frameId !== null) cancelAnimationFrame(this.frameId);
         this.frameId = null;
         this.resizeObserver?.disconnect();
@@ -149,16 +149,17 @@ export class AvatarPreviewRenderer {
     };
 
     private start() {
-        this.clock.start();
         const frame = (now: number) => {
             if (this.disposed) return;
             this.frameId = requestAnimationFrame(frame);
             if (document.hidden) {
-                this.clock.stop();
+                this.lastFrameTime = now;
                 return;
             }
-            if (!this.clock.running) this.clock.start();
-            const delta = Math.min(this.clock.getDelta(), 0.05);
+            const delta = this.lastFrameTime === null
+                ? 0
+                : Math.min(Math.max(0, now - this.lastFrameTime) / 1000, 0.05);
+            this.lastFrameTime = now;
             const damping = 1 - Math.exp(-10 * delta);
             this.yaw = THREE.MathUtils.lerp(this.yaw, this.targetYaw, damping);
             this.centerY = THREE.MathUtils.lerp(this.centerY, this.targetCenterY, damping);

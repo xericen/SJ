@@ -20,7 +20,7 @@ const toFoodPlace=(item:typeof raw[number],index:number):SejongFoodPlace=>{
     description:`다이닝코드 세종시 상위 50곳에서 만나는 ${menuName} 매장입니다. 상세 영업 정보는 방문 전에 확인해 주세요.`,
     features:isDessert?['세종 카페·디저트',...categories]:['세종 지역 맛집',...categories],
     nearbyPlaces:[item.d],imageUrl:sejongDiningCodeImages[item.r]??'',imageSource:'다이닝코드 매장 대표 이미지',
-    mapUrl:kakaoMapSearchUrl(item.n,item.a),
+    mapUrl:kakaoMapSearchUrl(item.a),
     atmosphereTags:isDessert?['세종 카페·디저트']:undefined,photoZone:false,
     sourceUrl:profileUrl,sourceLabel:`다이닝코드 세종시 Top50 · ${index+1}위`,verifiedAt,active:true,
   };

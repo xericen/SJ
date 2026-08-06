@@ -1,8 +1,8 @@
 export type FoodTruckId='local'|'street'|'dessert';
 export type FoodItemType='restaurant'|'local_food'|'cafe';
 
-export const kakaoMapSearchUrl=(name:string,address:string)=>
-  `https://map.kakao.com/link/search/${encodeURIComponent(`${name} ${address}`.trim())}`;
+export const kakaoMapSearchUrl=(address:string)=>
+  `https://map.kakao.com/link/search/${encodeURIComponent(address.trim())}`;
 
 export const foodImageUrl=(url:string,baseUrl:string)=>{
   if(!url.startsWith('/images/'))return url;

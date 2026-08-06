@@ -106,7 +106,7 @@ export function getSpaceGuide(input: { purpose: 'create_project' | 'team_activit
   const guides = {
     create_project: ['프로젝트실', '프로젝트 생성과 팀 작업은 프로젝트실에서 진행합니다.'],
     team_activity: ['프로젝트실', '승인된 팀의 활동은 프로젝트실에서 이어집니다.'],
-    club_activity: ['동아리관', '동아리 가입과 활동은 동아리관에서 진행합니다.'],
+    club_activity: ['동아리 거리제', '동아리 가입과 활동은 동아리 거리제에서 진행합니다.'],
     campus_status: ['학생회관', '캠퍼스 공지와 전체 현황은 학생회관에서 확인합니다.'],
     find_people: ['모집센터', '공개 프로필을 바탕으로 함께할 사람을 찾을 수 있습니다.'],
     find_recruitment: ['모집센터', '현재 모집 중인 활동을 찾아보고 프로필을 전달할 수 있습니다.'],

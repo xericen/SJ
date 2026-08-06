@@ -27,7 +27,7 @@ WORLD_PORTAL_DEFAULTS = (
     ("arts-center", "town", 1000, 780),
     ("festival-experience", "town", 1211, 440),
     ("food-experience", "town", 1193, 546),
-    ("club-street-festival", "campus", 1200, 1580),
+    ("club-street-festival", "campus", 1209, 502),
     ("bear-tree-park", "town", 1185, 1616),
     ("bear-tree-park", "garden", 767, 751),
     ("bear-tree-park", "bear-play-zone", 1482, 661),
@@ -43,7 +43,7 @@ WORLD_PORTAL_DEFAULTS = (
     ("campus", "recruitment-center", 817, 1318),
     ("campus", "project-room", 1590, 1543),
     ("student-hall", "campus", 1200, 1660),
-    ("recruitment-center", "campus", 1200, 1690),
+    ("recruitment-center", "campus", 1200, 2014),
     ("project-room", "campus", 1220, 2050),
     ("government", "campus", 1120, 1731),
     ("government", "government-central-plaza", 720, 1010),
@@ -62,12 +62,15 @@ FROZEN_WORLD_PORTAL_MAPS = {
     "food-experience",
 }
 CANONICAL_WORLD_PORTAL_KEYS = {
+    ("club-street-festival", "campus"),
     ("campus", "town"),
     ("campus", "student-hall"),
     ("campus", "club-street-festival"),
     ("campus", "recruitment-center"),
     ("campus", "project-room"),
     ("government", "campus"),
+    ("recruitment-center", "campus"),
+    ("project-room", "campus"),
     ("arts-center", "town"),
     ("festival-experience", "town"),
     ("food-experience", "town"),
@@ -82,10 +85,22 @@ FOOD_SOURCE_PREVIEW_HOSTS = {
     "www.sjlocal.or.kr",
     "sjlocal.or.kr",
 }
+PERFORMANCE_SOURCE_PREVIEW_HOSTS = {
+    "www.sjac.or.kr",
+    "sjac.or.kr",
+}
 FOOD_SOURCE_PREVIEW_MAX_BYTES = 2_000_000
 
 
 def _food_source_preview_url(value):
+    return _source_preview_url(value, FOOD_SOURCE_PREVIEW_HOSTS)
+
+
+def _performance_source_preview_url(value):
+    return _source_preview_url(value, PERFORMANCE_SOURCE_PREVIEW_HOSTS)
+
+
+def _source_preview_url(value, allowed_hosts):
     try:
         parsed = urllib.parse.urlparse(value)
         port = parsed.port
@@ -94,7 +109,7 @@ def _food_source_preview_url(value):
     hostname = (parsed.hostname or "").lower()
     if (
         parsed.scheme != "https"
-        or hostname not in FOOD_SOURCE_PREVIEW_HOSTS
+        or hostname not in allowed_hosts
         or parsed.username is not None
         or parsed.password is not None
         or port not in (None, 443)
@@ -229,12 +244,12 @@ class _FoodSourcePreviewSanitizer(HTMLParser):
             self.parts.append(f"<!{declaration}>")
 
 
-def _food_source_preview_response(source_url):
-    source_url = _food_source_preview_url(source_url)
+def _source_preview_response(source_url, validate_url, invalid_message):
+    source_url = validate_url(source_url)
     if source_url is None:
         return wiz.response.status(
             400,
-            message="허용된 먹거리 정보 출처만 확인할 수 있어요.",
+            message=invalid_message,
         )
 
     request = urllib.request.Request(
@@ -251,7 +266,7 @@ def _food_source_preview_response(source_url):
     )
     try:
         with urllib.request.urlopen(request, timeout=12) as response:
-            final_url = _food_source_preview_url(response.geturl())
+            final_url = validate_url(response.geturl())
             if final_url is None:
                 raise ValueError("untrusted redirect")
             content_type = response.headers.get_content_type()
@@ -275,6 +290,22 @@ def _food_source_preview_response(source_url):
         200,
         html="".join(sanitizer.parts),
         sourceUrl=final_url,
+    )
+
+
+def _food_source_preview_response(source_url):
+    return _source_preview_response(
+        source_url,
+        _food_source_preview_url,
+        "허용된 먹거리 정보 출처만 확인할 수 있어요.",
+    )
+
+
+def _performance_source_preview_response(source_url):
+    return _source_preview_response(
+        source_url,
+        _performance_source_preview_url,
+        "허용된 공연 정보 출처만 확인할 수 있어요.",
     )
 
 
@@ -627,6 +658,9 @@ def portal_positions():
     source_preview_url = wiz.request.query("foodSourceUrl", "").strip()
     if source_preview_url:
         return _food_source_preview_response(source_preview_url)
+    performance_preview_url = wiz.request.query("performanceSourceUrl", "").strip()
+    if performance_preview_url:
+        return _performance_source_preview_response(performance_preview_url)
 
     db = struct.db("world_portal_layout")
     db.orm.create_table(safe=True)

@@ -3,5 +3,5 @@ export const festivalImageUrl=(url:string,baseUrl:string)=>{
   return `${baseUrl.replace(/\/?$/,'/')}${url.slice(1)}`;
 };
 
-export const festivalKakaoMapSearchUrl=(title:string,venue:string)=>
-  `https://map.kakao.com/link/search/${encodeURIComponent(`${title} ${venue}`.trim())}`;
+export const festivalKakaoMapSearchUrl=(address:string)=>
+  `https://map.kakao.com/link/search/${encodeURIComponent(address.trim())}`;

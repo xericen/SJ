@@ -15,21 +15,33 @@ test('소스 HTML과 WIZ iframe이 동일한 런타임 빌드 ID를 사용한다
   assert.ok(hostView.includes(RUNTIME_BUILD_ID));
 });
 
-test('프로덕션 엔트리는 고유 파일명과 빌드 쿼리를 함께 사용한다',()=>{
+test('호스트는 외부 ReviewOps SDK의 단일 식별자 오류만 격리한다',()=>{
+  const hostHtml=readFileSync(resolve(root,'../src/angular/index.pug'),'utf8');
+  assert.match(hostHtml,/reviewops-sdk\\\.js/);
+  assert.match(hostHtml,/isMinifiedReferenceError/);
+  assert.match(hostHtml,/event\.stopImmediatePropagation\(\)/);
+  assert.match(hostHtml,/event\.preventDefault\(\)/);
+});
+
+test('프로덕션 엔트리는 단일 모듈 identity를 유지하는 고유 파일명을 사용한다',()=>{
   const distHtmlPath=resolve(root,'dist/index.html');
   assert.equal(existsSync(distHtmlPath),true,'npm run build를 먼저 실행해야 합니다.');
   const distHtml=readFileSync(distHtmlPath,'utf8');
   assert.ok(distHtml.includes(`const buildId = '${RUNTIME_BUILD_ID}'`));
-  const entry=distHtml.match(/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.js)\?_build=[^"]+"/);
+  const entry=distHtml.match(/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.js)"/);
   assert.ok(entry,'고유 파일명의 런타임 엔트리가 필요합니다.');
-  assert.equal(existsSync(resolve(root,'dist/assets',entry[1])),true);
+  assert.match(entry[1],/^index-[A-Za-z0-9_-]{8}\.js$/,'엔트리는 Vite 콘텐츠 해시 파일명이어야 합니다.');
+  assert.doesNotMatch(entry[1],/profile|records|v\d+/i,'기능명이나 버전명을 고정 엔트리 파일명으로 사용하면 안 됩니다.');
+  const entryPath=resolve(root,'dist/assets',entry[1]);
+  assert.equal(existsSync(entryPath),true);
+  assert.ok(readFileSync(entryPath,'utf8').includes(RUNTIME_BUILD_ID),'엔트리와 HTML의 빌드 ID가 일치해야 합니다.');
   assert.ok(distHtml.includes(`const runtimeBuildId="${RUNTIME_BUILD_ID}"`));
-  assert.ok(distHtml.includes(`?_build=${RUNTIME_BUILD_ID}`));
+  assert.doesNotMatch(distHtml,new RegExp(`${entry[1].replaceAll('.','\\.')}\\?`));
 });
 
 test('화면은 정적 모듈 엔트리로 렌더링하고 오류 복구 가드를 별도로 둔다',()=>{
   const distHtml=readFileSync(resolve(root,'dist/index.html'),'utf8');
-  assert.match(distHtml,/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/index-[^"?]+\.js\?_build=[^"]+" onerror=/);
+  assert.match(distHtml,/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/index-[^"?]+\.js" onerror=/);
   assert.ok(distHtml.includes('window.__recoverJochwonRuntime=recover'));
   assert.ok(distHtml.includes("pageUrl.searchParams.set('_entry_retry',String(Date.now()))"));
   assert.doesNotMatch(distHtml,/import\(runtimeEntryUrl\.href\)/);
@@ -38,7 +50,7 @@ test('화면은 정적 모듈 엔트리로 렌더링하고 오류 복구 가드�
 test('메인 스타일은 외부 폰트 요청 없이 런타임 실행 전에 준비된다',()=>{
   const sourceStyles=readFileSync(resolve(root,'src/styles.css'),'utf8');
   const distHtml=readFileSync(resolve(root,'dist/index.html'),'utf8');
-  const stylesheet=distHtml.match(/<link rel="stylesheet" crossorigin href="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.css)\?_build=[^"]+" onerror=/);
+  const stylesheet=distHtml.match(/<link rel="stylesheet" crossorigin href="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.css)" onerror=/);
   const entryIndex=distHtml.indexOf('<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-');
   const stylesheetIndex=distHtml.indexOf('<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-');
   assert.doesNotMatch(sourceStyles,/fonts\.googleapis\.com|@import\s+url/);

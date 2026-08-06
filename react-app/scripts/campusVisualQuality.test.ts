@@ -25,10 +25,10 @@ test('저사양 기기에는 별도 품질 폴백을 적용한다',()=>{
   assert.match(campusOptions,/lowQualityFallback:\{maxTextureSize:512,performancePixelRatio:\.8,performanceFrameRate:30,balancedTextureQuality:false\}/);
 });
 
-test('공동캠퍼스 캐릭터와 카메라 비율은 공통 맵보다 작고 넓다',()=>{
+test('공동캠퍼스 맵은 가까이 보이고 캐릭터는 공통 맵보다 작다',()=>{
   const options=applyUnifiedWorldCamera({},'campus');
   assert.equal(options.characterHeight,CAMPUS_NAVIGATION_PROFILE.characterHeight);
   assert.equal(options.cameraDistance,CAMPUS_NAVIGATION_PROFILE.cameraDistance);
-  assert.ok(options.characterHeight<150);
-  assert.ok(options.cameraDistance>1300);
+  assert.ok(options.characterHeight<94);
+  assert.ok(options.cameraDistance<1250);
 });

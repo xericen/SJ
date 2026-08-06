@@ -187,3 +187,33 @@
 | 2026-08-06 | 015 | 홈 화면 정적 모듈 렌더링 복구 | [상세](devlog/2026-08-06/015-restore-home-static-entry-rendering.md) |
 | 2026-08-06 | 016 | 홈 화면 스타일 선로딩 및 로컬 폰트 전환 | [상세](devlog/2026-08-06/016-stabilize-home-styles.md) |
 | 2026-08-06 | 017 | 최신 해커톤 제출 문서·누적 ReviewOps 변경 게시 | [상세](devlog/2026-08-06/017-publish-latest-hackathon-release.md) |
+| 2026-08-06 | 018 | 카카오 로그인 반환 시 런타임 이중 실행 및 캐릭터 설정 진입 오류 수정 | [상세](devlog/2026-08-06/018-fix-kakao-callback-runtime-entry.md) |
+| 2026-08-06 | 019 | Three.js 경고·프로필 JSON 오류 및 공연 상세 외부 스크립트 제거 | [상세](devlog/2026-08-06/019-clean-runtime-console-errors.md) |
+| 2026-08-06 | 020 | 예술의전당 5개 포스터 상세 화면 새 창 버튼 제거 | [상세](devlog/2026-08-06/020-remove-arts-poster-new-window-button.md) |
+| 2026-08-06 | 021 | 먹거리 부스 카카오맵 검색어를 주소 전용으로 변경 | [상세](devlog/2026-08-06/021-food-map-address-only.md) |
+| 2026-08-06 | 022 | 먹거리부스 호수공원 귀환 스폰을 안전 지면으로 이동 | [상세](devlog/2026-08-06/022-food-return-safe-spawn.md) |
+| 2026-08-06 | 023 | 축제 체험 이미지·한눈에 보기·내부 카카오 지도 및 스탬프 HUD 개편 | [상세](devlog/2026-08-06/023-festival-guide-stamp-hud.md) |
+| 2026-08-06 | 024 | 베어트리파크 카메라 체감 거리 2/3 확대 | [상세](devlog/2026-08-06/024-increase-bear-tree-camera-distance.md) |
+| 2026-08-06 | 025 | 마이홈 상단 메뉴·이전 맵 복귀 및 실내 카메라 개선 | [상세](devlog/2026-08-06/025-my-home-return-menu.md) |
+| 2026-08-06 | 026 | ReviewOps SDK 단일 식별자 ReferenceError 격리 | [상세](devlog/2026-08-06/026-isolate-reviewops-sdk-reference-error.md) |
+| 2026-08-06 | 027 | 축제부스 HUD를 현재 위치·스탬프·현재 활동 순서로 복원 | [상세](devlog/2026-08-06/027-festival-left-hud-stack.md) |
+| 2026-08-06 | 028 | 베어트리파크 화질 및 캐릭터 닉네임 가독성 개선 | [상세](devlog/2026-08-06/028-improve-bear-tree-visual-quality.md) |
+| 2026-08-06 | 029 | 공동캠퍼스 화면 확대 및 캐릭터·건물 비율 재조정 | [상세](devlog/2026-08-06/029-campus-scale-balance.md) |
+| 2026-08-06 | 030 | 공동캠퍼스 카메라 추가 확대 | [상세](devlog/2026-08-06/030-campus-camera-closer.md) |
+| 2026-08-06 | 031 | 공동캠퍼스 포탈 4개 3초 충전 이동 및 동아리 거리제 명칭 통일 | [상세](devlog/2026-08-06/031-campus-portals-three-second-charge.md) |
+| 2026-08-06 | 032 | 내 프로필 최근 활동을 최신 4건 고정 표시하고 하단 더보기 버튼 제거 | [상세](devlog/2026-08-06/032-fix-profile-recent-activity-limit.md) |
+| 2026-08-06 | 033 | v129 고정 엔트리 제거 및 런타임 ReferenceError 캐시 우회 | [상세](devlog/2026-08-06/033-fix-v129-runtime-reference-error.md) |
+| 2026-08-06 | 034 | 세종호수공원 카메라를 조금 더 멀게 조정 | [상세](devlog/2026-08-06/034-adjust-lake-camera-distance.md) |
+| 2026-08-06 | 035 | 모집센터 공동캠퍼스 귀환 포탈 공용 좌표 고정 및 편집 제거 | [상세](devlog/2026-08-06/035-freeze-recruitment-campus-portal.md) |
+| 2026-08-06 | 036 | 동아리 거리제 공동캠퍼스 포탈 공용 좌표 고정 및 편집 제거 | [상세](devlog/2026-08-06/036-freeze-club-street-campus-portal.md) |
+| 2026-08-06 | 037 | 프로젝트실 전광판 HTML 가로 보정·안전 진입·공동캠퍼스 포탈 고정 | [상세](devlog/2026-08-06/037-project-room-board-entry-fixed-portal.md) |
+| 2026-08-06 | 038 | 확대형 체험 중 마이홈 이동 버튼 동시 숨김 | [상세](devlog/2026-08-06/038-hide-my-home-button-during-focus.md) |
+| 2026-08-06 | 039 | 마이홈 정원 버튼 제거 및 정원 현황 상단 이동 | [상세](devlog/2026-08-06/039-move-my-home-garden-status.md) |
+| 2026-08-06 | 040 | 공동캠퍼스 카메라 추가 근접 및 캐릭터 축소 | [상세](devlog/2026-08-06/040-campus-closer-smaller.md) |
+| 2026-08-06 | 041 | NPC·친구 공통 프로필과 친구 삭제·신고·차단 안전 설정 구현 | [상세](devlog/2026-08-06/041-social-profile-friend-report-safety.md) |
+| 2026-08-06 | 042 | 세종한바퀴 브라우저 탭 제목·파비콘 브랜딩 적용 | [상세](devlog/2026-08-06/042-sejong-hanbakwi-browser-tab.md) |
+| 2026-08-06 | 043 | 마이홈 정원 현황·이동 버튼 상단 위치 정렬 | [상세](devlog/2026-08-06/043-fix-my-home-top-actions-position.md) |
+| 2026-08-06 | 044 | Render 독립 Socket.IO 서버 배포 준비 | [상세](devlog/2026-08-06/044-prepare-render-realtime-deploy.md) |
+| 2026-08-06 | 045 | 예술의전당 공연 상세 원본 읽기 화면 정돈 | [상세](devlog/2026-08-06/045-clean-arts-performance-reader.md) |
+| 2026-08-06 | 046 | 축제 스탬프 실제 높이에 맞춰 현재 활동 패널 동적 연결 | [상세](devlog/2026-08-06/046-festival-dynamic-hud-stack.md) |
+| 2026-08-06 | 047 | 예술의전당·축제·먹거리 부스 카메라 거리 소폭 확대 | [상세](devlog/2026-08-06/047-increase-showcase-camera-distance.md) |

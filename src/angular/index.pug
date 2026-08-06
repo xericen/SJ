@@ -2,7 +2,7 @@ doctype html
 html.font-loading(lang="ko")
     head
         meta(charset="utf-8")
-        title 여기 사람 있음 | 세종 로컬 멀티버스
+        title 세종한바퀴
         base(href="/")
         link(rel="preload" href="/assets/font/SejongGeulggot/SejongGeulggot.ttf" as="font" type="font/ttf" crossorigin="anonymous")
         style.
@@ -19,20 +19,35 @@ html.font-loading(lang="ko")
                 });
                 window.setTimeout(reveal, 10000);
             })();
+        script.
+            (() => {
+                // ReviewOps is an external diagnostics layer. A failure inside
+                // that SDK must not surface as an uncaught application error.
+                window.addEventListener('error', event => {
+                    const source = typeof event.filename === 'string' ? event.filename : '';
+                    const message = typeof event.message === 'string' ? event.message : '';
+                    const isReviewOpsSdk = /\/reviewops-sdk\.js(?:$|[?#])/.test(source);
+                    const isMinifiedReferenceError = /^(?:Uncaught\s+)?(?:ReferenceError:\s*)?[A-Za-z_$][\w$]* is not defined$/.test(message);
+                    if (isReviewOpsSdk && isMinifiedReferenceError) {
+                        event.stopImmediatePropagation();
+                        event.preventDefault();
+                    }
+                }, true);
+            })();
         
         meta(name="viewport" content="width=device-width, initial-scale=1.0")
         meta(http-equiv="X-UA-Compatible" content="ie=edge")
-        meta(name="description" content="실제로 지금 이 동네에 있는 사람들과 연결되는 세종 로컬 멀티버스")
+        meta(name="description" content="세종을 한 바퀴 돌며 사람과 장소, 이야기를 만나는 로컬 멀티버스")
         meta(name="msapplication-TileColor" content="#143D31")
         meta(name="theme-color" content="#143D31")
         meta(name="apple-mobile-web-app-status-bar-style" content="black-translucent")
         meta(name="apple-mobile-web-app-capable" content="yes")
-        meta(name="apple-mobile-web-app-title" content="여기 사람 있음")
+        meta(name="apple-mobile-web-app-title" content="세종한바퀴")
         meta(name="mobile-web-app-capable" content="yes")
         meta(name="HandheldFriendly" content="True")
         meta(name="MobileOptimized" content="320")
-        link(rel="icon" type="image/svg+xml" href="/assets/brand/here-people.svg")
-        link(rel="shortcut icon" href="/assets/brand/icon.ico")
-        link(rel="apple-touch-icon" href="/assets/brand/icon.ico")
+        link(rel="icon" type="image/svg+xml" href="/assets/brand/sejong-hanbakwi.svg")
+        link(rel="shortcut icon" type="image/svg+xml" href="/assets/brand/sejong-hanbakwi.svg")
+        link(rel="apple-touch-icon" href="/assets/brand/sejong-hanbakwi.svg")
     body
         app-root

@@ -128,7 +128,7 @@ const startServer = async (): Promise<void> => {
     campusPortalSignature=signature;roomStore.replaceCampusFeaturePortalPositions(next);io.emit('campusFeaturePortalPositionsUpdated',next);
   }).catch(error=>console.error('[campus portal sync failed]',error))},1500);
 
-  httpServer.listen(env.PORT, () => {
+  httpServer.listen(env.PORT, '0.0.0.0', () => {
     console.log(`[Config] Environment: ${env.NODE_ENV}`);
     console.log(
       `[Config] Env file loaded: ${

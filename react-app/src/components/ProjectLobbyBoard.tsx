@@ -16,21 +16,16 @@ type ScreenRect={left:number;top:number;width:number;height:number;quad?:readonl
 const BOARD_WIDTH=1920,BOARD_HEIGHT=996;
 const images=[gardenPreview,festivalPreview,smartCityPreview];
 
-const perspectiveMatrix=(quad:ScreenRect['quad'])=>{
-  if(!quad)return undefined;
-  const [topLeft,topRight,bottomRight,bottomLeft]=quad;
-  const dx1=topRight.x-bottomRight.x,dx2=bottomLeft.x-bottomRight.x,dx3=topLeft.x-topRight.x+bottomRight.x-bottomLeft.x;
-  const dy1=topRight.y-bottomRight.y,dy2=bottomLeft.y-bottomRight.y,dy3=topLeft.y-topRight.y+bottomRight.y-bottomLeft.y;
-  const denominator=dx1*dy2-dx2*dy1;let perspectiveX=0,perspectiveY=0;
-  if(Math.abs(denominator)>1e-6){perspectiveX=(dx3*dy2-dx2*dy3)/denominator;perspectiveY=(dx1*dy3-dx3*dy1)/denominator}
-  const scaleX=topRight.x-topLeft.x+perspectiveX*topRight.x,skewX=bottomLeft.x-topLeft.x+perspectiveY*bottomLeft.x;
-  const scaleY=topRight.y-topLeft.y+perspectiveX*topRight.y,skewY=bottomLeft.y-topLeft.y+perspectiveY*bottomLeft.y;
-  return `matrix3d(${[scaleX/BOARD_WIDTH,scaleY/BOARD_WIDTH,0,perspectiveX/BOARD_WIDTH,skewX/BOARD_HEIGHT,skewY/BOARD_HEIGHT,0,perspectiveY/BOARD_HEIGHT,0,0,1,0,topLeft.x,topLeft.y,0,1].map(value=>Math.abs(value)<1e-10?0:value).join(',')})`;
-};
-
 const boardStyle=(rect:ScreenRect):CSSProperties=>{
-  const matrix=perspectiveMatrix(rect.quad);
-  return matrix?{left:0,top:0,width:BOARD_WIDTH,height:BOARD_HEIGHT,transform:matrix,transformOrigin:'0 0'}:{left:rect.left,top:rect.top,width:rect.width,height:rect.height};
+  const aspect=BOARD_WIDTH/BOARD_HEIGHT;
+  let width=Math.max(1,rect.width),height=width/aspect;
+  if(height>rect.height){height=Math.max(1,rect.height);width=height*aspect}
+  return {
+    left:rect.left+(rect.width-width)/2,
+    top:rect.top+(rect.height-height)/2,
+    width,
+    height,
+  };
 };
 const projectFill=(project:Project)=>Math.min(100,Math.round(project.memberIds.length/Math.max(1,project.maxMembers)*100));
 const relativeTime=(value:string,now:number)=>{

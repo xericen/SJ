@@ -1,6 +1,7 @@
 import type {MapId} from '../../shared/socket-events';
 import {API_BASE_URL} from '../config/api';
 import {gameEvents} from '../game/events';
+import {readOptionalJson} from './optionalJson';
 import {sejongDiningCodeDessertPlaces,sejongDiningCodeRestaurantPlaces} from '../data/sejongDiningCodePlaces';
 import {sejongLocalFoods} from '../data/sejongLocalFoods';
 
@@ -24,6 +25,22 @@ const MAP_NAMES:Record<MapId,string>={
 };
 const userKey=(nickname:string)=>nickname.trim().toLowerCase()||'guest';
 let activeUserKey='guest';
+let remoteExperienceApiAvailable:boolean|undefined;
+
+async function requestExperienceJson<T>(path:string,init?:RequestInit):Promise<T|null>{
+  if(remoteExperienceApiAvailable===false)return null;
+  try{
+    const response=await fetch(`${API_BASE_URL}${path}`,init);
+    const body=await readOptionalJson<T>(response);
+    if(body===null){
+      if(!response.headers.get('content-type')?.toLowerCase().includes('application/json'))remoteExperienceApiAvailable=false;
+      return null;
+    }
+    remoteExperienceApiAvailable=true;
+    return response.ok?body:null;
+  }catch{return null}
+}
+
 export function setActiveExperienceUser(nickname:string){activeUserKey=userKey(nickname)}
 const profileKey=()=>`${EXPERIENCE_PROFILE_KEY}:${activeUserKey}`;
 const fragmentsKey=(nickname=activeUserKey)=>`${EXPERIENCE_PROFILE_FRAGMENTS_KEY}:${userKey(nickname)}`;
@@ -275,7 +292,7 @@ function cacheLocalFoodActivity(nickname:string,payload:{mapId:HarnessMap;sessio
   mergeExperienceActivities(nickname,records);
   window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{activityRecords:records,optimistic:true}}));
 }
-export async function hydrateGeneratedExperienceProfile(nickname:string){activeUserKey=userKey(nickname);try{const response=await fetch(`${API_BASE_URL}/account/me/experience/profile`,{credentials:'include'});if(!response.ok)return null;const body=await response.json() as {data?:{profile?:GeneratedExperienceProfile|null;profileFragments?:ExperienceProfileFragment[];savedInterests?:SavedExperienceInterest[];savedInterestsInitialized?:boolean;activityRecords?:ExperienceActivityRecord[]}};mergeExperienceActivities(nickname,body.data?.activityRecords??[]);if(body.data?.profile)localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));else localStorage.removeItem(profileKey());localStorage.setItem(fragmentsKey(nickname),JSON.stringify(body.data?.profileFragments??[]));let savedInterests=body.data?.savedInterests??[];if(!body.data?.savedInterestsInitialized){savedInterests=[...new Map([...savedInterests,...loadLegacySavedExperienceInterests(nickname)].map(item=>[`${item.domain}:${item.id}`,item])).values()];void fetch(`${API_BASE_URL}/account/me/experience/saved-interests`,{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({savedInterests})}).catch(()=>{})}replaceSavedExperienceInterests(nickname,savedInterests);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{...body.data,savedInterests}}));return body.data?.profile??null}catch{return null}}
+export async function hydrateGeneratedExperienceProfile(nickname:string){activeUserKey=userKey(nickname);const body=await requestExperienceJson<{data?:{profile?:GeneratedExperienceProfile|null;profileFragments?:ExperienceProfileFragment[];savedInterests?:SavedExperienceInterest[];savedInterestsInitialized?:boolean;activityRecords?:ExperienceActivityRecord[]}}>('/account/me/experience/profile',{credentials:'include'});if(!body)return null;mergeExperienceActivities(nickname,body.data?.activityRecords??[]);if(body.data?.profile)localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));else localStorage.removeItem(profileKey());localStorage.setItem(fragmentsKey(nickname),JSON.stringify(body.data?.profileFragments??[]));let savedInterests=body.data?.savedInterests??[];if(!body.data?.savedInterestsInitialized){savedInterests=[...new Map([...savedInterests,...loadLegacySavedExperienceInterests(nickname)].map(item=>[`${item.domain}:${item.id}`,item])).values()];void requestExperienceJson('/account/me/experience/saved-interests',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({savedInterests})})}replaceSavedExperienceInterests(nickname,savedInterests);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{...body.data,savedInterests}}));return body.data?.profile??null}
 
 export class ExperienceHarnessCollector{
   private map?:HarnessMap;private sessionId='';private startedAt=0;private events:Action[]=[];
@@ -308,16 +325,13 @@ export class ExperienceHarnessCollector{
     cacheLocalFestivalActivity(this.nickname,payload);
     cacheLocalFoodActivity(this.nickname,payload);
     cacheGenericActivity(this.nickname,payload);
-    try{
-      const response=await fetch(`${API_BASE_URL}/account/me/experience/map-exit`,{method:'POST',credentials:'include',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      if(!response.ok)throw new Error(`profile update ${response.status}`);
-      const body=await response.json() as {data?:ExperienceAnalysisResult};if(!body.data?.profile)return;
-      localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));
-      if(body.data.profileFragments)localStorage.setItem(fragmentsKey(this.nickname),JSON.stringify(body.data.profileFragments));
-      if(body.data.savedInterests)replaceSavedExperienceInterests(this.nickname,body.data.savedInterests);
-      if(body.data.activityRecords)mergeExperienceActivities(this.nickname,body.data.activityRecords);
-      gameEvents.emit('experience-profile-updated',body.data);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:body.data}));
-    }catch(error){console.warn('[experience profile update failed]',error)}
+    const body=await requestExperienceJson<{data?:ExperienceAnalysisResult}>('/account/me/experience/map-exit',{method:'POST',credentials:'include',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!body?.data?.profile)return;
+    localStorage.setItem(profileKey(),JSON.stringify(body.data.profile));
+    if(body.data.profileFragments)localStorage.setItem(fragmentsKey(this.nickname),JSON.stringify(body.data.profileFragments));
+    if(body.data.savedInterests)replaceSavedExperienceInterests(this.nickname,body.data.savedInterests);
+    if(body.data.activityRecords)mergeExperienceActivities(this.nickname,body.data.activityRecords);
+    gameEvents.emit('experience-profile-updated',body.data);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:body.data}));
   };
   private flushCurrentSession=()=>{if(!this.map||!this.events.length)return;const payload={mapId:this.map,sessionId:this.sessionId,events:[...this.events]};this.sessionId=crypto.randomUUID();this.startedAt=Date.now();this.events=[];void this.send(payload)};
   private onAnalysisRequest=()=>{

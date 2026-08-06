@@ -38,7 +38,8 @@ import { loadAccountProfile, saveAccountProfile, withdrawAccount } from './servi
 
 const CharacterTestPage=lazy(()=>import('./pages/CharacterTestPage').then(module=>({default:module.CharacterTestPage})));
 const CommunityPage=lazy(()=>import('./pages/CommunityPage').then(module=>({default:module.CommunityPage})));
-const CreateProfilePage=lazy(()=>import('./pages/CreateProfilePage').then(module=>({default:module.CreateProfilePage})));
+const loadCreateProfilePage=()=>import('./pages/CreateProfilePage').then(module=>({default:module.CreateProfilePage}));
+const CreateProfilePage=lazy(loadCreateProfilePage);
 const loadGamePage=()=>import('./pages/GamePage').then(module=>({default:module.GamePage}));
 const GamePage=lazy(loadGamePage);
 const MapPreviewPage=lazy(()=>import('./pages/MapPreviewPage').then(module=>({default:module.MapPreviewPage})));
@@ -540,6 +541,10 @@ export default function App() {
           nickname:
             nickname || '카카오 사용자',
         });
+        // Resolve the onboarding chunk before replacing the landing screen.
+        // React 19 can otherwise delete an uncommitted Suspense fallback when
+        // several login callback states settle in the same render cycle.
+        await loadCreateProfilePage();
         setSocialJourney({
           authenticated: false,
           membershipComplete: false,

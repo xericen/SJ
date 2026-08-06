@@ -18,11 +18,11 @@ test('마이홈에는 다른 월드로 이동하는 포탈이 없다',()=>{
 
 test('마이홈의 포탈 위치 이동 버튼은 노출하지 않는다',()=>{
   const page=read('../src/pages/GamePage.tsx');
-  assert.match(page,/\['bear-tree-park','personal-farm','campus'\]\.includes\(currentMapId\)/);
+  assert.match(page,/\['bear-tree-park','personal-farm','campus','recruitment-center','project-room'\]\.includes\(currentMapId\)/);
   assert.match(page,/\['town','personal-farm','campus','arts-center','festival-experience','food-experience','club-street-festival','government-central-plaza','sejong-smart-city'\]\.includes\(currentMapId\)/);
 });
 
 test('마이홈 미션 상태는 나가기 버튼 왼쪽 상단에 배치한다',()=>{
   const statusCss=read('../src/components/PersonalFarmProgressExperience.css');
-  assert.match(statusCss,/\.personal-farm-reward-status\{position:absolute;right:112px;top:20px;/);
+  assert.match(statusCss,/\.personal-farm-reward-status\{position:absolute;right:218px;top:20px;/);
 });

@@ -52,9 +52,10 @@ import { GOVERNMENT_CENTRAL_PLAZA_WEB_UI,type GovernmentCentralPlazaWebUiId } fr
 import { ARTS_CENTER_PERFORMANCES,artsCenterPerformanceImageUrl,type ArtsCenterPerformance } from '../artsCenterPerformances';
 import { SmartCityHologram,type SmartCityTechnologyId } from './SmartCityHologram';
 import { LAKE_PARK_PORTALS } from '../lakeParkPortals';
+import { CAMPUS_FEATURE_PORTALS,CAMPUS_FEATURE_PORTAL_DESTINATIONS,type CampusFeaturePortalConfig } from '../campusFeaturePortals';
 import { isPortalChargePositionHeld,PortalTravelGate } from '../portalTravelGate';
 import { ARTS_CENTER_CHARACTER_FOOT_LIFT,ARTS_CENTER_MAX_JUMP_STEP_HEIGHT,characterVisualY,DEFAULT_MAX_STEP_HEIGHT,isGroundFootprintCoherent,JUMP_COLLISION_CLEARANCE,reachableStepHeight } from '../groundTraversal';
-import { BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
+import { BEAR_TREE_PARK_CAMERA_DISTANCE_MULTIPLIER,BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,BEAR_TREE_PARK_CAMERA_ZOOM,BEAR_TREE_PARK_FOLLOW_CAMERA_DISTANCE,clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
 import { DEFAULT_BEAR_PHOTO_PORTAL_POSITION } from '../bearPhotoZonePosition';
 import {personalFarmCameraDistance} from '../worldNavigationProfile';
 
@@ -208,13 +209,6 @@ type LocalNpcState={
 type PortalConfig={x:number;z:number;destination:PortalPosition['destination'];label:string;appearance?:'standing'|'white-circle'|'energy-rift';fixedPosition?:boolean;theme?:'mint'|'blue'|'orange';chargeSeconds?:number;activationRadius?:number;sharedPosition?:boolean;positionEditable?:boolean;hideMarker?:boolean;arrivalDirection?:{x:number;z:number};arrivalClearance?:number};
 type InteractionConfig={x:number;z:number;destination:WorldInteractionPosition['destination'];label:string;buttonLabel:string;fixedPosition?:boolean;chargeSeconds?:number;positionEditable?:boolean};
 type LakeExperienceConfig={id:LakeExperienceId;x:number;z:number;label:string;description:string;color:number;radius?:number};
-type CampusFeaturePortalConfig={id:CampusFeaturePortalId;x:number;z:number;label:string;description:string;color:number};
-const CAMPUS_FEATURE_PORTAL_DESTINATIONS:Record<CampusFeaturePortalId,Extract<MapId,'student-hall'|'club-street-festival'|'recruitment-center'|'project-room'>>={
-  people:'student-hall',
-  clubs:'club-street-festival',
-  recruit:'recruitment-center',
-  government:'project-room',
-};
 type StudentHallFeatureTarget={id:CampusFeaturePortalId;x:number;z:number;radius:number;label:string;description:string};
 type StudentHallBoardId='occupancy'|'activity';
 type StudentHallBoardScreenRect={left:number;top:number;width:number;height:number;quad?:readonly [{x:number;y:number},{x:number;y:number},{x:number;y:number},{x:number;y:number}]};
@@ -270,6 +264,7 @@ export type WorldMapRendererOptions={
   flatGroundExtension?:{minX:number;maxX:number;minZ:number;maxZ:number};
   cameraDownScreenLimitZ?:number;
   characterHeight?:number;
+  nameplateScale?:number;
   characterGroundClearance?:number;
   characterFootLift?:number;
   mapScaleMultiplier?:number;
@@ -319,10 +314,7 @@ export type WorldMapRendererOptions={
  * clear immediately, so walking back into the portal always works.
  */
 export function portalArrivalSpawn(options:WorldMapRendererOptions,sourceMapId:MapId){
-  const campusEntrances=(options.campusFeaturePortals??[]).map(feature=>({
-    ...feature,
-    destination:CAMPUS_FEATURE_PORTAL_DESTINATIONS[feature.id],
-  }));
+  const campusEntrances=options.campusFeaturePortals??[];
   const entrances=[options.portal,...(options.fixedPortals??[]),options.interaction,...campusEntrances];
   const entrance=entrances.find(candidate=>candidate?.destination===sourceMapId)
     // Some maps are entered from more than one parent map but expose a single
@@ -357,9 +349,10 @@ export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
     {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3},
   ],
   interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:true,chargeSeconds:3},
-  perspectiveCamera:false,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,characterHeight:150,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
-  lightingIntensityMultiplier:.76,performanceMode:true,balancedTextureQuality:false,maxTextureSize:512,
-  performancePixelRatio:.75,simplifiedCollision:false,bearPhotoZone:true,bearCollisionRadius:72,
+  perspectiveCamera:false,cameraZoom:BEAR_TREE_PARK_CAMERA_ZOOM,cameraDistance:BEAR_TREE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,characterHeight:150,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
+  nameplateScale:BEAR_TREE_PARK_CAMERA_DISTANCE_MULTIPLIER,
+  lightingIntensityMultiplier:.76,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
+  performancePixelRatio:1.25,simplifiedCollision:false,bearPhotoZone:true,bearCollisionRadius:72,
 };
 export const BEAR_PLAY_ZONE_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:bearPlayZoneModelUrl,mapName:'곰 체험소',spawn:BEAR_PLAY_ZONE_SPAWN,
@@ -438,12 +431,7 @@ export const CAMPUS_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapName:'공동캠퍼스',
   spawn:CAMPUS_SPAWN,
   portal:{...WORLD_GUIDE_PORTAL_POSITIONS.campus,destination:'town',label:'세종호수공원',theme:'blue',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
-  campusFeaturePortals:[
-    {id:'people',x:881,z:950,label:'학생회관',description:'친구 추천 · 프로필 · 게시판',color:0x56b28c},
-    {id:'clubs',x:1537,z:499,label:'동아리관',description:'가입 · 단체 채팅 · 활동',color:0xe9a14b},
-    {id:'recruit',x:817,z:1318,label:'모집센터',description:'동행 모집 · 참가 신청',color:0x7f8ed8},
-    {id:'government',x:1590,z:1543,label:'프로젝트실',description:'코스 만들기 · 프로젝트 생성',color:0xee7b5b},
-  ],
+  campusFeaturePortals:CAMPUS_FEATURE_PORTALS.map(config=>({...config})),
   // Preserve the authored campus perspective. The orthographic overview made
   // the buildings look flattened and exposed too much of the bright ground.
   perspectiveCamera:true,
@@ -476,7 +464,7 @@ export const CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapRotationY:Math.PI,
   mapScaleMultiplier:1.08,
   groundObjectPrefixes:['Central_Pedestrian_Plaza','PaverAccent_','Ground_Base','Garden_','CentralPlanter_'],
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['club-street-festival'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:false,sharedPosition:true},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['club-street-festival'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -1149,7 +1137,7 @@ class WorldCharacter{
   private seated=false;
   private lying=false;
 
-  constructor(private scene:THREE.Scene,name:string,private model:CharacterModel,private parts:CharacterParts,height=CHARACTER_HEIGHT,private idleOnly=false,private staticPose=false,disabled=false){
+  constructor(private scene:THREE.Scene,name:string,private model:CharacterModel,private parts:CharacterParts,height=CHARACTER_HEIGHT,private idleOnly=false,private staticPose=false,disabled=false,private nameplateScale=1){
     this.height=height;
     this.root.name=`world-character-${name}`;
     scene.add(this.root);
@@ -1273,7 +1261,7 @@ class WorldCharacter{
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false,depthWrite:false,toneMapped:false}));
     const isChungnyeong=this.model==='chungnyeong';
     sprite.position.y=this.height+(isChungnyeong?58:this.height>CHARACTER_HEIGHT?46:34);
-    sprite.scale.set(isChungnyeong?120:this.height>CHARACTER_HEIGHT?150:120,isChungnyeong?30:this.height>CHARACTER_HEIGHT?38:30,1);
+    sprite.scale.set((isChungnyeong?120:this.height>CHARACTER_HEIGHT?150:120)*this.nameplateScale,(isChungnyeong?30:this.height>CHARACTER_HEIGHT?38:30)*this.nameplateScale,1);
     sprite.renderOrder=100;return sprite;
   }
 
@@ -1563,6 +1551,7 @@ export class VillageMapRenderer{
   private mapSignPosition=savedMapSignPosition();
   private remotes=new Map<string,WorldCharacter>();
   private remoteGrounds=new Map<string,RemoteGroundSample>();
+  private hiddenCharacterIds=new Set<string>();
   private localX:number;
   private localZ:number;
   private localGround=0;
@@ -1648,7 +1637,7 @@ export class VillageMapRenderer{
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled=!options.performanceMode||!!options.groundingShadows;
-    this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type=THREE.PCFShadowMap;
     if(options.groundingShadows||options.toneMappingExposure!==undefined){
       this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure=options.toneMappingExposure??1.04;
@@ -1677,7 +1666,7 @@ export class VillageMapRenderer{
     this.camera.up.set(0,1,0);this.camera.near=.1;this.camera.far=5000;
     parent.prepend(this.renderer.domElement);
     this.resize();
-    this.localCharacter=new WorldCharacter(this.scene,profile.nickname,profile.model,profile.character,options.characterHeight??CHARACTER_HEIGHT,false,false,!!options.hideCharacters);
+    this.localCharacter=new WorldCharacter(this.scene,profile.nickname,profile.model,profile.character,options.characterHeight??CHARACTER_HEIGHT,false,false,!!options.hideCharacters,options.nameplateScale??1);
     if(options.overview)gameEvents.on('map-overview-toggle',this.onMapOverviewToggle);
     if(options.mapName==='베어트리파크')gameEvents.on('nature-chapter-progress-changed',this.onNatureChapterProgressChanged);
     if(options.bearPhotoZone)gameEvents.on('bear-photo-enter',this.onBearPhotoEnter);
@@ -1817,25 +1806,6 @@ export class VillageMapRenderer{
           primary.position.set(20,0,13.5);
         }
         model.add(primary,cloneSkeleton(companionGltf.scene));
-      }
-      if(this.options.projectRoomInteractions){
-        const boardSurface=model.getObjectByName('Lobby_AI_Board_Surface');
-        const boardRoot=boardSurface?.parent;
-        const boardParts=boardRoot?.children.filter(object=>object.name.startsWith('Lobby_AI_'))??[];
-        if(boardSurface&&boardRoot&&boardParts.length){
-          boardRoot.updateWorldMatrix(true,false);
-          const boardCenter=new THREE.Box3().setFromObject(boardSurface).getCenter(new THREE.Vector3());
-          boardRoot.worldToLocal(boardCenter);
-          const pivot=new THREE.Group();
-          pivot.name='Project_Lobby_Board_Upright';
-          pivot.position.copy(boardCenter);
-          boardRoot.add(pivot);
-          boardParts.forEach(part=>pivot.attach(part));
-          // The authored board runs along the side wall (YZ), which makes it
-          // look laid down from the room's south-facing camera. Turn the whole
-          // assembly toward the camera while preserving every bezel/UI layer.
-          pivot.rotation.y=-Math.PI/2;
-        }
       }
       model.rotation.y=this.options.mapRotationY??0;
       if(this.options.projectRoomInteractions)this.resizeProjectRoomFurniture(model);
@@ -2026,6 +1996,8 @@ export class VillageMapRenderer{
             npc.height??this.options.characterHeight??CHARACTER_HEIGHT,
             !npc.patrol?.length,
             npc.staticPose??false,
+            false,
+            this.options.nameplateScale??1,
           );
           character.update(position,normal,npc.yaw,'idle',0);
           this.localNpcs.push({
@@ -2859,6 +2831,13 @@ export class VillageMapRenderer{
     if(!visible&&this.localNpcNearbyId){this.localNpcNearbyId=undefined;gameEvents.emit('local-npc-proximity-changed',null);gameEvents.emit('local-npc-screen-position',null)}
   }
   setWorldClock(serverNow:number){if(Number.isFinite(serverNow))this.worldClockOffset=serverNow-Date.now()}
+  setHiddenCharacterIds(ids:string[]){
+    this.hiddenCharacterIds=new Set(ids);
+    this.localNpcs.forEach(npc=>{npc.character.root.visible=!this.hiddenCharacterIds.has(npc.config.id)&&!this.bearPhotoMode&&!isProjectRoomKioskInteraction(this.projectRoomFocus)&&!this.studentHallBoardActive});
+    this.remotes.forEach((character,id)=>{character.root.visible=!this.hiddenCharacterIds.has(id)&&!this.bearPhotoMode&&!isProjectRoomKioskInteraction(this.projectRoomFocus)&&!this.studentHallBoardActive});
+    if(this.localNpcNearbyId&&this.hiddenCharacterIds.has(this.localNpcNearbyId)){this.localNpcNearbyId=undefined;gameEvents.emit('local-npc-proximity-changed',null);gameEvents.emit('local-npc-screen-position',null)}
+    if(this.focusedLocalNpcId&&this.hiddenCharacterIds.has(this.focusedLocalNpcId))this.focusedLocalNpcId=undefined;
+  }
   setInteractionPosition(_position:WorldInteractionPosition){/* Authored position is fixed. */}
   setLakeExperiencePosition(_position:LakeExperiencePosition,_fallbackGround?:number){/* Authored position is fixed. */}
   setBearTreePortalPositions(_positions:BearTreePortalPositions){/* Authored positions are fixed. */}
@@ -2925,7 +2904,7 @@ export class VillageMapRenderer{
   }
   setPortalPosition(position:PortalPosition,sharedUpdate=true){
     if(this.options.mapId&&position.mapId!==this.options.mapId)return false;
-    if(position.mapId==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience'||position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return true;
+    if(position.mapId==='campus'||position.mapId==='club-street-festival'&&position.destination==='campus'||position.mapId==='recruitment-center'&&position.destination==='campus'||position.mapId==='project-room'&&position.destination==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience'||position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return true;
     const primary=this.options.portal?.destination===position.destination?this.options.portal:undefined;
     const fixedIndex=this.options.fixedPortals?.findIndex(config=>config.destination===position.destination)??-1;
     const fixed=fixedIndex>=0?this.options.fixedPortals?.[fixedIndex]:undefined;
@@ -3529,10 +3508,6 @@ export class VillageMapRenderer{
     }
     if(this.campusFeaturePortalNearby){
       event.preventDefault();
-      if(this.options.mapName==='공동캠퍼스'){
-        gameEvents.emit('travel-to-map',CAMPUS_FEATURE_PORTAL_DESTINATIONS[this.campusFeaturePortalNearby]);
-        return;
-      }
       if(this.options.studentHallFeatures&&this.campusFeaturePortalNearby==='clubs'){this.enterStudentHallBoardFocus('occupancy');return}
       if(this.options.studentHallFeatures&&this.campusFeaturePortalNearby==='recruit'){this.enterStudentHallBoardFocus('activity');return}
       if(this.campusFeaturePortalNearby==='people'&&this.options.mapName!=='학생회관')gameEvents.emit('travel-to-map','student-hall');
@@ -3606,7 +3581,7 @@ export class VillageMapRenderer{
   private setProjectRoomCharactersVisible(visible:boolean){
     this.localCharacter.root.visible=visible;
     if(this.guideNpc)this.guideNpc.root.visible=visible;
-    this.localNpcs.forEach(npc=>{npc.character.root.visible=visible});
+    this.localNpcs.forEach(npc=>{npc.character.root.visible=visible&&!this.hiddenCharacterIds.has(npc.config.id)});
     this.remotes.forEach(character=>{character.root.visible=visible});
   }
   private enterProjectRoomKiosk=(requestedId?:ProjectRoomKioskInteractionId)=>{
@@ -4854,6 +4829,7 @@ export class VillageMapRenderer{
 
   private updateLocalNpcs(delta:number){
     this.localNpcs.forEach(npc=>{
+      if(this.hiddenCharacterIds.has(npc.config.id)){npc.character.root.visible=false;return}
       if(npc.config.id===this.focusedLocalNpcId){
         const faceLocalYaw=Math.atan2(this.localX-npc.x,this.localZ-npc.z);
         if(npc.config.id===this.talkingLocalNpcId)npc.character.playEmote('talking',true);else npc.character.stopEmote();
@@ -5479,7 +5455,7 @@ export class VillageMapRenderer{
     if(this.options.projectRoomInteractions)this.updateProjectRoomSeatProximity(nextX,nextZ)
     if(this.options.centralPlazaSofaSeats)this.updateCentralPlazaSofaSeatProximity(nextX,nextZ)
     if(this.options.personalFarm){this.updatePersonalFarmSeatProximity(nextX,nextZ);this.updatePersonalFarmBedProximity(nextX,nextZ)}
-    const closestLocalNpc=this.localNpcs.map(npc=>({npc,distance:Math.hypot(nextX-npc.x,nextZ-npc.z)})).sort((a,b)=>a.distance-b.distance)[0];
+    const closestLocalNpc=this.localNpcs.filter(npc=>!this.hiddenCharacterIds.has(npc.config.id)).map(npc=>({npc,distance:Math.hypot(nextX-npc.x,nextZ-npc.z)})).sort((a,b)=>a.distance-b.distance)[0];
     const sameLocalNpc=closestLocalNpc?.npc.config.id===this.localNpcNearbyId;
     const npcOpenDistance=closestLocalNpc?.npc.config.interactionRadius??180;
     const nearbyLocalNpc=closestLocalNpc&&closestLocalNpc.distance<npcOpenDistance+(sameLocalNpc?40:0)?closestLocalNpc.npc:undefined;
@@ -5505,7 +5481,7 @@ export class VillageMapRenderer{
         localY:rect.top+(1-localProjected.y)*rect.height/2,
       });
     }
-    const focusedLocalNpc=this.focusedLocalNpcId?this.localNpcs.find(npc=>npc.config.id===this.focusedLocalNpcId):undefined;
+    const focusedLocalNpc=this.focusedLocalNpcId&&!this.hiddenCharacterIds.has(this.focusedLocalNpcId)?this.localNpcs.find(npc=>npc.config.id===this.focusedLocalNpcId):undefined;
     if(focusedLocalNpc)yaw=Math.atan2(focusedLocalNpc.x-nextX,focusedLocalNpc.z-nextZ);
     if(this.options.bearPhotoZone&&this.bearPhotoDestination){
       const photoPortalDistance=Math.hypot(nextX-this.bearPhotoPortalPosition.x,nextZ-this.bearPhotoPortalPosition.z);
@@ -5552,6 +5528,7 @@ export class VillageMapRenderer{
     const portalCandidates=[
       ...(this.options.portal&&this.portalPosition?[{...this.options.portal,...this.portalPosition}]:[]),
       ...(this.options.fixedPortals??[]),
+      ...(this.options.campusFeaturePortals??[]),
     ].map(config=>({config,distance:Math.hypot(nextX-config.x,nextZ-config.z)})).sort((a,b)=>a.distance-b.distance);
     if(!this.portalEntryArmed&&portalCandidates.every(candidate=>candidate.distance>=(candidate.config.chargeSeconds?PORTAL_EXIT_DISTANCE:KEY_PORTAL_EXIT_DISTANCE)))this.portalEntryArmed=true;
     const chargingPortalCandidate=this.portalTravelGate.isCharging&&this.activePortal
@@ -5599,16 +5576,7 @@ export class VillageMapRenderer{
         }
       }
     }
-    if(this.options.campusFeaturePortals?.length){
-      const closest=this.options.campusFeaturePortals.map(config=>({config,distance:Math.hypot(nextX-config.x,nextZ-config.z)})).sort((a,b)=>a.distance-b.distance)[0];
-      const same=closest?.config.id===this.campusFeaturePortalNearby;
-      const nearby=closest&&closest.distance<(same?INTERACTION_EXIT_DISTANCE:INTERACTION_OPEN_DISTANCE)?closest.config:undefined;
-      if(nearby?.id!==this.campusFeaturePortalNearby){
-        this.campusFeaturePortalNearby=nearby?.id;
-        this.campusFeaturePortalRoots.forEach((root,id)=>{const label=root.userData.label as THREE.Sprite|undefined;if(label)label.material.opacity=!nearby||id===nearby.id?1:.55});
-        gameEvents.emit('campus-feature-portal-proximity-changed',nearby?{id:nearby.id,label:nearby.label,description:nearby.description}:null);
-      }
-    }else if(this.options.studentHallFeatures&&this.studentHallFeatureTargets.length){
+    if(this.options.studentHallFeatures&&this.studentHallFeatureTargets.length){
       const closest=this.studentHallFeatureTargets.map(target=>({...target,distance:Math.hypot(nextX-target.x,nextZ-target.z)})).sort((a,b)=>a.distance-b.distance)[0];
       const same=closest?.id===this.campusFeaturePortalNearby;
       const nearby=closest&&closest.distance<closest.radius+(same?45:0)?closest:undefined;
@@ -5722,7 +5690,8 @@ export class VillageMapRenderer{
   }
 
   updateRemoteCharacter(id:string,name:string,model:CharacterModel,parts:CharacterParts,worldX:number,worldZ:number,yaw:number,motion:MotionState,delta:number,jumpHeight=0,emote:CharacterEmote|null=null){
-    let character=this.remotes.get(id);if(!character){character=new WorldCharacter(this.scene,name,model,parts,this.options.characterHeight??CHARACTER_HEIGHT);character.root.visible=!this.bearPhotoMode&&!isProjectRoomKioskInteraction(this.projectRoomFocus)&&!this.studentHallBoardActive;this.remotes.set(id,character)}
+    if(this.hiddenCharacterIds.has(id)){this.removeRemoteCharacter(id);return}
+    let character=this.remotes.get(id);if(!character){character=new WorldCharacter(this.scene,name,model,parts,this.options.characterHeight??CHARACTER_HEIGHT,false,false,false,this.options.nameplateScale??1);character.root.visible=!this.bearPhotoMode&&!isProjectRoomKioskInteraction(this.projectRoomFocus)&&!this.studentHallBoardActive;this.remotes.set(id,character)}
     const previousGround=this.remoteGrounds.get(id),needsGroundSample=!previousGround||Math.hypot(worldX-previousGround.x,worldZ-previousGround.z)>=4;
     const sampled=needsGroundSample?this.sampleGround(worldX,worldZ,previousGround?.height??0,!previousGround):undefined;
     const ground=sampled?{...sampled,x:worldX,z:worldZ}:previousGround??{height:0,normal:new THREE.Vector3(0,1,0),x:worldX,z:worldZ};

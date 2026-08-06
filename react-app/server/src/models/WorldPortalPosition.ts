@@ -12,6 +12,9 @@ const fixedFestivalPortal=WORLD_PORTAL_DEFAULTS.find(
 );
 const fixedBearTreePortals=WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination));
 const fixedCampusPortals=WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='campus');
+const fixedClubStreetPortal=WORLD_PORTAL_DEFAULTS.find(position=>position.mapId==='club-street-festival'&&position.destination==='campus');
+const fixedRecruitmentCenterPortal=WORLD_PORTAL_DEFAULTS.find(position=>position.mapId==='recruitment-center'&&position.destination==='campus');
+const fixedProjectRoomPortal=WORLD_PORTAL_DEFAULTS.find(position=>position.mapId==='project-room'&&position.destination==='campus');
 
 const normalized=(position:PortalPosition):PortalPosition=>{
   const value=
@@ -21,6 +24,12 @@ const normalized=(position:PortalPosition):PortalPosition=>{
         ?fixedFestivalPortal
         :position.mapId==='campus'
           ?fixedCampusPortals.find(portal=>portal.destination===position.destination)??position
+          :position.mapId==='club-street-festival'&&position.destination==='campus'&&fixedClubStreetPortal
+            ?fixedClubStreetPortal
+          :position.mapId==='recruitment-center'&&position.destination==='campus'&&fixedRecruitmentCenterPortal
+            ?fixedRecruitmentCenterPortal
+          :position.mapId==='project-room'&&position.destination==='campus'&&fixedProjectRoomPortal
+            ?fixedProjectRoomPortal
           :position.mapId==='bear-tree-park'
           ?fixedBearTreePortals.find(portal=>portal.destination===position.destination)??position
           :position;

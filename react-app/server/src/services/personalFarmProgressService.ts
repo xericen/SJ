@@ -14,7 +14,11 @@ const asIso=(value:Date|string|undefined)=>value?(value instanceof Date?value:ne
 
 export function applyPersonalFarmUnlockRules(document:PersonalFarmProgressDocument,now=new Date()){
   const gardenComplete=containsAll(document.gardenMission.collectedFlowerIds,GARDEN_FLOWER_IDS)&&containsAll(document.gardenMission.plantedFlowerIds,GARDEN_FLOWER_IDS);
-  const bearComplete=containsAll(document.bearMission.collectedFeedIds,BEAR_FEED_IDS)&&containsAll(document.bearMission.completedFeedSpotIds,BEAR_FEED_SPOT_IDS);
+  if(document.bearMission.bearFed&&!containsAll(document.bearMission.completedFeedSpotIds,BEAR_FEED_SPOT_IDS)){
+    document.bearMission.bearFed=false;
+    document.bearMission.bearFedAt=undefined;
+  }
+  const bearComplete=containsAll(document.bearMission.completedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&document.bearMission.bearFed;
   if(gardenComplete&&!document.gardenMission.completedAt)document.gardenMission.completedAt=now;
   if(bearComplete&&!document.bearMission.completedAt)document.bearMission.completedAt=now;
   document.gardenMission.completed=gardenComplete;
@@ -37,7 +41,7 @@ export function personalFarmProgressDto(document:PersonalFarmProgressDocument):P
   const visit=(record:VisitMissionRecord)=>({status:record.status,submittedAt:asIso(record.submittedAt),reviewedAt:asIso(record.reviewedAt),metadata:metadataDto(record)});
   return {
     gardenMission:{collectedFlowerIds:[...document.gardenMission.collectedFlowerIds],plantedFlowerIds:[...document.gardenMission.plantedFlowerIds],completed:document.gardenMission.completed,completedAt:asIso(document.gardenMission.completedAt)},
-    bearMission:{collectedFeedIds:[...document.bearMission.collectedFeedIds],completedFeedSpotIds:[...document.bearMission.completedFeedSpotIds],completed:document.bearMission.completed,completedAt:asIso(document.bearMission.completedAt)},
+    bearMission:{collectedFeedIds:[...document.bearMission.collectedFeedIds],completedFeedSpotIds:[...document.bearMission.completedFeedSpotIds],bearFed:document.bearMission.bearFed,bearFedAt:asIso(document.bearMission.bearFedAt),completed:document.bearMission.completed,completedAt:asIso(document.bearMission.completedAt)},
     farm:{unlocked:document.farm.unlocked,unlockedRewardIds:[...document.farm.unlockedRewardIds],activeRewardIds:[...document.farm.activeRewardIds],bearGrowthStage:document.farm.bearGrowthStage},
     realVisit:{garden:visit(document.realVisit.garden),bearTree:visit(document.realVisit.bearTree)},layoutVersion:document.layoutVersion,
     createdAt:asIso(document.createdAt)!,updatedAt:asIso(document.updatedAt)!,
@@ -58,6 +62,7 @@ export const collectGardenFlower=(userId:string,flowerId:GardenFlowerId)=>mutate
 export const plantGardenFlower=(userId:string,flowerId:GardenFlowerId)=>mutate(userId,document=>{if(!document.gardenMission.collectedFlowerIds.includes(flowerId))throw new PersonalFarmProgressError('FLOWER_NOT_COLLECTED','꽃을 먼저 수집해 주세요.',409);if(document.gardenMission.plantedFlowerIds.includes(flowerId))throw new PersonalFarmProgressError('FLOWER_ALREADY_PLANTED','이미 심은 꽃입니다.',409);document.gardenMission.plantedFlowerIds.push(flowerId)});
 export const collectBearFeed=(userId:string,feedId:BearFeedId)=>mutate(userId,document=>{if(document.bearMission.collectedFeedIds.includes(feedId))throw new PersonalFarmProgressError('FEED_ALREADY_COLLECTED','이미 수집한 먹이입니다.',409);document.bearMission.collectedFeedIds.push(feedId)});
 export const completeBearFeedSpot=(userId:string,spotId:BearFeedSpotId)=>mutate(userId,document=>{if(!document.bearMission.collectedFeedIds.length)throw new PersonalFarmProgressError('FEED_NOT_COLLECTED','먹이를 먼저 수집해 주세요.',409);if(document.bearMission.completedFeedSpotIds.includes(spotId))throw new PersonalFarmProgressError('FEED_SPOT_ALREADY_COMPLETED','이미 완료한 먹이 지점입니다.',409);document.bearMission.completedFeedSpotIds.push(spotId)});
+export const feedBear=(userId:string)=>mutate(userId,document=>{if(!containsAll(document.bearMission.completedFeedSpotIds,BEAR_FEED_SPOT_IDS))throw new PersonalFarmProgressError('FEED_SPOTS_INCOMPLETE','다섯 곳의 먹이 지점을 먼저 완료해 주세요.',409);if(document.bearMission.bearFed)throw new PersonalFarmProgressError('BEAR_ALREADY_FED','이미 곰 급여 체험을 완료했습니다.',409);document.bearMission.bearFed=true;document.bearMission.bearFedAt=new Date()});
 export const setActiveFarmRewards=(userId:string,rewardIds:FarmRewardId[])=>mutate(userId,document=>{const next=unique(rewardIds);if(next.some(reward=>!document.farm.unlockedRewardIds.includes(reward)))throw new PersonalFarmProgressError('REWARD_NOT_UNLOCKED','잠금 해제된 보상만 배치할 수 있습니다.',409);document.farm.activeRewardIds=next});
 export const submitVisitProof=(userId:string,mission:'garden'|'bearTree',metadata:Record<string,string>)=>mutate(userId,document=>{const target=document.realVisit[mission];if(target.status==='locked')throw new PersonalFarmProgressError('VISIT_MISSION_LOCKED','현장 방문 미션이 아직 잠겨 있습니다.',409);target.status='submitted';target.submittedAt=new Date();target.reviewedAt=undefined;target.metadata={...metadata}});
 

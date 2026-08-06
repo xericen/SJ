@@ -1182,6 +1182,8 @@ def _personal_farm_default(now=None):
         "bearMission": {
             "collectedFeedIds": [],
             "completedFeedSpotIds": [],
+            "bearFed": False,
+            "bearFedAt": None,
             "completed": False,
             "completedAt": None,
         },
@@ -1224,6 +1226,9 @@ def _normalize_personal_farm(value):
     result["bearMission"]["completedFeedSpotIds"] = _personal_farm_allowed_list(
         bear.get("completedFeedSpotIds"), PERSONAL_FARM_FEED_SPOTS
     )
+    result["bearMission"]["bearFed"] = bear.get("bearFed") is True
+    if isinstance(bear.get("bearFedAt"), str):
+        result["bearMission"]["bearFedAt"] = bear["bearFedAt"]
     result["farm"]["activeRewardIds"] = _personal_farm_allowed_list(
         farm.get("activeRewardIds"), PERSONAL_FARM_REWARDS
     )
@@ -1261,10 +1266,14 @@ def _apply_personal_farm_rules(progress, now=None):
         item in garden["collectedFlowerIds"] and item in garden["plantedFlowerIds"]
         for item in PERSONAL_FARM_FLOWERS
     )
-    bear_complete = (
-        all(item in bear["collectedFeedIds"] for item in PERSONAL_FARM_FEEDS)
-        and all(item in bear["completedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS)
-    )
+    if bear.get("bearFed") and not all(
+        item in bear["completedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS
+    ):
+        bear["bearFed"] = False
+        bear["bearFedAt"] = None
+    bear_complete = all(
+        item in bear["completedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS
+    ) and bear.get("bearFed") is True
     if garden_complete and not garden.get("completedAt"):
         garden["completedAt"] = timestamp
     if bear_complete and not bear.get("completedAt"):
@@ -1374,6 +1383,22 @@ def personal_farm_progress():
         if spot_id in bear["completedFeedSpotIds"]:
             return _personal_farm_error(409, "FEED_SPOT_ALREADY_COMPLETED", "이미 완료한 먹이 지점입니다.")
         bear["completedFeedSpotIds"].append(spot_id)
+    elif action == "feedBear":
+        if not all(
+            item in bear["completedFeedSpotIds"]
+            for item in PERSONAL_FARM_FEED_SPOTS
+        ):
+            return _personal_farm_error(
+                409,
+                "FEED_SPOTS_INCOMPLETE",
+                "다섯 곳의 먹이 지점을 먼저 완료해 주세요.",
+            )
+        if bear.get("bearFed"):
+            return _personal_farm_error(
+                409, "BEAR_ALREADY_FED", "이미 곰 급여 체험을 완료했습니다."
+            )
+        bear["bearFed"] = True
+        bear["bearFedAt"] = datetime.datetime.now().isoformat()
     elif action == "activeRewards":
         try:
             reward_ids = json.loads(wiz.request.query("rewardIds", "[]"))

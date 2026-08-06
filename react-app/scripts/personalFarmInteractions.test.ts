@@ -10,6 +10,8 @@ const page=read('../src/pages/GamePage.tsx');
 const pageCss=read('../src/pages/GamePage.css');
 const farmProgress=read('../src/components/PersonalFarmProgressExperience.tsx');
 const farmCss=read('../src/components/PersonalFarmProgressExperience.css');
+const farmApi=read('../src/services/personalFarmApi.ts');
+const wizApi=read('../../src/app/page.home/api.py');
 
 const glbNodeNames=()=>{
   const buffer=readFileSync(new URL('../src/assets/objects/personal-space-cottage.glb',import.meta.url));
@@ -107,4 +109,13 @@ test('마이홈 실내 카메라는 캐릭터에서 충분히 떨어진다',()=>
   assert.equal(personalFarmCameraDistance(false),1820);
   assert.equal(personalFarmCameraDistance(true),1400);
   assert.match(renderer,/personalFarmCameraDistance\(this\.personalFarmInterior\)/);
+});
+
+test('베어트리파크 다섯 먹이 지점 뒤 최종 곰 급여를 MySQL API에 저장한다',()=>{
+  assert.match(farmProgress,/canFeedBear/);
+  assert.match(farmProgress,/bear-feeding-proximity-changed/);
+  assert.match(farmApi,/requestWiz\('feedBear'\)/);
+  assert.match(farmApi,/requestExpress\('\/bear\/feed'/);
+  assert.match(wizApi,/action == "feedBear"/);
+  assert.match(wizApi,/"bearFed"\] = True/);
 });

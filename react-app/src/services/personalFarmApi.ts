@@ -11,6 +11,7 @@ const errorMessages:Record<string,string>={
   UNAUTHENTICATED:'로그인이 필요합니다.',NETWORK_ERROR:'서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   FLOWER_ALREADY_COLLECTED:'이미 수집한 꽃입니다.',FLOWER_NOT_COLLECTED:'먼저 수목원에서 꽃을 수집해 주세요.',
   FEED_NOT_COLLECTED:'사용할 수 있는 먹이가 없습니다.',FEED_SPOT_ALREADY_COMPLETED:'이미 완료한 먹이 체험 지점입니다.',
+  FEED_SPOTS_INCOMPLETE:'다섯 곳의 먹이 지점을 먼저 완료해 주세요.',BEAR_ALREADY_FED:'이미 곰 급여 체험을 완료했습니다.',
   FLOWER_ALREADY_PLANTED:'이미 심은 꽃입니다.',FARM_LOCKED:'수목원과 베어트리파크 미션을 완료하면 보상이 열립니다.',
 };
 
@@ -30,7 +31,7 @@ export function isPersonalFarmProgressDto(value:unknown):value is PersonalFarmPr
   if(!garden||typeof garden!=='object'||!bear||typeof bear!=='object'||!farm||typeof farm!=='object'||!visit||typeof visit!=='object')return false;
   const g=garden as Record<string,unknown>,b=bear as Record<string,unknown>,f=farm as Record<string,unknown>,v=visit as Record<string,unknown>;
   return strings(g.collectedFlowerIds,GARDEN_FLOWER_IDS)&&strings(g.plantedFlowerIds,GARDEN_FLOWER_IDS)&&typeof g.completed==='boolean'&&nullableDate(g.completedAt)
-    &&strings(b.collectedFeedIds,BEAR_FEED_IDS)&&strings(b.completedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&typeof b.completed==='boolean'&&nullableDate(b.completedAt)
+    &&strings(b.collectedFeedIds,BEAR_FEED_IDS)&&strings(b.completedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&typeof b.bearFed==='boolean'&&nullableDate(b.bearFedAt)&&typeof b.completed==='boolean'&&nullableDate(b.completedAt)
     &&typeof f.unlocked==='boolean'&&strings(f.unlockedRewardIds,FARM_REWARD_IDS)&&strings(f.activeRewardIds,FARM_REWARD_IDS)&&['locked','cub','young','adult'].includes(String(f.bearGrowthStage))
     &&typeof v.garden==='object'&&typeof v.bearTree==='object'&&typeof root.layoutVersion==='number'&&typeof root.createdAt==='string'&&typeof root.updatedAt==='string';
 }
@@ -68,5 +69,6 @@ export const collectGardenFlower=(flowerId:GardenFlowerId)=>useWizRuntime()?requ
 export const plantGardenFlower=(flowerId:GardenFlowerId)=>useWizRuntime()?requestWiz('plantFlower',{flowerId}):requestExpress(`/garden/plant/${encodeURIComponent(flowerId)}`,{method:'POST'});
 export const collectBearFeed=(feedId:BearFeedId)=>useWizRuntime()?requestWiz('collectFeed',{feedId}):requestExpress(`/bear/collect/${encodeURIComponent(feedId)}`,{method:'POST'});
 export const completeBearFeedSpot=(spotId:BearFeedSpotId)=>useWizRuntime()?requestWiz('completeFeedSpot',{spotId}):requestExpress(`/bear/feed/${encodeURIComponent(spotId)}`,{method:'POST'});
+export const feedBear=()=>useWizRuntime()?requestWiz('feedBear'):requestExpress('/bear/feed',{method:'POST'});
 export const updateActiveFarmRewards=(rewardIds:FarmRewardId[])=>useWizRuntime()?requestWiz('activeRewards',{rewardIds:JSON.stringify(rewardIds)}):requestExpress('/rewards/active',{method:'PATCH',body:JSON.stringify({rewardIds})});
 export const submitVisitMetadata=(mission:'garden'|'bearTree',metadata:Record<string,string>)=>useWizRuntime()?requestWiz('visitProof',{mission,metadata:JSON.stringify(metadata)}):requestExpress('/visit-proof',{method:'POST',body:JSON.stringify({mission,metadata})});

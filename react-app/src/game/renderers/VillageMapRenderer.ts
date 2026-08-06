@@ -50,6 +50,7 @@ import { FESTIVAL_NPCS } from '../../data/festivalNpc';
 import { PROJECT_ROOM_INTERACTIONS,isProjectRoomKioskInteraction,type ProjectRoomInteractionId,type ProjectRoomKioskInteractionId } from '../projectRoomInteractions';
 import { GOVERNMENT_CENTRAL_PLAZA_WEB_UI,type GovernmentCentralPlazaWebUiId } from '../governmentCentralPlazaWebUi';
 import { ARTS_CENTER_PERFORMANCES,artsCenterPerformanceImageUrl,type ArtsCenterPerformance } from '../artsCenterPerformances';
+import {createBearStatueObject} from '../../services/bearStatueAssetFactory';
 import { SmartCityHologram,type SmartCityTechnologyId } from './SmartCityHologram';
 import { LAKE_PARK_PORTALS } from '../lakeParkPortals';
 import { CAMPUS_FEATURE_PORTALS,CAMPUS_FEATURE_PORTAL_DESTINATIONS,type CampusFeaturePortalConfig } from '../campusFeaturePortals';
@@ -214,6 +215,7 @@ type StudentHallBoardId='occupancy'|'activity';
 type StudentHallBoardScreenRect={left:number;top:number;width:number;height:number;quad?:readonly [{x:number;y:number},{x:number;y:number},{x:number;y:number},{x:number;y:number}]};
 type ProjectLobbyBoardScreenRect=StudentHallBoardScreenRect;
 type ResidentConfig={modelUrl:string;format?:'gltf'|'fbx';x:number;z:number;height:number;yaw:number;stationary?:boolean;patrol?:readonly {x:number;z:number}[];walkSpeed?:number};
+type BearFeedingAnchor={x:number;z:number;radius?:number};
 type WildlifeClueConfig={id:'bearA'|'bearB'|'cave'|'food'|'water';x:number;z:number;icon:string;label:string};
 type FeedSpotAnchorConfig={id:`BEAR_FEED_SPOT_0${1|2|3|4|5}`;x:number;z:number};
 type LowQualityFallback={maxTextureSize:number;performancePixelRatio:number;performanceFrameRate:number;balancedTextureQuality:boolean};
@@ -247,6 +249,7 @@ export type WorldMapRendererOptions={
   residentDecor?:ResidentConfig[];
   wildlifeClues?:WildlifeClueConfig[];
   feedSpotAnchors?:readonly FeedSpotAnchorConfig[];
+  bearFeedingAnchor?:BearFeedingAnchor;
   bearCollisionRadius?:number;
   lowQualityFallback?:LowQualityFallback;
   cameraScreenOffsetY?:number;
@@ -349,6 +352,21 @@ export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
     {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3},
   ],
   interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:true,chargeSeconds:3},
+  resident:{modelUrl:personalFarmBearModelUrl,format:'fbx',x:1250,z:1120,height:168,yaw:2.75,stationary:false,patrol:[{x:1200,z:1100},{x:1320,z:1100},{x:1320,z:1210},{x:1200,z:1210}],walkSpeed:22},
+  residentDecor:[
+    {modelUrl:personalFarmBearModelUrl,format:'fbx',x:1640,z:820,height:142,yaw:-1.15,stationary:true},
+    {modelUrl:personalFarmBearModelUrl,format:'fbx',x:760,z:520,height:154,yaw:.65,stationary:true},
+  ],
+  wildlifeClues:[
+    {id:'food',x:1540,z:930,icon:'🥕',label:'BEAR_FEED_SPOT_01'},
+    {id:'cave',x:1710,z:760,icon:'🥕',label:'BEAR_FEED_SPOT_02'},
+    {id:'water',x:690,z:650,icon:'🥕',label:'BEAR_FEED_SPOT_03'},
+  ],
+  feedSpotAnchors:[
+    {id:'BEAR_FEED_SPOT_01',x:1540,z:930},{id:'BEAR_FEED_SPOT_02',x:1710,z:760},{id:'BEAR_FEED_SPOT_03',x:690,z:650},
+    {id:'BEAR_FEED_SPOT_04',x:1120,z:980},{id:'BEAR_FEED_SPOT_05',x:820,z:1080},
+  ],
+  bearFeedingAnchor:{x:1250,z:1120,radius:150},
   perspectiveCamera:false,cameraZoom:BEAR_TREE_PARK_CAMERA_ZOOM,cameraDistance:BEAR_TREE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,characterHeight:150,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
   nameplateScale:BEAR_TREE_PARK_CAMERA_DISTANCE_MULTIPLIER,
   lightingIntensityMultiplier:.76,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
@@ -375,7 +393,7 @@ const PERSONAL_FARM_COLLIDER_PREFIXES=[
 export const PERSONAL_FARM_SPAWN={x:1050,z:1510,yaw:Math.PI} as const;
 export const PERSONAL_FARM_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:personalFarmModelUrl,mapName:'마이홈',spawn:PERSONAL_FARM_SPAWN,personalFarm:true,
-  residentDecor:[{modelUrl:personalFarmBearModelUrl,format:'fbx',x:760,z:1260,height:105,yaw:.55,stationary:true}],
+  residentDecor:[],
   perspectiveCamera:true,cameraElevationDeg:37,cameraAzimuthDeg:0,cameraDistance:1280,cameraFov:47,cameraScreenOffsetY:0,cameraTargetHeight:120,
   cameraFollowBounds:{minX:590,maxX:1810,minZ:690,maxZ:1660},characterHeight:105,mapScaleMultiplier:.92,
   groundFillColor:0x6f9c50,sceneBackgroundColor:'#a9cbb5',toneMappingExposure:1.02,lightingIntensityMultiplier:.9,
@@ -1586,6 +1604,8 @@ export class VillageMapRenderer{
   private personalFarmOccluderOpacity=new Map<THREE.Material,number>();
   private personalFarmPlantAnchorNearby=false;
   private personalFarmRewardsRoot?:THREE.Group;
+  private personalFarmBearStatueRoot?:THREE.Group;
+  private personalFarmBearStatueRenderToken=0;
   private personalFarmProgress?:PersonalFarmProgressDto;
   private clubBoothCardAnchors:THREE.Object3D[]=[];
   private bearPhotoStage?:THREE.Object3D;
@@ -1593,6 +1613,7 @@ export class VillageMapRenderer{
   private wildlifeClueNearby?:string;
   private feedSpotRoots=new Map<FeedSpotAnchorConfig['id'],THREE.Group>();
   private feedSpotNearby?:FeedSpotAnchorConfig['id'];
+  private bearFeedingNearby=false;
   private pendingHabitatResource?:HabitatResourceId;
   private localRenderPosition=new THREE.Vector3();
   private remoteRenderPosition=new THREE.Vector3();
@@ -5320,7 +5341,8 @@ export class VillageMapRenderer{
     this.feedSpotRoots.forEach((root,id)=>{const done=progress.bearMission.completedFeedSpotIds.includes(id);root.traverse(object=>{if(object instanceof THREE.Mesh&&object.material instanceof THREE.MeshBasicMaterial){object.material.color.set(done?0x5aae63:0xd9a441);object.material.opacity=done?.62:.3}})});
     if(!this.options.personalFarm)return;
     const active=progress.farm.activeRewardIds;
-    this.residentDecorRoots.forEach(root=>{root.visible=progress.farm.unlockedRewardIds.includes('bear-statue')&&(!active.length||active.includes('bear-statue'))});
+    const bearStatueUnlocked=progress.farm.unlockedRewardIds.includes('bear-statue')||progress.bearMission.completed;
+    void this.renderPersonalFarmBearStatue(bearStatueUnlocked);
     this.personalFarmRewardsRoot?.removeFromParent();
     const root=new THREE.Group();root.name='personal-farm-server-rewards';
     const colors={tulip:0xe86f7d,sunflower:0xf2c84b,hydrangea:0xa88ad5,camellia:0xd95058,iris:0x7665c9} as const;
@@ -5335,6 +5357,20 @@ export class VillageMapRenderer{
       const emblem=new THREE.Mesh(new THREE.TorusGeometry(24,5,12,32),new THREE.MeshStandardMaterial({color:0xf4c75c,emissive:0x6d4b08,emissiveIntensity:.35}));emblem.name='nature-complete-emblem';emblem.position.set(960,62,this.worldToSceneZ(1325));emblem.rotation.x=Math.PI/2;root.add(emblem);
     }
     this.personalFarmRewardsRoot=root;this.scene.add(root);
+  }
+
+  private async renderPersonalFarmBearStatue(unlocked:boolean){
+    const token=++this.personalFarmBearStatueRenderToken;
+    this.personalFarmBearStatueRoot?.removeFromParent();this.personalFarmBearStatueRoot=undefined;
+    if(!unlocked||this.destroyed||!this.mapReady)return;
+    try{
+      const statue=await createBearStatueObject({targetHeight:150,rotationY:-Math.PI*.35});
+      if(token!==this.personalFarmBearStatueRenderToken||this.destroyed||!this.options.personalFarm)return;
+      const anchor={x:1600,z:1040},bounds=new THREE.Box3().setFromObject(statue),center=bounds.getCenter(new THREE.Vector3());
+      const ground=this.sampleGround(anchor.x,anchor.z,0,true)??this.sampleExperienceGround(anchor.x,anchor.z,true)??{height:this.localGround};
+      statue.position.set(anchor.x-center.x,ground.height-bounds.min.y+1,this.worldToSceneZ(anchor.z)-center.z);
+      this.personalFarmBearStatueRoot=statue;this.scene.add(statue);
+    }catch(error){if(import.meta.env.DEV)console.warn('[personal-farm bear statue failed]',error)}
   }
 
   private togglePersonalFarmInterior=()=>{
@@ -5487,6 +5523,11 @@ export class VillageMapRenderer{
       const photoPortalDistance=Math.hypot(nextX-this.bearPhotoPortalPosition.x,nextZ-this.bearPhotoPortalPosition.z);
       const nearby=!this.bearPhotoMode&&photoPortalDistance<(this.bearPhotoNearby?PORTAL_EXIT_DISTANCE:PORTAL_OPEN_DISTANCE);
       if(nearby!==this.bearPhotoNearby){this.bearPhotoNearby=nearby;gameEvents.emit('bear-photo-proximity-changed',nearby)}
+    }
+    if(this.options.bearFeedingAnchor){
+      const radius=this.options.bearFeedingAnchor.radius??120;
+      const nearby=Math.hypot(nextX-this.options.bearFeedingAnchor.x,nextZ-this.options.bearFeedingAnchor.z)<radius;
+      if(nearby!==this.bearFeedingNearby){this.bearFeedingNearby=nearby;gameEvents.emit('bear-feeding-proximity-changed',nearby)}
     }
     if(this.options.wildlifeClues?.length){
       const closest=this.options.wildlifeClues.map(config=>({config,distance:Math.hypot(nextX-config.x,nextZ-config.z)})).sort((a,b)=>a.distance-b.distance)[0];
@@ -6000,6 +6041,8 @@ export class VillageMapRenderer{
 
   destroy(){
     if(this.destroyed)return;
+    this.personalFarmBearStatueRenderToken++;
+    this.personalFarmBearStatueRoot?.removeFromParent();this.personalFarmBearStatueRoot=undefined;
     if(this.artsCenterPosterActive){gameEvents.emit('game-input-lock',false);gameEvents.emit('arts-center-poster-screen-rect',null);gameEvents.emit('arts-center-poster-focus-mode-changed',{active:false,index:0,ready:false})}
     if(this.recruitmentKioskActive){gameEvents.emit('recruitment-kiosk-screen-rect',null);gameEvents.emit('recruitment-kiosk-mode-changed',false)}
     if(this.artsCenterStageBackdrop)gameEvents.emit('arts-center-stage-screen-rect',null);
@@ -6014,6 +6057,7 @@ export class VillageMapRenderer{
     if(this.lakeExperienceNearby)gameEvents.emit('lake-experience-proximity-changed',null);
     if(this.bearPhotoNearby)gameEvents.emit('bear-photo-proximity-changed',false);
     if(this.wildlifeClueNearby)gameEvents.emit('bear-clue-proximity-changed',null);
+    if(this.bearFeedingNearby)gameEvents.emit('bear-feeding-proximity-changed',false);
     if(this.localNpcNearbyId){gameEvents.emit('local-npc-proximity-changed',null);gameEvents.emit('local-npc-screen-position',null)}
     if(this.overviewActive)gameEvents.emit('map-overview-changed',false);
     if(this.options.overview)gameEvents.off('map-overview-toggle',this.onMapOverviewToggle);

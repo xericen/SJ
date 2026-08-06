@@ -6,7 +6,7 @@ import {connectDatabase,disconnectDatabase} from '../config/database.js';
 import {PersonalFarmProgressModel} from '../models/PersonalFarmProgress.js';
 import {UserModel} from '../models/User.js';
 import {BEAR_FEED_IDS,BEAR_FEED_SPOT_IDS,GARDEN_FLOWER_IDS} from '../../../shared/personal-farm.js';
-import {collectBearFeed,collectGardenFlower,completeBearFeedSpot,getOrCreatePersonalFarmProgress,plantGardenFlower} from './personalFarmProgressService.js';
+import {collectBearFeed,collectGardenFlower,completeBearFeedSpot,feedBear,getOrCreatePersonalFarmProgress,plantGardenFlower} from './personalFarmProgressService.js';
 
 const testUserIds=new Set<string>();
 const userId=()=>{const id=randomBytes(12).toString('hex');testUserIds.add(id);return id};
@@ -30,9 +30,10 @@ test('duplicate flower collection is rejected',async()=>{const id=userId();await
 test('an uncollected flower cannot be planted',async()=>{await assert.rejects(()=>plantGardenFlower(userId(),'iris'),{code:'FLOWER_NOT_COLLECTED'})});
 test('a feed spot cannot be completed before collecting feed',async()=>{await assert.rejects(()=>completeBearFeedSpot(userId(),'BEAR_FEED_SPOT_01'),{code:'FEED_NOT_COLLECTED'})});
 test('the same feed spot cannot be completed twice',async()=>{const id=userId();await collectBearFeed(id,'apple');await completeBearFeedSpot(id,'BEAR_FEED_SPOT_01');await assert.rejects(()=>completeBearFeedSpot(id,'BEAR_FEED_SPOT_01'),{code:'FEED_SPOT_ALREADY_COMPLETED'})});
+test('the bear cannot be fed before all five feed spots are complete',async()=>{const id=userId();await collectBearFeed(id,'apple');await completeBearFeedSpot(id,'BEAR_FEED_SPOT_01');await assert.rejects(()=>feedBear(id),{code:'FEED_SPOTS_INCOMPLETE'})});
 
 async function completeGarden(id:string){for(const flower of GARDEN_FLOWER_IDS){await collectGardenFlower(id,flower);await plantGardenFlower(id,flower)}}
-async function completeBearMission(id:string){for(const feed of BEAR_FEED_IDS)await collectBearFeed(id,feed);for(const spot of BEAR_FEED_SPOT_IDS)await completeBearFeedSpot(id,spot)}
+async function completeBearMission(id:string){for(const feed of BEAR_FEED_IDS)await collectBearFeed(id,feed);for(const spot of BEAR_FEED_SPOT_IDS)await completeBearFeedSpot(id,spot);await feedBear(id)}
 
 test('completing only one location keeps the farm locked',async()=>{
   const id=userId();await completeGarden(id);const progress=await getOrCreatePersonalFarmProgress(id);

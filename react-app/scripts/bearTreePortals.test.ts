@@ -90,7 +90,7 @@ test('React와 WIZ의 편집 UI·저장 API가 베어트리파크 포탈을 고�
   const wizApi=read('../../src/app/page.home/api.py');
 
   assert.doesNotMatch(page,/bear-tree-portal-place-at-player/);
-  assert.match(page,/!\['bear-tree-park','personal-farm','campus'\]\.includes\(currentMapId\)/);
+  assert.match(page,/!\['bear-tree-park','personal-farm','campus','recruitment-center','project-room'\]\.includes\(currentMapId\)/);
   assert.match(renderer,/position\.mapId==='bear-tree-park'/);
   assert.match(socketHandlers,/position\.mapId==='bear-tree-park'/);
   assert.match(serverModel,/fixedBearTreePortals/);
@@ -100,7 +100,7 @@ test('React와 WIZ의 편집 UI·저장 API가 베어트리파크 포탈을 고�
   });
 });
 
-test('베어트리파크와 곰 체험소의 곰 조사·서식지 활동을 제거한다',()=>{
+test('베어트리파크 먹이 미션은 복구하고 곰 체험소의 이전 조사 활동은 유지하지 않는다',()=>{
   const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
   const canvas=read('../src/game/GameCanvas.tsx');
   const guide=read('../src/components/NatureDiscoveryGuide.tsx');
@@ -109,7 +109,11 @@ test('베어트리파크와 곰 체험소의 곰 조사·서식지 활동을 제
   const wizApi=read('../../src/app/page.home/api.py');
   const bearTreeOptions=renderer.slice(renderer.indexOf('export const BEAR_TREE_PARK_RENDERER_OPTIONS'),renderer.indexOf('export const BEAR_PLAY_ZONE_RENDERER_OPTIONS'));
 
-  assert.doesNotMatch(bearTreeOptions,/wildlifeClues|feedSpotAnchors|대표 곰 관찰|먹이 구역 곰 관찰|destination:'personal-farm'/);
+  assert.match(bearTreeOptions,/wildlifeClues:/);
+  assert.match(bearTreeOptions,/feedSpotAnchors:/);
+  assert.match(bearTreeOptions,/BEAR_FEED_SPOT_05/);
+  assert.match(bearTreeOptions,/bearFeedingAnchor:/);
+  assert.doesNotMatch(bearTreeOptions,/대표 곰 관찰|먹이 구역 곰 관찰|destination:'personal-farm'/);
   assert.doesNotMatch(shared,/mapId:'bear-tree-park',destination:'personal-farm'/);
   assert.doesNotMatch(wizApi,/\("bear-tree-park", "personal-farm"/);
   assert.match(serverModel,/worldPortalKeys\.has\(worldPortalKey\(position\)\)/);

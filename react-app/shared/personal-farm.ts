@@ -22,7 +22,7 @@ export interface VisitMissionDto {
 
 export interface PersonalFarmProgressDto {
   gardenMission:{collectedFlowerIds:GardenFlowerId[];plantedFlowerIds:GardenFlowerId[];completed:boolean;completedAt:string|null};
-  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];completed:boolean;completedAt:string|null};
+  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];bearFed:boolean;bearFedAt:string|null;completed:boolean;completedAt:string|null};
   farm:{unlocked:boolean;unlockedRewardIds:FarmRewardId[];activeRewardIds:FarmRewardId[];bearGrowthStage:BearGrowthStage};
   realVisit:{garden:VisitMissionDto;bearTree:VisitMissionDto};
   layoutVersion:number;

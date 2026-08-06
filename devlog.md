@@ -217,3 +217,4 @@
 | 2026-08-06 | 045 | 예술의전당 공연 상세 원본 읽기 화면 정돈 | [상세](devlog/2026-08-06/045-clean-arts-performance-reader.md) |
 | 2026-08-06 | 046 | 축제 스탬프 실제 높이에 맞춰 현재 활동 패널 동적 연결 | [상세](devlog/2026-08-06/046-festival-dynamic-hud-stack.md) |
 | 2026-08-06 | 047 | 예술의전당·축제·먹거리 부스 카메라 거리 소폭 확대 | [상세](devlog/2026-08-06/047-increase-showcase-camera-distance.md) |
+| 2026-08-06 | 048 | 원격 수목원·베어트리파크 미션 선택 병합 및 MySQL·WIZ 연동 | [상세](devlog/2026-08-06/048-merge-garden-bear-tree-upstream.md) |

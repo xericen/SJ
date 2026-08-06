@@ -17,7 +17,7 @@ export interface PersonalFarmProgress {
   id:string;
   userId:string;
   gardenMission:{collectedFlowerIds:GardenFlowerId[];plantedFlowerIds:GardenFlowerId[];completed:boolean;completedAt?:StoredDate};
-  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];completed:boolean;completedAt?:StoredDate};
+  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];bearFed:boolean;bearFedAt?:StoredDate;completed:boolean;completedAt?:StoredDate};
   farm:{unlocked:boolean;unlockedRewardIds:FarmRewardId[];activeRewardIds:FarmRewardId[];bearGrowthStage:BearGrowthStage};
   realVisit:{garden:VisitMissionRecord;bearTree:VisitMissionRecord};
   layoutVersion:number;
@@ -39,7 +39,7 @@ export const PersonalFarmProgressModel=createMysqlJsonModel('personal_farm_progr
   id:String(input.userId??input.id??input._id),
   userId:String(input.userId??input._id),
   gardenMission:{collectedFlowerIds:[],plantedFlowerIds:[],completed:false,...input.gardenMission},
-  bearMission:{collectedFeedIds:[],completedFeedSpotIds:[],completed:false,...input.bearMission},
+  bearMission:{collectedFeedIds:[],completedFeedSpotIds:[],bearFed:false,completed:false,...input.bearMission},
   farm:{unlocked:false,unlockedRewardIds:[],activeRewardIds:[],bearGrowthStage:'locked',...input.farm},
   realVisit:{
     garden:visitDefaults(input.realVisit?.garden),

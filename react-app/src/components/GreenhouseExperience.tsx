@@ -81,10 +81,15 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     setImageFailed(false);setImageLoading(Boolean(definition.imageUrl));setLightboxIndex(null);
     if(!saved){setLoadingMessage(false);setMessage(createFallbackPlantMessage(definition))}
   },[progress.collected]);
+  const interactPlant=useCallback((id:string)=>{
+    const definition=greenhousePlantById.get(id),alreadyCollected=progress.collected.some(item=>item.plantId===id);
+    if(definition&&!alreadyCollected){publish(service.collectDiscovery(progress,id,createFallbackPlantMessage(definition)));return}
+    void observePlant(id);
+  },[observePlant,progress,publish,service]);
   const observeNearby=useCallback(()=>{
-    if(nearby?.kind==='plant')void observePlant(nearby.plantId);
+    if(nearby?.kind==='plant')interactPlant(nearby.plantId);
     if(nearby?.kind==='memory-tree')openMemoryTree();
-  },[nearby,observePlant,openMemoryTree]);
+  },[interactPlant,nearby,openMemoryTree]);
 
   useEffect(()=>{setProgress(service.load())},[service]);
   useEffect(()=>{
@@ -97,11 +102,11 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
       }else setView(null);
     };
     const nearbyChanged=(value:Nearby)=>setNearby(value);
-    const observe=(id:string)=>void observePlant(id);
+    const observe=(id:string)=>interactPlant(id);
     const tree=()=>openMemoryTree();
     gameEvents.on('map-travel-complete',mapChanged);gameEvents.on('greenhouse-nearby-changed',nearbyChanged);gameEvents.on('greenhouse-observe-plant',observe);gameEvents.on('greenhouse-observe-tree',tree);
     return()=>{gameEvents.off('map-travel-complete',mapChanged);gameEvents.off('greenhouse-nearby-changed',nearbyChanged);gameEvents.off('greenhouse-observe-plant',observe);gameEvents.off('greenhouse-observe-tree',tree)};
-  },[observePlant,openMemoryTree,publish,service]);
+  },[interactPlant,openMemoryTree,publish,service]);
   useEffect(()=>{
     if(view!=='memory')return;
     refreshPublicMemories();

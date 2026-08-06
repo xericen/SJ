@@ -46,5 +46,26 @@ test('클라이언트·서버 저장 우회도 공동캠퍼스 좌표를 변경�
     {portal:'government',x:1590,z:1543},
   ]);
   assert.match(read('server/src/socket/registerSocketHandlers.ts'),/position\.mapId==='town'\|\|position\.mapId==='campus'/);
-  assert.match(read('../src/app/page.home/api.py'),/"campus",\n\s+"government"/);
+  const wizApi=read('../src/app/page.home/api.py');
+  const frozenMaps=wizApi.slice(wizApi.indexOf('FROZEN_WORLD_PORTAL_MAPS'),wizApi.indexOf('CANONICAL_WORLD_PORTAL_KEYS'));
+  assert.match(frozenMaps,/"campus",/);
+  assert.doesNotMatch(frozenMaps,/"government",/);
+  assert.match(wizApi,/\("government", "campus"\),/);
+});
+
+test('모집센터 공동캠퍼스 귀환 포탈은 권한 사용자의 공용 저장 이벤트로 이동한다',()=>{
+  const page=read('src/pages/GamePage.tsx');
+  const recruitmentButton=page.split('\n').find(line=>line.includes("currentMapId==='recruitment-center'"));
+  assert.ok(recruitmentButton);
+  assert.match(recruitmentButton,/recruitment-center'&&canEditPortals/);
+  assert.match(recruitmentButton,/world-portal-place-at-player','campus'/);
+  assert.doesNotMatch(recruitmentButton,/primary-portal-place-at-player/);
+
+  const store=new RoomStore();
+  const position={mapId:'recruitment-center',destination:'campus',x:980,z:1420} as const;
+  assert.equal(store.setPortalPosition(position),true);
+  assert.deepEqual(
+    store.allPortalPositions().find(item=>item.mapId===position.mapId&&item.destination===position.destination),
+    position,
+  );
 });

@@ -19,6 +19,9 @@ test('마이홈 모델은 독립 착석 대상 7개를 제공한다',()=>{
   ['N','S','W','E'].forEach(direction=>assert.equal(names.has(`FURN_Dining_Chair_${direction}_Seat`),true));
   for(let index=0;index<3;index++)assert.equal(names.has(`FURN_Sofa_Cushion_${index}`),true);
   assert.equal(names.has('EXTERIOR_Entry_Door'),true);
+  assert.equal(names.has('FURN_Dining_Table'),true);
+  assert.equal(names.has('FURN_Mattress'),true);
+  assert.equal(names.has('FURN_Bed_Headboard'),true);
 });
 
 test('집·가구·식물의 중첩 메시를 충돌 영역으로 등록한다',()=>{
@@ -38,4 +41,21 @@ test('문 출입과 의자·소파 착석은 E 상호작용으로만 실행한�
   assert.match(page,/E 버튼으로 집 들어가기/);
   assert.match(page,/personal-farm-seat-toggle/);
   assert.match(page,/E 버튼으로 앉기/);
+});
+
+test('식탁 의자와 소파는 각각 식탁과 문을 바라보도록 착석 방향을 계산한다',()=>{
+  assert.match(renderer,/const table=model\.getObjectByName\('FURN_Dining_Table'\)/);
+  assert.match(renderer,/const door=model\.getObjectByName\('EXTERIOR_Entry_Door'\)/);
+  assert.match(renderer,/addSeat\(seat,model\.getObjectByName\(`\$\{prefix\}_Back`\),tableCenter/);
+  assert.match(renderer,/addSeat\(cushion,sofaBack,doorCenter/);
+  assert.match(renderer,/yaw:Math\.atan2\(facing\.x,facing\.z\)/);
+});
+
+test('침대 가까이에서 E로 눕고 다시 일어날 수 있다',()=>{
+  assert.match(renderer,/setupPersonalFarmBed\(model\)/);
+  assert.match(renderer,/gameEvents\.on\('personal-farm-bed-toggle',this\.togglePersonalFarmBed\)/);
+  assert.match(renderer,/this\.personalFarmSleeping&&this\.personalFarmBed/);
+  assert.match(renderer,/this\.localCharacter\.setLying\(true\)/);
+  assert.match(page,/personal-farm-bed-toggle/);
+  assert.match(page,/E 버튼으로 잠자기/);
 });

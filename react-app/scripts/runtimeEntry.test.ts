@@ -3,6 +3,7 @@ import { existsSync,readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { dirname,resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { RUNTIME_BUILD_ID } from '../src/runtimeBuild';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -19,8 +20,63 @@ test('프로덕션 엔트리는 고유 파일명과 빌드 쿼리를 함께 사�
   assert.equal(existsSync(distHtmlPath),true,'npm run build를 먼저 실행해야 합니다.');
   const distHtml=readFileSync(distHtmlPath,'utf8');
   assert.ok(distHtml.includes(`const buildId = '${RUNTIME_BUILD_ID}'`));
-  const entry=distHtml.match(/src="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.js)\?_build=([^"&]+)"/);
-  assert.ok(entry,'버전 쿼리가 포함된 엔트리 스크립트가 필요합니다.');
-  assert.equal(entry[2],RUNTIME_BUILD_ID);
+  const entry=distHtml.match(/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.js)\?_build=[^"]+"/);
+  assert.ok(entry,'고유 파일명의 런타임 엔트리가 필요합니다.');
   assert.equal(existsSync(resolve(root,'dist/assets',entry[1])),true);
+  assert.ok(distHtml.includes(`const runtimeBuildId="${RUNTIME_BUILD_ID}"`));
+  assert.ok(distHtml.includes(`?_build=${RUNTIME_BUILD_ID}`));
+});
+
+test('화면은 정적 모듈 엔트리로 렌더링하고 오류 복구 가드를 별도로 둔다',()=>{
+  const distHtml=readFileSync(resolve(root,'dist/index.html'),'utf8');
+  assert.match(distHtml,/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/index-[^"?]+\.js\?_build=[^"]+" onerror=/);
+  assert.ok(distHtml.includes('window.__recoverJochwonRuntime=recover'));
+  assert.ok(distHtml.includes("pageUrl.searchParams.set('_entry_retry',String(Date.now()))"));
+  assert.doesNotMatch(distHtml,/import\(runtimeEntryUrl\.href\)/);
+});
+
+test('메인 스타일은 외부 폰트 요청 없이 런타임 실행 전에 준비된다',()=>{
+  const sourceStyles=readFileSync(resolve(root,'src/styles.css'),'utf8');
+  const distHtml=readFileSync(resolve(root,'dist/index.html'),'utf8');
+  const stylesheet=distHtml.match(/<link rel="stylesheet" crossorigin href="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.css)\?_build=[^"]+" onerror=/);
+  const entryIndex=distHtml.indexOf('<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-');
+  const stylesheetIndex=distHtml.indexOf('<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-');
+  assert.doesNotMatch(sourceStyles,/fonts\.googleapis\.com|@import\s+url/);
+  assert.match(sourceStyles,/SUIT-Regular\.woff2/);
+  assert.ok(stylesheet,'고유 파일명의 메인 스타일시트가 필요합니다.');
+  assert.equal(existsSync(resolve(root,'dist/assets',stylesheet[1])),true);
+  assert.ok(stylesheetIndex>=0&&stylesheetIndex<entryIndex,'스타일시트가 런타임 엔트리보다 먼저 와야 합니다.');
+});
+
+test('엔트리 로드 실패 시 캐시를 비우고 재시도 URL로 이동한다',async()=>{
+  const distHtml=readFileSync(resolve(root,'dist/index.html'),'utf8');
+  const loader=[...distHtml.matchAll(/<script(?: [^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match=>match[1])
+    .find(script=>script.includes('window.__recoverJochwonRuntime=recover'));
+  assert.ok(loader);
+  let replaced='';
+  const caches={keys:async()=>['old-runtime'],delete:async()=>true};
+  const window={
+    location:{
+      href:`https://sj.wizide.com/assets/jochwon-app/index.html?_build=${RUNTIME_BUILD_ID}`,
+      origin:'https://sj.wizide.com',
+      replace:(url:string)=>{replaced=url},
+    },
+    caches,
+    addEventListener:()=>undefined,
+    __recoverJochwonRuntime:undefined as undefined|(()=>Promise<void>),
+  };
+  runInNewContext(loader,{
+    URL,
+    caches,
+    console:{error:()=>undefined},
+    document:{getElementById:()=>null},
+    navigator:{serviceWorker:{getRegistrations:async()=>[]}},
+    window,
+  });
+  assert.ok(window.__recoverJochwonRuntime);
+  await window.__recoverJochwonRuntime();
+  const recoveryUrl=new URL(replaced);
+  assert.equal(recoveryUrl.searchParams.get('_build'),RUNTIME_BUILD_ID);
+  assert.match(recoveryUrl.searchParams.get('_entry_retry')??'',/^\d+$/);
 });

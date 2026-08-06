@@ -1,11 +1,12 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {MapId} from '../../shared/socket-events';
 import {
-  BEAR_FEED_IDS,BEAR_FEED_SPOT_IDS,GARDEN_FLOWER_IDS,
+  BEAR_FEED_SPOT_IDS,
   type BearFeedId,type BearFeedSpotId,type GardenFlowerId,type PersonalFarmProgressDto,
 } from '../../shared/personal-farm';
 import {greenhousePlantById} from '../data/greenhouse-plants';
 import {gameEvents} from '../game/events';
+import {parseGreenhouseProgress} from '../services/greenhouseProgress';
 import {
   PERSONAL_FARM_PROGRESS_CHANGED,collectBearFeed,collectGardenFlower,completeBearFeedSpot,getCachedPersonalFarmProgress,
   personalFarmErrorMessage,plantGardenFlower,refreshPersonalFarmProgress,setPersonalFarmProgressUser,type PersonalFarmApiError,
@@ -22,6 +23,7 @@ export function PersonalFarmProgressExperience({mapId,userKey,authenticated,onNo
   const [progress,setProgress]=useState<PersonalFarmProgressDto|undefined>(()=>getCachedPersonalFarmProgress());
   const [gardenNearby,setGardenNearby]=useState<string|null>(null),[bearClue,setBearClue]=useState<string|null>(null),[feedSpot,setFeedSpot]=useState<BearFeedSpotId|null>(null),[farmAnchor,setFarmAnchor]=useState(false);
   const [selectedFlower,setSelectedFlower]=useState<GardenFlowerId|''>(''),[pending,setPending]=useState<string>(),[error,setError]=useState('');
+  const [explorationGarden,setExplorationGarden]=useState(()=>parseGreenhouseProgress(localStorage.getItem(`greenhouse-progress-v1:${userKey.trim().toLowerCase()||'guest'}`)));
   const userRef=useRef(userKey);
   const availableToPlant=useMemo(()=>progress?.gardenMission.collectedFlowerIds.filter(id=>!progress.gardenMission.plantedFlowerIds.includes(id))??[],[progress]);
 
@@ -35,12 +37,17 @@ export function PersonalFarmProgressExperience({mapId,userKey,authenticated,onNo
   },[authenticated,userKey]);
   useEffect(()=>{if(authenticated&&mapId==='personal-farm')void refreshPersonalFarmProgress().catch(reason=>setError(personalFarmErrorMessage(reason)))},[authenticated,mapId]);
   useEffect(()=>{
+    const refresh=()=>setExplorationGarden(parseGreenhouseProgress(localStorage.getItem(`greenhouse-progress-v1:${userKey.trim().toLowerCase()||'guest'}`)));
+    refresh();gameEvents.on('greenhouse-progress-changed',refresh);
+    return()=>{gameEvents.off('greenhouse-progress-changed',refresh)};
+  },[userKey]);
+  useEffect(()=>{
     const garden=(value:{kind:string;plantId?:string}|null)=>setGardenNearby(value?.kind==='plant'&&value.plantId?value.plantId:null);
     const clue=(id:string|null)=>setBearClue(id);const spot=(id:BearFeedSpotId|null)=>setFeedSpot(id);const anchor=(nearby:boolean)=>setFarmAnchor(nearby);
     gameEvents.on('greenhouse-nearby-changed',garden);gameEvents.on('bear-clue-proximity-changed',clue);gameEvents.on('bear-feed-spot-proximity-changed',spot);gameEvents.on('personal-farm-plant-anchor-proximity-changed',anchor);
     return()=>{gameEvents.off('greenhouse-nearby-changed',garden);gameEvents.off('bear-clue-proximity-changed',clue);gameEvents.off('bear-feed-spot-proximity-changed',spot);gameEvents.off('personal-farm-plant-anchor-proximity-changed',anchor)};
   },[]);
-  useEffect(()=>{const locked=()=>{const message=authenticated?'마이홈은 미션 결과에 따라 장식이 추가됩니다.':'마이홈은 소셜 로그인 후 이용할 수 있습니다.';setError(message);onNotice?.(message)};gameEvents.on('personal-farm-locked',locked);gameEvents.on('personal-farm-login-required',locked);return()=>{gameEvents.off('personal-farm-locked',locked);gameEvents.off('personal-farm-login-required',locked)}},[authenticated,onNotice]);
+  useEffect(()=>{const locked=()=>{const message=authenticated?'마이홈 정원은 수목원 발견 기록에 따라 확장됩니다. 같은 식물을 다시 발견하면 정원 풍성도가 높아져요.':'마이홈은 소셜 로그인 후 이용할 수 있습니다.';setError(message);onNotice?.(message)};gameEvents.on('personal-farm-locked',locked);gameEvents.on('personal-farm-login-required',locked);return()=>{gameEvents.off('personal-farm-locked',locked);gameEvents.off('personal-farm-login-required',locked)}},[authenticated,onNotice]);
 
   const run=async(key:string,operation:()=>Promise<PersonalFarmProgressDto>,success:string)=>{if(pending)return;if(!authenticated){const message='로그인 후 생태 미션을 진행할 수 있습니다.';setError(message);onNotice?.(message);return}setPending(key);setError('');try{const next=await operation();setProgress(next);onNotice?.(success)}catch(reason){const message=personalFarmErrorMessage(reason as PersonalFarmApiError);setError(message);onNotice?.(message)}finally{setPending(undefined)}};
   const gardenFlower=gardenNearby?gardenFlowerByPlantId[gardenNearby]:undefined;
@@ -48,6 +55,9 @@ export function PersonalFarmProgressExperience({mapId,userKey,authenticated,onNo
   const canCollectFlower=gardenFlower&&!progress?.gardenMission.collectedFlowerIds.includes(gardenFlower);
   const canCollectFeed=feed&&!progress?.bearMission.collectedFeedIds.includes(feed);
   const spotDone=feedSpot?progress?.bearMission.completedFeedSpotIds.includes(feedSpot):false;
+  const discoveredPlantCount=explorationGarden.collected.length;
+  const gardenFullness=explorationGarden.collected.reduce((total,item)=>total+Math.max(0,(item.discoveryCount??1)-1),0);
+  const gardenStage=discoveredPlantCount>=14?'정원 완성':discoveredPlantCount>=10?'정원 확장':discoveredPlantCount>=5?'정원 성장':'정원 씨앗';
   useEffect(()=>{
     if(!authenticated)return;
     const key=(event:KeyboardEvent)=>{
@@ -67,6 +77,6 @@ export function PersonalFarmProgressExperience({mapId,userKey,authenticated,onNo
     {mapId==='bear-tree-park'&&feed&&<section className="personal-farm-action-card"><span>🧺</span><div><small>가상 생태 체험 먹이</small><b>{canCollectFeed?`${feedName[feed]} 획득`:'획득 완료'}</b></div><button type="button" disabled={!canCollectFeed||!!pending} onClick={()=>void run(`feed:${feed}`,()=>collectBearFeed(feed),`${feedName[feed]}을(를) 수집했어요.`)}>{pending===`feed:${feed}`?'저장 중…':canCollectFeed?'획득':'완료'}</button></section>}
     {mapId==='bear-tree-park'&&feedSpot&&<section className="personal-farm-action-card"><span>🐻</span><div><small>실제 동물 급여가 아닌 가상 생태 체험</small><b>{spotDone?'먹이 체험 완료':feedSpot}</b></div><button type="button" disabled={!!spotDone||!!pending||!progress?.bearMission.collectedFeedIds.length} onClick={()=>void run(`spot:${feedSpot}`,()=>completeBearFeedSpot(feedSpot),'가상 먹이 체험 지점을 완료했어요.')}>{pending===`spot:${feedSpot}`?'저장 중…':spotDone?'완료':'E · 체험 완료'}</button></section>}
     {mapId==='personal-farm'&&farmAnchor&&<section className="personal-farm-action-card farm-plant-card"><span>🌱</span><div><small>고정 꽃밭</small><b>수집한 꽃 심기</b><select value={selectedFlower} onChange={event=>setSelectedFlower(event.target.value as GardenFlowerId|'')}><option value="">심을 꽃 선택</option>{availableToPlant.map(id=><option value={id} key={id}>{plantName[id]}</option>)}</select></div><button type="button" disabled={!selectedFlower||!!pending} onClick={()=>selectedFlower&&void run(`plant:${selectedFlower}`,()=>plantGardenFlower(selectedFlower),`${plantName[selectedFlower]}을(를) 팜에 심었어요.`).then(()=>setSelectedFlower(''))}>{pending?.startsWith('plant:')?'저장 중…':'E · 꽃 심기'}</button></section>}
-    {mapId==='personal-farm'&&progress&&<aside className="personal-farm-reward-status"><b>마이홈</b><span>꽃 {progress.gardenMission.plantedFlowerIds.length}/{GARDEN_FLOWER_IDS.length}</span><span>먹이 {progress.bearMission.collectedFeedIds.length}/{BEAR_FEED_IDS.length}</span><span>체험 {progress.bearMission.completedFeedSpotIds.length}/{BEAR_FEED_SPOT_IDS.length}</span><em>{progress.farm.unlocked?'정식 해금':'미션 진행 중'}</em></aside>}
+    {mapId==='personal-farm'&&<aside className="personal-farm-reward-status"><b>마이홈 정원</b><span>발견 식물 {discoveredPlantCount}/14</span><span>풍성도 +{gardenFullness}</span>{progress&&<span>생태 체험 {progress.bearMission.completedFeedSpotIds.length}/{BEAR_FEED_SPOT_IDS.length}</span>}<em>{gardenStage}</em></aside>}
   </div>;
 }

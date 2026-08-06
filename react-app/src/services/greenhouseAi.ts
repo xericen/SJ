@@ -44,7 +44,7 @@ export async function requestGreenhouseAnalysis(progress:GreenhouseProgress,stag
       representativePlantName:representative?.displayName??'대표 식물',
       representativePlantSymbolism:representative?.characteristics??[],
     },
-    previousAnalysis:stage===7?progress.aiAnalysis?.analysis:undefined,
+    previousAnalysis:stage===5?undefined:progress.aiAnalysis?.analysis,
   };
   try{
     const result=await post<GreenhouseAnalysisResponse>('/greenhouse/analyze',body,15000);

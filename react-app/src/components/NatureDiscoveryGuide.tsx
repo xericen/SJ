@@ -44,7 +44,7 @@ export function NatureDiscoveryGuide({userKey}:{userKey:string}){
   ];
   const completed=steps.filter(step=>step.done).length,current=steps.findIndex(step=>!step.done);
   const guide=current===0
-    ?'수목원에서 식물 3종을 관찰하고 AI 질문에 짧은 마음 기록을 남겨 보세요.'
+    ?'수목원에서 식물 5종을 발견해 도감을 채우고 기억나무 새싹 단계를 열어 보세요.'
     :current===1
       ?'곰 가족 포토존에서 대표 사진을 남겨 보세요.'
       :'베어트리파크의 두 가지 자연 체험을 모두 완료했어요.';

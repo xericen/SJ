@@ -34,6 +34,7 @@ import clothsUrl from '../../assets/characters/men_total.glb?url';
 import womenUrl from '../../assets/characters/women_total.glb?url';
 import type { CharacterModel,CharacterParts,UserProfile } from '../../types';
 import { WORLD_GUIDE_PORTAL_POSITIONS } from '../worldGuideEntryPoints';
+import { GARDEN_SAFE_ARRIVAL } from '../worldPortalArrivals';
 import { FIXED_LAKE_RESPAWN,type BearTreePortalPositions,type CampusFeaturePortalId,type CampusFeaturePortalPosition,type CharacterEmote,type LakeExperienceId,type LakeExperiencePosition,type MapId,type MotionState,type PortalPosition,type WorldInteractionPosition } from '../../../shared/socket-events';
 import { gameEvents } from '../events';
 import { characterSettings } from '../character/characterSettings';
@@ -53,8 +54,9 @@ import { SmartCityHologram,type SmartCityTechnologyId } from './SmartCityHologra
 import { LAKE_PARK_PORTALS } from '../lakeParkPortals';
 import { isPortalChargePositionHeld,PortalTravelGate } from '../portalTravelGate';
 import { ARTS_CENTER_CHARACTER_FOOT_LIFT,ARTS_CENTER_MAX_JUMP_STEP_HEIGHT,characterVisualY,DEFAULT_MAX_STEP_HEIGHT,isGroundFootprintCoherent,JUMP_COLLISION_CLEARANCE,reachableStepHeight } from '../groundTraversal';
-import { clampCameraBehindLimit,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
+import { BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
 import { DEFAULT_BEAR_PHOTO_PORTAL_POSITION } from '../bearPhotoZonePosition';
+import {personalFarmCameraDistance} from '../worldNavigationProfile';
 
 const WORLD_WIDTH=2400;
 const WORLD_HEIGHT=1900;
@@ -119,7 +121,7 @@ export const preloadBearTreeParkDownload=()=>preloadWorldMapDownload(bearTreePar
 export const LAKE_PARK_SPAWN:{x:number;z:number;yaw:number}={...FIXED_LAKE_RESPAWN};
 export const BEAR_TREE_PARK_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1610,yaw:Math.PI};
 export const BEAR_PLAY_ZONE_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1570,yaw:Math.PI};
-export const GARDEN_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1180,yaw:Math.PI};
+export const GARDEN_SPAWN:{x:number;z:number;yaw:number}={...GARDEN_SAFE_ARRIVAL};
 export const CAMPUS_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1500,yaw:Math.PI};
 export const STUDENT_HALL_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1510,yaw:Math.PI};
 const STUDENT_HALL_CAMERA_DOWN_LIMIT_Z=1380;
@@ -137,6 +139,13 @@ const SEJONG_ARTS_CENTER_CAMERA_DOWN_LIMIT_Z=SEJONG_ARTS_CENTER_SPAWN.z;
 export const FESTIVAL_EXPERIENCE_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1530,yaw:Math.PI};
 export const FOOD_EXPERIENCE_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1193,yaw:Math.PI};
 export const CLUB_STREET_FESTIVAL_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1510,yaw:Math.PI};
+const CLUB_STREET_BOOTH_ANCHORS_FRONT_TO_BACK=[
+  'ClubBooth_L5_CanvasRoof','ClubBooth_R5_CanvasRoof',
+  'ClubBooth_L4_CanvasRoof','ClubBooth_R4_CanvasRoof',
+  'ClubBooth_L3_CanvasRoof','ClubBooth_R3_CanvasRoof',
+  'ClubBooth_L2_CanvasRoof','ClubBooth_R2_CanvasRoof',
+  'ClubBooth_L1_CanvasRoof','ClubBooth_R1_CanvasRoof',
+] as const;
 // Change these x/z values to move the lake-park return portal in the festival map.
 export const FESTIVAL_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['festival-experience'];
 export const FOOD_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['food-experience'];
@@ -166,6 +175,7 @@ type ArtsCenterSeat={id:string;x:number;z:number;seatHeight:number;yaw:number};
 type ProjectRoomSeat=ArtsCenterSeat&{standX:number;standZ:number;opensCollaborationTable?:boolean};
 type PlazaSofaSeat=ArtsCenterSeat&{standX:number;standZ:number};
 type PersonalFarmSeat=PlazaSofaSeat&{kind:'chair'|'sofa';label:string};
+type PersonalFarmBed=ArtsCenterSeat&{standX:number;standZ:number;cameraX:number;cameraZ:number};
 type RemoteGroundSample=GroundSample&{x:number;z:number};
 type GuidePosition={x:number;z:number;yaw:number};
 type GuidePatrolFrame=GuidePosition&{motion:Extract<MotionState,'idle'|'walk'>};
@@ -339,7 +349,7 @@ export function portalArrivalSpawn(options:WorldMapRendererOptions,sourceMapId:M
   };
 }
 const [LAKE_PARK_PRIMARY_PORTAL,...LAKE_PARK_FIXED_PORTALS]=LAKE_PARK_PORTALS;
-export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config})),lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
+export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config})),lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
 export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:bearTreeParkModelUrl,mapName:'베어트리파크',spawn:BEAR_TREE_PARK_SPAWN,
   portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:true,chargeSeconds:3,sharedPosition:false},
@@ -347,7 +357,7 @@ export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
     {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3},
   ],
   interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:true,chargeSeconds:3},
-  cameraZoom:1.12,characterHeight:125,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
+  perspectiveCamera:false,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,characterHeight:150,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
   lightingIntensityMultiplier:.76,performanceMode:true,balancedTextureQuality:false,maxTextureSize:512,
   performancePixelRatio:.75,simplifiedCollision:false,bearPhotoZone:true,bearCollisionRadius:72,
 };
@@ -390,16 +400,20 @@ export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraTargetHeight:110,
   cameraFollowBounds:{minX:360,maxX:2040,minZ:260,maxZ:1510},
   characterHeight:140,
-  groundFillColor:0xe3ddbc,
+  groundFillColor:0xdfe3c4,
+  sceneBackgroundColor:'#b8d9c3',
   performanceMode:true,
+  antialias:true,
   balancedTextureQuality:true,
-  maxTextureSize:1024,
-  minPixelRatio:.75,
-  performancePixelRatio:.95,
-  maxPixelRatio:1,
+  maxTextureSize:2048,
+  minPixelRatio:1,
+  performancePixelRatio:1.2,
+  maxPixelRatio:1.5,
   geometrySimplificationRatio:0,
-  toneMappingExposure:1.04,
-  lightingIntensityMultiplier:.98,
+  prioritizeGroundTextures:true,
+  groundingShadows:true,
+  toneMappingExposure:.98,
+  lightingIntensityMultiplier:1.02,
   lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.75,performanceFrameRate:30,balancedTextureQuality:false},
   fixedPortals:[{
     ...WORLD_GUIDE_PORTAL_POSITIONS.garden,
@@ -438,19 +452,20 @@ export const CAMPUS_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraDistance:1100,
   cameraFov:42,
   characterHeight:CHARACTER_HEIGHT,
-  // This is the largest frequently visited map. Tone-map its pale materials
-  // and keep both lighting and texture uploads modest so it stays readable on
-  // integrated GPUs without retaining an oversized GPU texture set.
-  toneMappingExposure:.78,
-  lightingIntensityMultiplier:.72,
+  // Keep the large campus efficient without sacrificing the clarity of its
+  // buildings, paths, or character silhouettes at the normal quality tier.
+  toneMappingExposure:.94,
+  lightingIntensityMultiplier:.9,
   performanceMode:true,
-  balancedTextureQuality:false,
-  maxTextureSize:256,
+  antialias:true,
+  balancedTextureQuality:true,
+  maxTextureSize:1024,
   performanceFrameRate:45,
-  minPixelRatio:.6,
-  performancePixelRatio:.65,
-  geometrySimplificationRatio:.28,
-  groundGeometrySimplificationRatio:.78,
+  minPixelRatio:.85,
+  performancePixelRatio:1,
+  maxPixelRatio:1,
+  geometrySimplificationRatio:0,
+  lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.8,performanceFrameRate:30,balancedTextureQuality:false},
   simplifiedCollision:true,
   fastGroundSampling:true,
 };
@@ -461,7 +476,7 @@ export const CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapRotationY:Math.PI,
   mapScaleMultiplier:1.08,
   groundObjectPrefixes:['Central_Pedestrian_Plaza','PaverAccent_','Ground_Base','Garden_','CentralPlanter_'],
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['club-street-festival'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:true},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['club-street-festival'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:false,sharedPosition:true},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -583,10 +598,9 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   spawn:GOVERNMENT_SPAWN,
   portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',theme:'orange',fixedPosition:true,sharedPosition:false},
   fixedPortals:[
-    {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'standing',theme:'blue',fixedPosition:true,sharedPosition:false},
-    {x:1200,z:760,destination:'government-policy-hall',label:'정책 체험관',appearance:'standing',theme:'mint',fixedPosition:true,sharedPosition:false},
-    {x:1680,z:1010,destination:'government-observatory',label:'전망대',appearance:'standing',theme:'orange',fixedPosition:true,sharedPosition:false},
-    {x:1200,z:1190,destination:'sejong-smart-city',label:'세종 스마트시티 국가시범도시',appearance:'standing',theme:'blue',fixedPosition:true,sharedPosition:false},
+    {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'standing',theme:'blue',fixedPosition:false,sharedPosition:true,positionEditable:true},
+    {x:1680,z:1010,destination:'government-observatory',label:'전망대',appearance:'standing',theme:'orange',fixedPosition:false,sharedPosition:true,positionEditable:true},
+    {x:1200,z:1190,destination:'sejong-smart-city',label:'세종 스마트시티 국가시범도시',appearance:'standing',theme:'blue',fixedPosition:false,sharedPosition:true,positionEditable:true},
   ],
   cameraElevationDeg:38,
   cameraZoom:1.05,
@@ -795,6 +809,12 @@ export const FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
   // particular, Festival_Lawn must win the downward ground probe instead of
   // nearby flat props such as booth counters or stage pieces.
   groundObjectPrefixes:['Festival_Lawn','Promenade','Island_Base'],
+  // Use stable root groups from the GLB as padded collision volumes so thin
+  // booth walls, tables and fixtures cannot be skipped by mesh raycasts.
+  collisionObjectPrefixes:[
+    'Blue_Experience_Tent','Red_Experience_Tent','Main_Stage','PicnicTable_',
+    'MapKiosk','Bin_','EntryBollard_','LampPost_',
+  ],
   lakeExperiences:[
     {id:'activity-zone',x:1200,z:520,label:'세종 축제 영상',description:'E를 눌러 축제 영상을 큰 화면으로 감상하세요.',color:0x7c5de8,radius:400},
     {id:'food-shop-zone',x:760,z:1080,label:'세종 축제 탐색관',description:'E를 눌러 현재·예정 축제를 탐색하세요.',color:0x3d9fc4,radius:280},
@@ -1078,7 +1098,10 @@ function inPlaceCharacterClip(source:THREE.AnimationClip){
   return clip;
 }
 
-const BOY_HEAD_PITCH_CORRECTION:Record<MotionState,number>={idle:15,walk:18,run:32};
+// The boy rig needs one rest-pose correction, but extra locomotion-specific
+// pitch lifts its chin above the girl1 reference. Keep the neutral idle angle
+// for every motion so walking and running retain the same natural head level.
+const BOY_HEAD_PITCH_CORRECTION:Record<MotionState,number>={idle:15,walk:15,run:15};
 
 function correctedBoyHeadClip(source:THREE.AnimationClip,motion:MotionState){
   const clip=source.clone();
@@ -1120,9 +1143,11 @@ class WorldCharacter{
   private targetQuaternion=new THREE.Quaternion();
   private tiltQuaternion=new THREE.Quaternion();
   private turnQuaternion=new THREE.Quaternion();
+  private lyingQuaternion=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
   private upVector=new THREE.Vector3(0,1,0);
   private height:number;
   private seated=false;
+  private lying=false;
 
   constructor(private scene:THREE.Scene,name:string,private model:CharacterModel,private parts:CharacterParts,height=CHARACTER_HEIGHT,private idleOnly=false,private staticPose=false,disabled=false){
     this.height=height;
@@ -1285,6 +1310,7 @@ class WorldCharacter{
     this.tiltQuaternion.setFromUnitVectors(this.upVector,normal);
     this.turnQuaternion.setFromAxisAngle(normal,yaw);
     this.targetQuaternion.copy(this.turnQuaternion).multiply(this.tiltQuaternion);
+    if(this.lying)this.targetQuaternion.multiply(this.lyingQuaternion);
     this.root.quaternion.slerp(this.targetQuaternion,1-Math.exp(-12*delta));
     if(!this.staticPose)this.states.get(this.active)?.mixer?.update(delta);
     if(this.seated)this.applySeatedPose();
@@ -1293,7 +1319,16 @@ class WorldCharacter{
   setSeated(seated:boolean){
     if(this.seated===seated)return;
     this.seated=seated;
+    if(seated){this.lying=false;this.nameplate.visible=true}
     if(!seated)this.setMotion('idle',0);
+  }
+
+  setLying(lying:boolean){
+    if(this.lying===lying)return;
+    this.lying=lying;
+    if(lying)this.seated=false;
+    this.nameplate.visible=!lying;
+    this.setMotion('idle',0);
   }
 
   private applySeatedPose(){
@@ -1555,6 +1590,9 @@ export class VillageMapRenderer{
   private personalFarmSeats:PersonalFarmSeat[]=[];
   private personalFarmSeatNearby?:PersonalFarmSeat;
   private personalFarmActiveSeat?:PersonalFarmSeat;
+  private personalFarmBed?:PersonalFarmBed;
+  private personalFarmBedNearby=false;
+  private personalFarmSleeping=false;
   private personalFarmOccluders:THREE.Mesh[]=[];
   private personalFarmOccluderOpacity=new Map<THREE.Material,number>();
   private personalFarmPlantAnchorNearby=false;
@@ -1655,6 +1693,7 @@ export class VillageMapRenderer{
     if(options.personalFarm){
       gameEvents.on('personal-farm-door-toggle',this.togglePersonalFarmInterior);
       gameEvents.on('personal-farm-seat-toggle',this.togglePersonalFarmSeat);
+      gameEvents.on('personal-farm-bed-toggle',this.togglePersonalFarmBed);
     }
     if(options.wildlifeClues){
       gameEvents.on('habitat-resource-position-set',this.onHabitatResourcePositionSet);
@@ -1779,6 +1818,25 @@ export class VillageMapRenderer{
         }
         model.add(primary,cloneSkeleton(companionGltf.scene));
       }
+      if(this.options.projectRoomInteractions){
+        const boardSurface=model.getObjectByName('Lobby_AI_Board_Surface');
+        const boardRoot=boardSurface?.parent;
+        const boardParts=boardRoot?.children.filter(object=>object.name.startsWith('Lobby_AI_'))??[];
+        if(boardSurface&&boardRoot&&boardParts.length){
+          boardRoot.updateWorldMatrix(true,false);
+          const boardCenter=new THREE.Box3().setFromObject(boardSurface).getCenter(new THREE.Vector3());
+          boardRoot.worldToLocal(boardCenter);
+          const pivot=new THREE.Group();
+          pivot.name='Project_Lobby_Board_Upright';
+          pivot.position.copy(boardCenter);
+          boardRoot.add(pivot);
+          boardParts.forEach(part=>pivot.attach(part));
+          // The authored board runs along the side wall (YZ), which makes it
+          // look laid down from the room's south-facing camera. Turn the whole
+          // assembly toward the camera while preserving every bezel/UI layer.
+          pivot.rotation.y=-Math.PI/2;
+        }
+      }
       model.rotation.y=this.options.mapRotationY??0;
       if(this.options.projectRoomInteractions)this.resizeProjectRoomFurniture(model);
       model.updateMatrixWorld(true);
@@ -1862,11 +1920,15 @@ export class VillageMapRenderer{
           }
         });
         this.setupPersonalFarmSeats(model);
+        this.setupPersonalFarmBed(model);
       }
       if(this.options.smartCityWebUi)this.setupSmartCityWebUi(model);
       if(this.options.studentHallFeatures)this.setupStudentHallFeatures(model);
       if(this.options.mapName==='동아리 거리제'){
-        this.clubBoothCardAnchors=['ClubBooth_L1_CanvasRoof','ClubBooth_R1_CanvasRoof','ClubBooth_L2_CanvasRoof','ClubBooth_R2_CanvasRoof','ClubBooth_L3_CanvasRoof','ClubBooth_R3_CanvasRoof','ClubBooth_L4_CanvasRoof','ClubBooth_R4_CanvasRoof','ClubBooth_L5_CanvasRoof','ClubBooth_R5_CanvasRoof'].map(name=>model.getObjectByName(name)).filter((object):object is THREE.Object3D=>!!object);
+        // The creator booth is always index 0 in ClubStreetExperience. Keep
+        // that index on the authored south entrance row instead of deriving it
+        // from the movable return portal, which can be placed anywhere.
+        this.clubBoothCardAnchors=CLUB_STREET_BOOTH_ANCHORS_FRONT_TO_BACK.map(name=>model.getObjectByName(name)).filter((object):object is THREE.Object3D=>!!object);
       }
       if(this.options.foodTruckExperience){this.setupFoodTruckWindows(model);this.setupFoodSeats(model)}
       if(this.options.projectRoomInteractions){
@@ -1984,7 +2046,6 @@ export class VillageMapRenderer{
           ??this.sampleVisibleSurfaceGround(this.portalPosition.x,this.portalPosition.z)
           ??this.sampleGround(this.portalPosition.x,this.portalPosition.z,0,true);
         this.portalRoot=this.createPortal({...this.options.portal,...this.portalPosition},portalGround?.height??this.localGround);
-        if(this.clubBoothCardAnchors.length)this.clubBoothCardAnchors.sort((a,b)=>a.getWorldPosition(new THREE.Vector3()).distanceToSquared(this.portalRoot!.getWorldPosition(new THREE.Vector3()))-b.getWorldPosition(new THREE.Vector3()).distanceToSquared(this.portalRoot!.getWorldPosition(new THREE.Vector3())));
       }
       this.options.fixedPortals?.forEach(config=>{
         Object.assign(config,savedPortalPosition(config,this.options.mapName));
@@ -2178,7 +2239,7 @@ export class VillageMapRenderer{
   private onGreenhouseProgressChanged=({collectedIds,unlocked,blooming=false,complete=false,count}:{collectedIds:string[];unlocked:boolean;blooming?:boolean;complete?:boolean;count?:number})=>{
     this.greenhouseCollected=new Set(collectedIds);this.greenhouseUnlocked=unlocked;
     const collectedCount=Math.max(count??0,collectedIds.length);
-    this.greenhouseTreeStage=collectedCount>=GREENHOUSE_PLANT_TOTAL||complete?3:collectedCount>=7||blooming?2:unlocked?1:0;
+    this.greenhouseTreeStage=collectedCount>=GREENHOUSE_PLANT_TOTAL||complete?3:collectedCount>=10||blooming?2:unlocked?1:0;
     for(const target of this.greenhouseTargets.values()){
       const complete=target.kind==='plant'&&this.greenhouseCollected.has(target.id);
       const treeLabel=this.greenhouseTreeStage===3?'✨':this.greenhouseTreeStage===2?'🌸':this.greenhouseTreeStage===1?'🌱':'🔒';
@@ -2360,13 +2421,19 @@ export class VillageMapRenderer{
 
   private setupPersonalFarmSeats(model:THREE.Object3D){
     const seats:PersonalFarmSeat[]=[];
-    const addSeat=(object:THREE.Object3D,back:THREE.Object3D|undefined,kind:PersonalFarmSeat['kind'],label:string)=>{
+    const table=model.getObjectByName('FURN_Dining_Table');
+    const door=model.getObjectByName('EXTERIOR_Entry_Door');
+    const tableCenter=table?new THREE.Box3().setFromObject(table).getCenter(new THREE.Vector3()):undefined;
+    const doorCenter=door?new THREE.Box3().setFromObject(door).getCenter(new THREE.Vector3()):undefined;
+    const addSeat=(object:THREE.Object3D,back:THREE.Object3D|undefined,target:THREE.Vector3|undefined,kind:PersonalFarmSeat['kind'],label:string)=>{
       const bounds=new THREE.Box3().setFromObject(object);if(bounds.isEmpty())return;
       const center=bounds.getCenter(new THREE.Vector3());
       const backCenter=back?new THREE.Box3().setFromObject(back).getCenter(new THREE.Vector3()):center.clone().add(new THREE.Vector3(0,0,1));
-      const forward=center.clone().sub(backCenter);forward.y=0;
-      if(forward.lengthSq()<.001)forward.set(0,0,-1);else forward.normalize();
-      const standScene=center.clone().addScaledVector(forward,kind==='sofa'?88:78);
+      const approach=center.clone().sub(backCenter);approach.y=0;
+      if(approach.lengthSq()<.001)approach.set(0,0,-1);else approach.normalize();
+      const facing=(target??center.clone().add(approach)).clone().sub(center);facing.y=0;
+      if(facing.lengthSq()<.001)facing.copy(approach);else facing.normalize();
+      const standScene=center.clone().addScaledVector(approach,kind==='sofa'?88:78);
       seats.push({
         id:object.name,
         kind,
@@ -2374,25 +2441,81 @@ export class VillageMapRenderer{
         x:center.x,
         z:this.sceneToWorldZ(center.z),
         seatHeight:bounds.max.y,
-        yaw:Math.atan2(forward.x,-forward.z),
+        yaw:Math.atan2(facing.x,facing.z),
         standX:standScene.x,
         standZ:this.sceneToWorldZ(standScene.z),
       });
     };
     (['N','S','W','E'] as const).forEach((direction,index)=>{
       const prefix=`FURN_Dining_Chair_${direction}`;
-      const seat=model.getObjectByName(`${prefix}_Seat`);if(seat)addSeat(seat,model.getObjectByName(`${prefix}_Back`),'chair',`식탁 의자 ${index+1}`);
+      const seat=model.getObjectByName(`${prefix}_Seat`);if(seat)addSeat(seat,model.getObjectByName(`${prefix}_Back`),tableCenter,'chair',`식탁 의자 ${index+1}`);
     });
     const sofaBack=model.getObjectByName('FURN_Sofa_Back');
     for(let index=0;index<3;index++){
-      const cushion=model.getObjectByName(`FURN_Sofa_Cushion_${index}`);if(cushion)addSeat(cushion,sofaBack,'sofa',`소파 ${index+1}`);
+      const cushion=model.getObjectByName(`FURN_Sofa_Cushion_${index}`);if(cushion)addSeat(cushion,sofaBack,doorCenter,'sofa',`소파 ${index+1}`);
     }
     this.personalFarmSeats=seats;
     if(import.meta.env.DEV)console.info(`[personal farm seats] ${seats.length}/7 seats enabled`,seats.map(seat=>seat.id));
   }
 
+  private setupPersonalFarmBed(model:THREE.Object3D){
+    const mattress=model.getObjectByName('FURN_Mattress');
+    const headboard=model.getObjectByName('FURN_Bed_Headboard');
+    if(!mattress||!headboard){console.warn('[personal farm bed] mattress or headboard missing');return}
+    const bounds=new THREE.Box3().setFromObject(mattress);if(bounds.isEmpty())return;
+    const center=bounds.getCenter(new THREE.Vector3());
+    const headCenter=new THREE.Box3().setFromObject(headboard).getCenter(new THREE.Vector3());
+    const headDirection=headCenter.clone().sub(center);headDirection.y=0;
+    if(headDirection.lengthSq()<.001)headDirection.set(0,0,-1);else headDirection.normalize();
+    const table=model.getObjectByName('FURN_Dining_Table');
+    const approach=table?new THREE.Box3().setFromObject(table).getCenter(new THREE.Vector3()).sub(center):new THREE.Vector3(-1,0,0);
+    approach.y=0;if(approach.lengthSq()<.001)approach.set(-1,0,0);else approach.normalize();
+    const size=bounds.getSize(new THREE.Vector3());
+    const edgeDistance=Math.abs(approach.x)*size.x/2+Math.abs(approach.z)*size.z/2;
+    const standScene=center.clone().addScaledVector(approach,edgeDistance+72);
+    const characterHeight=this.options.characterHeight??CHARACTER_HEIGHT;
+    const feetScene=center.clone().addScaledVector(headDirection,-characterHeight*.43);
+    this.personalFarmBed={
+      id:mattress.name,
+      x:feetScene.x,
+      z:this.sceneToWorldZ(feetScene.z),
+      seatHeight:bounds.max.y+6,
+      yaw:Math.atan2(headDirection.x,headDirection.z),
+      standX:standScene.x,
+      standZ:this.sceneToWorldZ(standScene.z),
+      cameraX:center.x,
+      cameraZ:this.sceneToWorldZ(center.z),
+    };
+  }
+
+  private updatePersonalFarmBedProximity(x:number,z:number){
+    const bed=this.personalFarmBed;
+    if(!this.personalFarmInterior||!bed||this.personalFarmActiveSeat){
+      if(this.personalFarmBedNearby){this.personalFarmBedNearby=false;gameEvents.emit('personal-farm-bed-proximity-changed',null)}
+      return;
+    }
+    if(this.personalFarmSleeping)return;
+    const nearby=Math.hypot(x-bed.standX,z-bed.standZ)<(this.personalFarmBedNearby?135:110);
+    if(nearby===this.personalFarmBedNearby)return;
+    this.personalFarmBedNearby=nearby;
+    gameEvents.emit('personal-farm-bed-proximity-changed',nearby?{sleeping:false}:null);
+  }
+
+  private togglePersonalFarmBed=()=>{
+    const bed=this.personalFarmBed;
+    if(this.personalFarmSleeping){
+      this.personalFarmSleeping=false;this.personalFarmBedNearby=false;this.localCharacter.setLying(false);
+      if(bed)this.pendingTeleport={x:bed.standX,z:bed.standZ};
+      gameEvents.emit('personal-farm-bed-proximity-changed',null);
+      return;
+    }
+    if(!bed||!this.personalFarmBedNearby||!this.personalFarmInterior)return;
+    this.personalFarmSleeping=true;this.personalFarmBedNearby=false;this.localCharacter.setLying(true);
+    gameEvents.emit('personal-farm-bed-proximity-changed',{sleeping:true});
+  };
+
   private updatePersonalFarmSeatProximity(x:number,z:number){
-    if(!this.personalFarmInterior||!this.personalFarmSeats.length||this.personalFarmActiveSeat){
+    if(!this.personalFarmInterior||!this.personalFarmSeats.length||this.personalFarmActiveSeat||this.personalFarmSleeping){
       if(this.personalFarmSeatNearby&&!this.personalFarmActiveSeat){this.personalFarmSeatNearby=undefined;gameEvents.emit('personal-farm-seat-proximity-changed',null)}
       return;
     }
@@ -2800,7 +2923,7 @@ export class VillageMapRenderer{
       ...(this.options.campusFeaturePortals??[]).map(config=>CAMPUS_FEATURE_PORTAL_DESTINATIONS[config.id]),
     ].filter((destination):destination is MapId=>Boolean(destination));
   }
-  setPortalPosition(position:PortalPosition,_sharedUpdate=true){
+  setPortalPosition(position:PortalPosition,sharedUpdate=true){
     if(this.options.mapId&&position.mapId!==this.options.mapId)return false;
     if(position.mapId==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience'||position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return true;
     const primary=this.options.portal?.destination===position.destination?this.options.portal:undefined;
@@ -2814,6 +2937,10 @@ export class VillageMapRenderer{
     }
     const config=primary??fixed??interaction;
     if(!config)return false;
+    // Locally editable return portals intentionally keep a per-browser
+    // position. Periodic shared-layout polling must not move them back to the
+    // server default after the player presses "현재 위치로 포탈 이동".
+    if(sharedUpdate&&'sharedPosition' in config&&config.sharedPosition===false)return true;
     const currentPosition=primary?this.portalPosition:config;
     if(currentPosition&&Math.hypot(currentPosition.x-position.x,currentPosition.z-position.z)<.5)return true;
     Object.assign(config,{x:position.x,z:position.z});
@@ -3313,11 +3440,17 @@ export class VillageMapRenderer{
       return;
     }
     if(event.code!=='KeyE')return;
+    if(this.personalFarmSleeping){
+      event.preventDefault();event.stopImmediatePropagation();this.togglePersonalFarmBed();return;
+    }
     if(this.options.personalFarm&&this.personalFarmDoorNearby){
       event.preventDefault();event.stopImmediatePropagation();this.togglePersonalFarmInterior();return;
     }
     if(this.personalFarmActiveSeat||this.personalFarmSeatNearby){
       event.preventDefault();event.stopImmediatePropagation();this.togglePersonalFarmSeat();return;
+    }
+    if(this.personalFarmBedNearby){
+      event.preventDefault();event.stopImmediatePropagation();this.togglePersonalFarmBed();return;
     }
     if(this.smartCityTableNearby){
       event.preventDefault();event.stopImmediatePropagation();gameEvents.emit('smart-city-experience-open');return;
@@ -5229,6 +5362,10 @@ export class VillageMapRenderer{
   }
 
   private togglePersonalFarmInterior=()=>{
+    if(this.personalFarmSleeping){
+      this.personalFarmSleeping=false;this.personalFarmBedNearby=false;this.localCharacter.setLying(false);
+      gameEvents.emit('personal-farm-bed-proximity-changed',null);
+    }
     if(this.personalFarmActiveSeat){
       this.personalFarmActiveSeat=undefined;this.personalFarmSeatNearby=undefined;this.localCharacter.setSeated(false);
       gameEvents.emit('personal-farm-seat-proximity-changed',null);
@@ -5296,6 +5433,16 @@ export class VillageMapRenderer{
       }
       return {x:this.localX,z:this.localZ,groundHeight:this.localGround};
     }
+    if(this.personalFarmSleeping&&this.personalFarmBed){
+      const bed=this.personalFarmBed;
+      this.localX=bed.x;this.localZ=bed.z;
+      const position=this.localRenderPosition.set(bed.x,bed.seatHeight,this.worldToSceneZ(bed.z));
+      const cameraTarget=this.followTarget.set(bed.cameraX,bed.seatHeight,this.worldToSceneZ(bed.cameraZ));
+      this.localCharacter.update(position,this.localNormal,bed.yaw,'idle',delta);
+      this.followCharacter(cameraTarget,delta);this.adjustQuality(delta);this.renderAccumulator+=delta;
+      if(this.renderAccumulator>=this.renderInterval){this.renderAccumulator%=this.renderInterval;this.render()}
+      return {x:bed.x,z:bed.z,groundHeight:this.localGround};
+    }
     const activeSeat=this.artsCenterActiveSeat??this.foodActiveSeat??this.projectRoomActiveSeat??this.centralPlazaSofaActiveSeat??this.personalFarmActiveSeat;
     if(activeSeat){
       const seat=activeSeat,characterHeight=this.options.characterHeight??CHARACTER_HEIGHT;
@@ -5331,7 +5478,7 @@ export class VillageMapRenderer{
     if(this.options.foodTruckExperience)this.updateFoodSeatProximity(nextX,nextZ)
     if(this.options.projectRoomInteractions)this.updateProjectRoomSeatProximity(nextX,nextZ)
     if(this.options.centralPlazaSofaSeats)this.updateCentralPlazaSofaSeatProximity(nextX,nextZ)
-    if(this.options.personalFarm)this.updatePersonalFarmSeatProximity(nextX,nextZ)
+    if(this.options.personalFarm){this.updatePersonalFarmSeatProximity(nextX,nextZ);this.updatePersonalFarmBedProximity(nextX,nextZ)}
     const closestLocalNpc=this.localNpcs.map(npc=>({npc,distance:Math.hypot(nextX-npc.x,nextZ-npc.z)})).sort((a,b)=>a.distance-b.distance)[0];
     const sameLocalNpc=closestLocalNpc?.npc.config.id===this.localNpcNearbyId;
     const npcOpenDistance=closestLocalNpc?.npc.config.interactionRadius??180;
@@ -5771,7 +5918,9 @@ export class VillageMapRenderer{
         return;
       }
       if(this.options.fixedCameraTarget&&!this.mapBounds.isEmpty())this.mapBounds.getCenter(this.cameraTarget);
-      const distance=this.options.personalFarm&&this.personalFarmInterior?800:(this.options.cameraDistance??CAMERA_DISTANCE);
+      const distance=this.options.personalFarm
+        ?personalFarmCameraDistance(this.personalFarmInterior)
+        :(this.options.cameraDistance??CAMERA_DISTANCE);
       const azimuth=THREE.MathUtils.degToRad(this.projectRoomCameraAzimuthDeg??this.options.cameraAzimuthDeg??0);
       const horizontalDistance=this.options.cameraHorizontalDistance??Math.cos(elevation)*distance;
       this.camera.aspect=this.width/Math.max(1,this.height);
@@ -5915,8 +6064,10 @@ export class VillageMapRenderer{
     if(this.options.personalFarm){
       gameEvents.off('personal-farm-door-toggle',this.togglePersonalFarmInterior);
       gameEvents.off('personal-farm-seat-toggle',this.togglePersonalFarmSeat);
+      gameEvents.off('personal-farm-bed-toggle',this.togglePersonalFarmBed);
       gameEvents.emit('personal-farm-door-proximity-changed',null);
       gameEvents.emit('personal-farm-seat-proximity-changed',null);
+      gameEvents.emit('personal-farm-bed-proximity-changed',null);
       gameEvents.emit('personal-farm-plant-anchor-proximity-changed',false);
     }
     if(this.artsCenterPosterScreens.length)this.parent.removeEventListener('pointerdown',this.onArtsCenterPosterPointerDown);

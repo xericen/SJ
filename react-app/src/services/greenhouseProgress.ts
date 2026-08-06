@@ -23,6 +23,9 @@ export interface CollectedPlant{
   plantId:string;
   collectedAt:string;
   updatedAt?:string;
+  discoveryCount?:number;
+  totalViewMs?:number;
+  lastViewedAt?:string;
   selectedEmotion?:GreenhouseEmotion;
   reasonCategory?:EmotionReasonCategory;
   reasonText?:string;
@@ -74,18 +77,47 @@ const safeNarrativeSection=(value:unknown):value is {title:string;description:st
   const section=value as Record<string,unknown>;
   return typeof section.title==='string'&&typeof section.description==='string';
 };
-const safeStoredAnalysis=(value:unknown):value is StoredGreenhouseAnalysis=>{
-  if(!value||typeof value!=='object')return false;
+const parseStoredAnalysis=(value:unknown):StoredGreenhouseAnalysis|undefined=>{
+  if(!value||typeof value!=='object')return undefined;
   const stored=value as Record<string,unknown>,analysis=stored.analysis;
-  if((stored.stage!==3&&stored.stage!==7)||(stored.source!=='ai'&&stored.source!=='fallback')||typeof stored.generatedAt!=='string'||!analysis||typeof analysis!=='object')return false;
+  const stage=stored.stage===3?5:stored.stage===7?10:stored.stage;
+  if((stage!==5&&stage!==10&&stage!==14)||(stored.source!=='ai'&&stored.source!=='fallback')||typeof stored.generatedAt!=='string'||!analysis||typeof analysis!=='object')return undefined;
   const result=analysis as Record<string,unknown>,representative=result.representativePlant;
-  return safeNarrativeSection(result.frequentEmotion)&&safeNarrativeSection(result.natureValue)&&safeNarrativeSection(result.recordStyle)
+  const valid=safeNarrativeSection(result.frequentEmotion)&&safeNarrativeSection(result.natureValue)&&safeNarrativeSection(result.recordStyle)
     &&Boolean(representative&&typeof representative==='object'
       &&typeof (representative as Record<string,unknown>).plantId==='string'
       &&typeof (representative as Record<string,unknown>).plantName==='string'
       &&typeof (representative as Record<string,unknown>).reason==='string')
     &&typeof result.memoryLetter==='string';
+  return valid?{stage,source:stored.source,generatedAt:stored.generatedAt,analysis:analysis as GreenhouseNarrativeAnalysis}:undefined;
 };
+
+const DISCOVERY_EMOTIONS:Record<string,GreenhouseEmotion>={
+  'flower-01':'희망','flower-02':'희망','flower-03':'따뜻함','flower-04':'평온함',
+  'flower-05':'설렘','flower-06':'신비로움','flower-07':'평온함','flower-08':'따뜻함',
+  'flower-09':'기쁨','flower-10':'그리움','flower-11':'용기','flower-12':'호기심',
+  'peach-tree':'설렘','red-tree':'그리움',
+};
+const CHANGE_PLANTS=new Set(['flower-01','flower-02','flower-11','peach-tree','red-tree']);
+const RELATIONSHIP_PLANTS=new Set(['flower-03','flower-04','flower-07','flower-08']);
+const MEMORY_PLANTS=new Set(['flower-10','red-tree']);
+const INNER_PLANTS=new Set(['flower-02','flower-07','flower-08','flower-10','red-tree']);
+const EXPLORER_PLANTS=new Set(['flower-01','flower-06','flower-11','flower-12','peach-tree']);
+export function discoverySignalForPlant(plant:PlantDefinition){
+  const emotion=DISCOVERY_EMOTIONS[plant.id]??'평온함';
+  const reasonCategory:EmotionReasonCategory=MEMORY_PLANTS.has(plant.id)?'memory':RELATIONSHIP_PLANTS.has(plant.id)?'relationship':CHANGE_PLANTS.has(plant.id)?'change':'scene';
+  const recordStyle:GreenhouseRecordStyle=INNER_PLANTS.has(plant.id)?'inner':EXPLORER_PLANTS.has(plant.id)?'language':'visual';
+  const meaning=plant.flowerLanguage??plant.characteristics[0]??'자연의 아름다움';
+  return {
+    emotion,
+    reasonCategory,
+    recordStyle,
+    reasonText:`${plant.displayName}의 ${meaning} 의미와 ${plant.characteristics.slice(0,2).join('·')} 특징을 오래 살펴봄`,
+    keywords:[meaning,...plant.characteristics].slice(0,5),
+    reflectionTitle:`${plant.displayName}에서 발견한 ${emotion}`,
+    shortReflection:`${plant.displayName}의 색과 형태, ${meaning}의 의미에 머문 탐험 기록이에요.`,
+  };
+}
 
 export function parseGreenhouseProgress(raw:string|null):GreenhouseProgress{
   if(!raw)return emptyProgress();
@@ -99,6 +131,9 @@ export function parseGreenhouseProgress(raw:string|null):GreenhouseProgress{
     }):[];
     const unique=[...new Map(collected.map(item=>[item.plantId,{
       ...item,
+      discoveryCount:typeof item.discoveryCount==='number'&&item.discoveryCount>0?Math.floor(item.discoveryCount):1,
+      totalViewMs:typeof item.totalViewMs==='number'&&item.totalViewMs>=0?Math.floor(item.totalViewMs):0,
+      lastViewedAt:typeof item.lastViewedAt==='string'?item.lastViewedAt:item.updatedAt??item.collectedAt,
       selectedEmotion:normalizeEmotion(item.selectedEmotion),
       reasonCategory:safeReasonCategory(item.reasonCategory)?item.reasonCategory:undefined,
       reasonText:typeof item.reasonText==='string'?item.reasonText.slice(0,180):undefined,
@@ -114,18 +149,24 @@ export function parseGreenhouseProgress(raw:string|null):GreenhouseProgress{
       if(!item||typeof item!=='object')return false;
       const value=item as Partial<MemoryLeaf>;
       return typeof value.id==='string'&&typeof value.createdAt==='string'&&typeof value.originalText==='string'&&typeof value.aiLetter==='string'&&typeof value.dominantEmotion==='string'&&Array.isArray(value.collectedPlantIds);
-    }).map(item=>({...item,analysisStage:item.analysisStage===7?7:3 as GreenhouseAnalysisStage})):[];
+    }).map(item=>{
+      const legacyStage=item.analysisStage as number|undefined;
+      const analysisStage:GreenhouseAnalysisStage=legacyStage===14?14:legacyStage===10||legacyStage===7?10:5;
+      return {...item,analysisStage};
+    }):[];
     const representativePlant=source?.representativePlant&&typeof source.representativePlant==='object'
       &&typeof source.representativePlant.plantId==='string'&&greenhousePlantById.has(source.representativePlant.plantId)
       &&unique.some(item=>item.plantId===source.representativePlant!.plantId)
       &&typeof source.representativePlant.memo==='string'&&typeof source.representativePlant.selectedAt==='string'
       ?source.representativePlant:undefined;
+    const parsedAnalysis=parseStoredAnalysis(source?.aiAnalysis);
+    const aiAnalysis=parsedAnalysis&&unique.length>=parsedAnalysis.stage?parsedAnalysis:undefined;
     return {
       collected:unique,
       memoryLeaves,
       introSeen:source?.introSeen===true,
       representativePlant,
-      aiAnalysis:safeStoredAnalysis(source?.aiAnalysis)?source.aiAnalysis:undefined,
+      aiAnalysis,
       recordVisibility:source?.recordVisibility==='public'?'public':'private',
     };
   }catch{return emptyProgress()}
@@ -176,10 +217,31 @@ export class GreenhouseProgressService{
     };
     return this.save({...progress,collected:[...progress.collected.filter(item=>item.plantId!==plantId),next]});
   }
-  collectDiscovery(progress:GreenhouseProgress,plantId:string,aiMessage:string){
+  collectDiscovery(progress:GreenhouseProgress,plantId:string,aiMessage:string,viewMs=0){
     const existing=progress.collected.find(item=>item.plantId===plantId);
+    const plant=greenhousePlantById.get(plantId);
+    if(!plant)return progress;
     const now=new Date().toISOString();
-    const next:CollectedPlant={plantId,collectedAt:existing?.collectedAt??now,updatedAt:now,aiMessage,includeInAnalysis:false};
+    const signal=discoverySignalForPlant(plant);
+    const next:CollectedPlant={
+      ...existing,
+      plantId,
+      collectedAt:existing?.collectedAt??now,
+      updatedAt:now,
+      discoveryCount:(existing?.discoveryCount??0)+1,
+      totalViewMs:(existing?.totalViewMs??0)+Math.max(0,Math.floor(viewMs)),
+      lastViewedAt:now,
+      selectedEmotion:existing?.selectedEmotion??signal.emotion,
+      reasonCategory:existing?.reasonCategory??signal.reasonCategory,
+      reasonText:existing?.reasonText??signal.reasonText,
+      recordStyle:existing?.recordStyle??signal.recordStyle,
+      keywords:existing?.keywords??signal.keywords,
+      reflectionTitle:existing?.reflectionTitle??signal.reflectionTitle,
+      shortReflection:existing?.shortReflection??signal.shortReflection,
+      analysisSource:existing?.analysisSource??'fallback',
+      aiMessage,
+      includeInAnalysis:true,
+    };
     return this.save({...progress,collected:[...progress.collected.filter(item=>item.plantId!==plantId),next]});
   }
   clearPlantReflection(progress:GreenhouseProgress,plantId:string){
@@ -224,21 +286,22 @@ export class GreenhouseProgressService{
 export const greenhouseCompletion=(progress:GreenhouseProgress)=>({
   count:progress.collected.length,
   total:GREENHOUSE_PLANT_TOTAL,
-  analysisUnlocked:progress.collected.length>=3,
-  representativeUnlocked:progress.collected.length>=3,
-  unlocked:progress.collected.length>=3&&Boolean(progress.representativePlant),
-  blooming:progress.collected.length>=7,
+  analysisUnlocked:progress.collected.length>=5,
+  representativeUnlocked:progress.collected.length>=GREENHOUSE_PLANT_TOTAL,
+  unlocked:progress.collected.length>=5,
+  blooming:progress.collected.length>=10,
   complete:progress.collected.length>=GREENHOUSE_PLANT_TOTAL,
   ratio:Math.min(1,progress.collected.length/GREENHOUSE_PLANT_TOTAL),
 });
 export const memoryLeafNeedsGrowth=(progress:GreenhouseProgress)=>{
   const latest=progress.memoryLeaves[0];
-  return Boolean(latest&&progress.aiAnalysis?.stage===7&&(latest.analysisStage??3)<7);
+  return Boolean(latest&&progress.aiAnalysis&&(latest.analysisStage??5)<progress.aiAnalysis.stage);
 };
 export const greenhouseInputLocked=(activeView:string|null)=>activeView!==null;
 export function nextGreenhouseAnalysisStage(previousCount:number,nextCount:number):GreenhouseAnalysisStage|null{
-  if(previousCount<3&&nextCount>=3)return 3;
-  if(previousCount<7&&nextCount>=7)return 7;
+  if(previousCount<5&&nextCount>=5)return 5;
+  if(previousCount<10&&nextCount>=10)return 10;
+  if(previousCount<14&&nextCount>=14)return 14;
   return null;
 }
 
@@ -336,7 +399,7 @@ export interface GreenhouseDiscoveries{
 }
 
 export interface GreenhouseCompletionStory{
-  stages:Array<{count:3|7|14;label:string;emotion:GreenhouseEmotion}>;
+  stages:Array<{count:5|10|14;label:string;emotion:GreenhouseEmotion}>;
   finalLetter:string;
   declaration:string;
 }
@@ -369,9 +432,9 @@ export function createGreenhouseCompletionStory(progress:GreenhouseProgress):Gre
   const representativeId=progress.representativePlant?.plantId??recommendRepresentativePlant(progress.collected,discoveries);
   const representativeName=representativeId?greenhousePlantById.get(representativeId)?.displayName:undefined;
   const originalMemory=[...progress.memoryLeaves].sort((a,b)=>new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime())[0]?.originalText;
-  const grownLetter=progress.memoryLeaves.find(item=>item.analysisStage===7)?.aiLetter
+  const grownLetter=progress.memoryLeaves.find(item=>item.analysisStage===14)?.aiLetter
     ??progress.aiAnalysis?.analysis.memoryLetter
-    ??createFallbackGreenhouseAnalysis(progress,7).memoryLetter;
+    ??createFallbackGreenhouseAnalysis(progress,14).memoryLetter;
   const stylePhrase:Record<GreenhouseRecordStyle,string>={
     visual:'장면으로 선명하게 기억하는',
     language:'문장으로 차분히 기록하는',
@@ -382,8 +445,8 @@ export function createGreenhouseCompletionStory(progress:GreenhouseProgress):Gre
   const originalBridge=originalMemory?` 처음 남긴 “${normalizeMemoryText(originalMemory)}”라는 마음도 이 모든 발견의 시작으로 남아 있습니다.`:'';
   return {
     stages:[
-      {count:3,label:'처음 발견한 마음',emotion:emotionAt(3)},
-      {count:7,label:'더 선명해진 마음',emotion:emotionAt(7)},
+      {count:5,label:'새싹 단계',emotion:emotionAt(5)},
+      {count:10,label:'성장 단계',emotion:emotionAt(10)},
       {count:14,label:'완성된 자연 기록',emotion:emotionAt(records.length)},
     ],
     finalLetter:`${grownLetter.trim()}\n\n${completionParagraph}${originalBridge}`,
@@ -444,14 +507,14 @@ export function createFallbackGreenhouseAnalysis(progress:GreenhouseProgress,sta
     },
     memoryLetter:`오늘 ${names||'수목원의 식물'}을 바라보며 ${discoveries.emotion.title}을 발견했습니다. ${discoveries.natureValue.value}에서 시작된 ${discoveries.dominantEmotion}의 마음을 ${discoveries.recordStyle.title}으로 남겼습니다. 이 기록이 ${representative?.displayName??'대표 식물'}의 ${representative?.characteristics[1]??representative?.characteristics[0]??'새로운 시작'}처럼 다음 계절에도 조용히 이어지기를 바랍니다.`,
   };
-  if(stage===3||!progress.aiAnalysis)return base;
+  if(stage===5||!progress.aiAnalysis)return base;
   const previous=progress.aiAnalysis.analysis;
   return {
     frequentEmotion:{title:previous.frequentEmotion.title,description:`${previous.frequentEmotion.description} 추가 기록에서도 ${discoveries.dominantEmotion}의 마음이 이어지며 처음의 발견이 더 선명해졌습니다.`},
     natureValue:{title:previous.natureValue.title,description:`${previous.natureValue.description} 더 많은 식물을 만나며 ${discoveries.natureValue.value}을 바라보는 시선이 구체적으로 드러났습니다.`},
-    recordStyle:{title:previous.recordStyle.title,description:`${previous.recordStyle.description} 일곱 식물의 순간이 쌓이며 이 기록 방식이 더욱 또렷해졌습니다.`},
+    recordStyle:{title:previous.recordStyle.title,description:`${previous.recordStyle.description} ${stage}종 식물의 탐험이 쌓이며 이 기록 방식이 더욱 또렷해졌습니다.`},
     representativePlant:base.representativePlant,
-    memoryLetter:`${previous.memoryLetter}\n\n일곱 식물까지 탐험한 지금, ${discoveries.dominantEmotion}의 마음과 ${discoveries.natureValue.value}을 바라보는 시선이 처음의 기록을 더 풍성하게 만들었습니다. ${base.representativePlant.plantName}과 함께 남긴 마음이 다음 방문에도 선명한 기억으로 이어지기를 바랍니다.`,
+    memoryLetter:`${previous.memoryLetter}\n\n${stage}종 식물까지 탐험한 지금, ${discoveries.dominantEmotion}의 마음과 ${discoveries.natureValue.value}을 바라보는 시선이 처음의 기록을 더 풍성하게 만들었습니다. ${base.representativePlant.plantName}과 함께 남긴 마음이 다음 방문에도 선명한 기억으로 이어지기를 바랍니다.`,
   };
 }
 

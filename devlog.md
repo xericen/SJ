@@ -166,3 +166,24 @@
 | 2026-08-05 | 077 | 17개 맵 카메라·캐릭터 이동 기준 통일 | [상세](devlog/2026-08-05/077-unify-world-navigation.md) |
 | 2026-08-05 | 078 | 공동캠퍼스 포탈 5개 요청자 확정 좌표 공용 고정 | [상세](devlog/2026-08-05/078-freeze-campus-portals.md) |
 | 2026-08-05 | 079 | 해커톤 제출 README 개편 및 누적 ReviewOps 변경 게시 | [상세](devlog/2026-08-05/079-publish-hackathon-submission.md) |
+| 2026-08-05 | 080 | 마이홈 좌석 방향 보정 및 침대 E 잠자기 추가 | [상세](devlog/2026-08-05/080-my-home-seat-direction-and-bed.md) |
+| 2026-08-05 | 081 | 수목원 기억나무 5·10·14종 성장형 탐험 및 마이홈 정원 연계 개편 | [상세](devlog/2026-08-05/081-greenhouse-growth-and-my-home-garden.md) |
+| 2026-08-05 | 082 | 호수공원 기존 지형 맞춤 카메라 복원 | [상세](devlog/2026-08-05/082-restore-lake-camera.md) |
+| 2026-08-05 | 083 | 마이홈 야외·실내 카메라 거리 40% 확대 | [상세](devlog/2026-08-05/083-increase-my-home-camera-distance.md) |
+| 2026-08-06 | 001 | 축제 이미지·카카오 지도·버튼 정렬 및 GLB 오브젝트 충돌 보정 | [상세](devlog/2026-08-06/001-festival-media-map-collision.md) |
+| 2026-08-06 | 002 | 베어트리파크 호수공원형 저각도 카메라 적용 | [상세](devlog/2026-08-06/002-bear-tree-lower-camera.md) |
+| 2026-08-06 | 003 | 공동캠퍼스 렌더링 선명도 및 캐릭터·맵 비율 개선 | [상세](devlog/2026-08-06/003-campus-visual-quality.md) |
+| 2026-08-06 | 004 | 모집센터 공동캠퍼스 귀환 포탈 위치 이동·공용 저장 연결 수정 | [상세](devlog/2026-08-06/004-fix-recruitment-campus-portal-editor.md) |
+| 2026-08-06 | 005 | 동아리 거리제 포탈 공용 저장 안정화 및 창설 부스 맨 앞 고정 | [상세](devlog/2026-08-06/005-fix-club-street-portal-and-creator-booth.md) |
+| 2026-08-06 | 006 | 정부청사 캐릭터 축소·포탈 3개 편집 복구 및 정책 체험관 제거 | [상세](devlog/2026-08-06/006-government-scale-editable-portals.md) |
+| 2026-08-06 | 007 | 수목원 기억나무 갇힘 방지 및 식생 렌더링 선명도 개선 | [상세](devlog/2026-08-06/007-garden-safe-entry-visual-quality.md) |
+| 2026-08-06 | 008 | 스마트시티 정부청사 포탈 현재 위치 이동 유지 수정 | [상세](devlog/2026-08-06/008-smartcity-local-portal-position.md) |
+| 2026-08-06 | 009 | 중앙광장 정부청사 귀환 포탈 로컬 위치 유지 수정 | [상세](devlog/2026-08-06/009-central-plaza-local-portal-position.md) |
+| 2026-08-06 | 010 | 남성형1 걷기·달리기 고개 위치를 여성형1처럼 중립 자세로 보정 | [상세](devlog/2026-08-06/010-boy1-neutral-head-pose.md) |
+| 2026-08-06 | 011 | 마이홈 실내 카메라 거리 40% 확대 적용 경로 고정 | [상세](devlog/2026-08-06/011-fix-my-home-interior-camera-distance.md) |
+| 2026-08-06 | 012 | 프로젝트실 전광판을 카메라 정면 방향으로 회전 보정 | [상세](devlog/2026-08-06/012-fix-project-room-board-orientation.md) |
+| 2026-08-06 | 013 | 공간 안내 17개 월드의 맵 입장 버튼 제거 | [상세](devlog/2026-08-06/013-remove-world-guide-entry-button.md) |
+| 2026-08-06 | 014 | 런타임 엔트리 SyntaxError 자동 복구 | [상세](devlog/2026-08-06/014-runtime-entry-syntax-auto-recovery.md) |
+| 2026-08-06 | 015 | 홈 화면 정적 모듈 렌더링 복구 | [상세](devlog/2026-08-06/015-restore-home-static-entry-rendering.md) |
+| 2026-08-06 | 016 | 홈 화면 스타일 선로딩 및 로컬 폰트 전환 | [상세](devlog/2026-08-06/016-stabilize-home-styles.md) |
+| 2026-08-06 | 017 | 최신 해커톤 제출 문서·누적 ReviewOps 변경 게시 | [상세](devlog/2026-08-06/017-publish-latest-hackathon-release.md) |

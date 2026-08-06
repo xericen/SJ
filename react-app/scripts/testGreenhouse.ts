@@ -90,11 +90,11 @@ assert.match(representativePlantExplanation(recommendedId!,discoveries),/닮았�
 const profile=buildMemoryLetterProfile(reflectionProgress);
 assert.deepEqual(profile.emotionPattern,['희망','그리움','희망'],'AI 편지에 실제 감정 패턴을 전달한다');
 assert.equal(profile.dominantRecordStyle,'내면 기억형','AI 편지에 해석된 기록 성향을 전달한다');
-const fallbackAnalysis=createFallbackGreenhouseAnalysis(reflectionProgress,3);
+const fallbackAnalysis=createFallbackGreenhouseAnalysis(reflectionProgress,5);
 assert.equal(fallbackAnalysis.representativePlant.plantId,recommendedId,'폴백도 규칙이 계산한 대표 식물을 유지한다');
 assert.match(fallbackAnalysis.memoryLetter,/복숭아나무|수국|단풍나무/,'폴백 기본 편지는 실제 기록 식물을 사용한다');
-reflectionProgress=service.setAiAnalysis(reflectionProgress,{stage:3,source:'fallback',generatedAt:new Date().toISOString(),analysis:fallbackAnalysis});
-assert.equal(service.load().aiAnalysis?.stage,3,'AI 또는 폴백 분석 결과를 진행 데이터에 저장한다');
+reflectionProgress=service.setAiAnalysis(reflectionProgress,{stage:5,source:'fallback',generatedAt:new Date().toISOString(),analysis:fallbackAnalysis});
+assert.equal(reflectionProgress.aiAnalysis?.stage,5,'AI 또는 폴백 분석 결과를 진행 데이터에 저장한다');
 const selectedReflectionProgress=service.selectRepresentative(reflectionProgress,'peach-tree','봄의 시작을 닮았어요');
 const clearedReflection=service.clearPlantReflection(selectedReflectionProgress,'peach-tree');
 const clearedPeach=clearedReflection.collected.find(item=>item.plantId==='peach-tree');
@@ -109,50 +109,51 @@ const removedReflection=service.removePlant(reflectionProgress,'peach-tree');
 assert.equal(removedReflection.collected.some(item=>item.plantId==='peach-tree'),false,'마음 기록을 삭제하면 해당 식물도 도감에서 삭제해야 한다');
 assert.equal(removedReflection.aiAnalysis,undefined,'식물 삭제 후 기존 종합 분석을 초기화해야 한다');
 assert.equal(removedReflection.representativePlant,undefined,'식물 삭제 후 대표 식물 선택을 다시 받는다');
-const expandedFallback=createFallbackGreenhouseAnalysis(reflectionProgress,7);
-assert.equal(expandedFallback.frequentEmotion.title,fallbackAnalysis.frequentEmotion.title,'7종 폴백 확장도 기존 결과의 핵심 제목을 유지한다');
-assert.equal(nextGreenhouseAnalysisStage(2,3),3,'3종에서 최초 AI 분석을 호출한다');
-assert.equal(nextGreenhouseAnalysisStage(6,7),7,'7종에서 AI 분석을 한 번 확장한다');
-assert.equal(nextGreenhouseAnalysisStage(13,14),null,'14종에서는 AI를 다시 호출하지 않는다');
-const stageThreeLeaf:MemoryLeaf={
-  id:'stage-three-memory',
+const expandedFallback=createFallbackGreenhouseAnalysis(reflectionProgress,10);
+assert.equal(expandedFallback.frequentEmotion.title,fallbackAnalysis.frequentEmotion.title,'10종 폴백 확장도 기존 결과의 핵심 제목을 유지한다');
+assert.equal(nextGreenhouseAnalysisStage(4,5),5,'5종에서 최초 AI 분석을 호출한다');
+assert.equal(nextGreenhouseAnalysisStage(9,10),10,'10종에서 AI 분석을 한 번 확장한다');
+assert.equal(nextGreenhouseAnalysisStage(13,14),14,'14종에서 완성 AI 분석을 호출한다');
+const stageFiveLeaf:MemoryLeaf={
+  id:'stage-five-memory',
   createdAt:new Date().toISOString(),
   originalText:'오늘 본 꽃을 오래 기억하고 싶어요.',
   aiLetter:fallbackAnalysis.memoryLetter,
-  analysisStage:3,
+  analysisStage:5,
   dominantEmotion:'희망',
   collectedPlantIds:reflectionProgress.collected.map(item=>item.plantId),
 };
-let memoryGrowthProgress=service.addMemoryLeaf(reflectionProgress,stageThreeLeaf);
-memoryGrowthProgress=service.setAiAnalysis(memoryGrowthProgress,{stage:7,source:'fallback',generatedAt:new Date().toISOString(),analysis:expandedFallback});
-assert.equal(memoryLeafNeedsGrowth(memoryGrowthProgress),true,'7종 분석 뒤에는 3종 때 작성한 기억을 자동으로 성장시켜야 한다');
-memoryGrowthProgress=service.updateMemoryLeaf(memoryGrowthProgress,{...stageThreeLeaf,analysisStage:7,aiLetter:expandedFallback.memoryLetter});
-assert.equal(memoryLeafNeedsGrowth(memoryGrowthProgress),false,'7종 확장을 저장한 기억은 다시 작성하거나 중복 확장하지 않는다');
+let memoryGrowthProgress=service.addMemoryLeaf(reflectionProgress,stageFiveLeaf);
+memoryGrowthProgress=service.setAiAnalysis(memoryGrowthProgress,{stage:10,source:'fallback',generatedAt:new Date().toISOString(),analysis:expandedFallback});
+assert.equal(memoryLeafNeedsGrowth(memoryGrowthProgress),true,'10종 분석 뒤에는 5종 때 작성한 기억을 자동으로 성장시켜야 한다');
+memoryGrowthProgress=service.updateMemoryLeaf(memoryGrowthProgress,{...stageFiveLeaf,analysisStage:10,aiLetter:expandedFallback.memoryLetter});
+assert.equal(memoryLeafNeedsGrowth(memoryGrowthProgress),false,'10종 확장을 저장한 기억은 다시 작성하거나 중복 확장하지 않는다');
 const discoveredOnly=service.collectDiscovery(reflectionProgress,'flower-05','관찰');
-assert.equal(analyzeGreenhouseDiscoveries(discoveredOnly.collected).recordCount,3,'발견만 저장한 식물은 개인 분석에서 제외한다');
+assert.equal(analyzeGreenhouseDiscoveries(discoveredOnly.collected).recordCount,4,'질문 없이 발견한 식물도 탐험 분석에 포함한다');
+const discoveredAgain=service.collectDiscovery(discoveredOnly,'flower-05','관찰',2400);
+assert.equal(discoveredAgain.collected.find(item=>item.plantId==='flower-05')?.discoveryCount,2,'같은 식물을 반복 발견하면 풍성도가 누적된다');
+assert.equal(discoveredAgain.collected.find(item=>item.plantId==='flower-05')?.totalViewMs,2400,'식물을 살펴본 시간을 탐험 데이터로 누적한다');
 
 let unlockProgress:GreenhouseProgress={collected:[],memoryLeaves:[],introSeen:true,recordVisibility:'private'};
-greenhousePlants.slice(0,2).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
-assert.equal(greenhouseCompletion(unlockProgress).analysisUnlocked,false,'2개에서는 자연 취향 분석이 잠겨야 한다');
-unlockProgress=service.collect(unlockProgress,greenhousePlants[2].id,'희망','테스트');
-assert.equal(greenhouseCompletion(unlockProgress).analysisUnlocked,true,'3개에서는 자연 취향 분석이 열려야 한다');
-assert.equal(greenhouseCompletion(unlockProgress).representativeUnlocked,true,'3개에서는 대표 식물 선택이 열려야 한다');
-assert.equal(greenhouseCompletion(unlockProgress).unlocked,false,'대표 식물을 고르기 전에는 기억나무가 기다려야 한다');
-unlockProgress=service.selectRepresentative(unlockProgress,greenhousePlants[0].id,'봄의 시작이 생각나요');
-assert.equal(unlockProgress.representativePlant?.plantId,greenhousePlants[0].id,'수집한 식물을 대표 식물로 저장해야 한다');
-assert.equal(greenhouseCompletion(unlockProgress).unlocked,true,'3개와 대표 식물 선택을 완료하면 새싹 기억나무가 열려야 한다');
-greenhousePlants.slice(3,6).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
-assert.equal(greenhouseCompletion(unlockProgress).blooming,false,'6개에서는 기억나무가 아직 새싹 단계여야 한다');
-unlockProgress=service.collect(unlockProgress,greenhousePlants[6].id,'평온함','테스트');
-assert.equal(greenhouseCompletion(unlockProgress).blooming,true,'7개에서는 기억나무에 꽃이 피어야 한다');
-assert.equal(greenhouseCompletion(unlockProgress).complete,false,'7개는 완전 탐험이 아니어야 한다');
-greenhousePlants.slice(7).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
+greenhousePlants.slice(0,4).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
+assert.equal(greenhouseCompletion(unlockProgress).analysisUnlocked,false,'4종에서는 자연 취향 분석이 잠겨야 한다');
+unlockProgress=service.collect(unlockProgress,greenhousePlants[4].id,'희망','테스트');
+assert.equal(greenhouseCompletion(unlockProgress).analysisUnlocked,true,'5종에서는 자연 취향 분석이 열려야 한다');
+assert.equal(greenhouseCompletion(unlockProgress).unlocked,true,'5종에서는 새싹 기억나무가 열려야 한다');
+assert.equal(greenhouseCompletion(unlockProgress).representativeUnlocked,false,'대표 식물은 14종 완성 전까지 잠겨야 한다');
+greenhousePlants.slice(5,9).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
+assert.equal(greenhouseCompletion(unlockProgress).blooming,false,'9종에서는 기억나무가 아직 새싹 단계여야 한다');
+unlockProgress=service.collect(unlockProgress,greenhousePlants[9].id,'평온함','테스트');
+assert.equal(greenhouseCompletion(unlockProgress).blooming,true,'10종에서는 기억나무가 성장 단계여야 한다');
+assert.equal(greenhouseCompletion(unlockProgress).complete,false,'10종은 완전 탐험이 아니어야 한다');
+greenhousePlants.slice(10).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
 assert.equal(greenhouseCompletion(unlockProgress).count,GREENHOUSE_PLANT_TOTAL);
 assert.equal(greenhouseCompletion(unlockProgress).complete,true,'14개에서는 완전 탐험 보상이 열려야 한다');
-unlockProgress=service.setAiAnalysis(unlockProgress,{stage:7,source:'fallback',generatedAt:new Date().toISOString(),analysis:createFallbackGreenhouseAnalysis(unlockProgress,7)});
+assert.equal(greenhouseCompletion(unlockProgress).representativeUnlocked,true,'14종에서는 대표 식물 선정이 열려야 한다');
+unlockProgress=service.setAiAnalysis(unlockProgress,{stage:14,source:'fallback',generatedAt:new Date().toISOString(),analysis:createFallbackGreenhouseAnalysis(unlockProgress,14)});
 const completionStory=createGreenhouseCompletionStory(unlockProgress);
-assert.deepEqual(completionStory.stages.map(stage=>stage.count),[3,7,14],'완주 결과에서 3종·7종·14종의 마음 변화를 보여준다');
-assert.match(completionStory.finalLetter,/열네 식물/,'7종 편지에 14종 완주 문장을 더해 최종 편지를 완성한다');
+assert.deepEqual(completionStory.stages.map(stage=>stage.count),[5,10,14],'완주 결과에서 5종·10종·14종의 마음 변화를 보여준다');
+assert.match(completionStory.finalLetter,/열네 식물/,'14종 분석에 완주 문장을 더해 최종 편지를 완성한다');
 assert.match(completionStory.declaration,/나는 자연의.+사람입니다/,'전체 기록으로 나의 자연 선언문을 만든다');
 assert.equal(dominantEmotion(unlockProgress.collected),'희망','가장 많이 선택한 감정을 계산해야 한다');
 assert.equal(analyzeNatureTaste(unlockProgress.collected).label,'설레는 탐험가','감정 기록으로 자연 유형을 분석해야 한다');
@@ -171,6 +172,7 @@ assert.equal(greenhouseInputLocked(null),false,'모달 종료 후 이동 입력�
 assert.equal(greenhousePlants.length,14,'수집 대상은 14개여야 한다');
 assert.equal(new Set(greenhousePlants.flatMap(plant=>plant.objectNames)).size,15,'겹친 하위 Mesh 2개를 하나의 식물로 묶어야 한다');
 assert.ok(greenhousePlants.every(plant=>plant.nameStory&&plant.everydayStory&&plant.habitat&&plant.comparisonTip&&plant.emotionBridge),'14종 모두 이름·생활·서식·구별·감정 연결 정보를 제공해야 한다');
+assert.ok(greenhousePlants.every(plant=>plant.flowerLanguage),'14종 모두 꽃말 또는 상징 의미를 제공해야 한다');
 assert.ok(greenhousePlants.every(plant=>(plant.observationPoints?.length??0)>=3),'14종 모두 실제 관찰에 쓸 세 가지 관찰 포인트를 제공해야 한다');
 assert.ok(greenhousePlants.every(plant=>plant.season?.match(/\d|연중/)),'14종 모두 월 단위의 구체적인 관찰 시기를 제공해야 한다');
 assert.ok(greenhousePlants.every(plant=>plant.imageUrl&&!plant.imageUrl.startsWith('http')),'14종 사진은 외부 연결 없이 표시되는 로컬 자산이어야 한다');
@@ -199,4 +201,4 @@ assert.equal(removed.length,11,'탈퇴 시 서비스의 계정·체험 기록을
 assert.equal(accountStorage.getItem('greenhouse-progress-v1:test-user'),null,'탈퇴 후 식물 기록이 남지 않아야 한다');
 assert.equal(accountStorage.getItem('unrelated-site-setting'),'keep','서비스와 무관한 브라우저 저장 값은 건드리지 않는다');
 
-console.log('Greenhouse tests passed: one-answer reflections, staged unlocks, account withdrawal cleanup, AI fallback, recovery, input lock, mapping');
+console.log('Greenhouse tests passed: discovery-only flow, 5/10/14 staged unlocks, account withdrawal cleanup, AI fallback, recovery, input lock, mapping');

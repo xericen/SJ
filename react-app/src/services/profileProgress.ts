@@ -194,7 +194,7 @@ export function buildProfileProgress(profile: UserProfile) {
   const festivalSignal=Math.min(35,festivalKeywords.reduce((sum,item)=>sum+item.count,0)*2);
   const festivalPlanning=festivalKeywords.some(item=>item.keyword==='방문·계획');
   const scores = {
-    nature: Math.min(100, zones.filter(z => ['town', 'bear-tree-park', 'bear-play-zone', 'garden', 'jochwon-park'].includes(z.id) && z.visited).length * 9 + greenhouse.collected.length * 4+campusAxes.nature),
+    nature: Math.min(100, zones.filter(z => ['town', 'bear-tree-park', 'bear-play-zone', 'garden', 'jochwon-park'].includes(z.id) && z.visited).length * 9 + (greenhouse.aiAnalysis?.stage??0) * 4+campusAxes.nature),
     culture: Math.min(100, zones.filter(z => ['arts-center', 'festival-experience'].includes(z.id) && z.visited).length * 12 + countArray(lake?.activities) * 8 + performancePoints * 3 + festivalSignal+campusAxes.culture),
     food: Math.min(100, foodSignal * 3 + (visitedIds.has('food-experience') ? 5 : 0)+campusAxes.food),
     relation: Math.min(100, zones.filter(z => ['campus', 'student-hall', 'project-room','club-street-festival'].includes(z.id) && z.visited).length * 6 + campus.length * 5+campusAxes.relation+harnessHistory.filter(item=>['campus','student-hall','recruitment-center','project-room','club-street-festival'].includes(item.mapId)).length*4),

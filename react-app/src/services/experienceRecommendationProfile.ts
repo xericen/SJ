@@ -159,7 +159,7 @@ export function buildExperienceRecommendationProfile(profile:UserProfile):Public
       preferredPlaceCategories.push('공원','관광명소');
     }
     if(greenhouse.memoryLeaves.length)experienceRecords.push('수목원 기억 편지 작성');
-    if(greenhouse.recordVisibility==='public'&&greenhouse.collected.length>=3){
+    if(greenhouse.recordVisibility==='public'&&greenhouse.collected.length>=5){
       experienceRecords.push(`자연 유형: ${analyzeNatureTaste(greenhouse.collected).label}`,`대표 감정: ${dominantEmotion(greenhouse.collected)}`);
       if(greenhouse.representativePlant){
         const plant=greenhousePlantById.get(greenhouse.representativePlant.plantId);

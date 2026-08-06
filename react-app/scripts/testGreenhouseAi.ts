@@ -36,11 +36,13 @@ assert.equal(reflectionResult.source,'fallback','키가 없거나 mock 모드면
 assert.deepEqual(reflectionResult.analysis,reflectionFallback,'식물 기록 폴백도 같은 구조화 결과를 반환해야 한다');
 
 const request=greenhouseAnalysisRequestSchema.parse({
-  stage:3,
+  stage:5,
   records:[
     {plantId:'peach-tree',plantName:'복숭아나무',emotion:'희망',reasonCategory:'change',reasonText:'새롭게 시작하는 느낌이 들어서',recordStyle:'inner'},
     {plantId:'flower-04',plantName:'수국',emotion:'따뜻함',reasonCategory:'relationship',reasonText:'여러 꽃이 함께 피어 있는 모습이 따뜻해서',recordStyle:'language'},
     {plantId:'red-tree',plantName:'단풍나무',emotion:'그리움',reasonCategory:'memory',reasonText:'예전에 보았던 가을 풍경이 떠올라서',recordStyle:'inner'},
+    {plantId:'flower-05',plantName:'튤립',emotion:'설렘',reasonCategory:'scene',reasonText:'다양한 색을 오래 살펴봐서',recordStyle:'visual'},
+    {plantId:'flower-09',plantName:'해바라기',emotion:'기쁨',reasonCategory:'scene',reasonText:'밝은 색과 큰 꽃이 눈에 들어와서',recordStyle:'visual'},
   ],
   ruleAnalysis:{
     dominantEmotion:'희망',
@@ -60,8 +62,8 @@ const result=await greenhouseAnalyze(request);
 assert.equal(result.source,'fallback','API 키가 없거나 mock 모드면 즉시 폴백을 반환해야 한다');
 assert.deepEqual(result.analysis,fallback,'서버 폴백 응답은 동일한 구조화 결과를 반환해야 한다');
 
-const expanded=fallbackGreenhouseAnalysis({...request,stage:7,previousAnalysis:fallback});
-assert.equal(expanded.frequentEmotion.title,fallback.frequentEmotion.title,'7종 확장은 기존 분석의 핵심 방향을 유지해야 한다');
-assert.match(expanded.memoryLetter,/일곱 식물/,'7종 편지는 추가 기록으로 확장되어야 한다');
+const expanded=fallbackGreenhouseAnalysis({...request,stage:10,previousAnalysis:fallback});
+assert.equal(expanded.frequentEmotion.title,fallback.frequentEmotion.title,'10종 확장은 기존 분석의 핵심 방향을 유지해야 한다');
+assert.match(expanded.memoryLetter,/10종 식물/,'10종 편지는 추가 기록으로 확장되어야 한다');
 
-console.log('Greenhouse AI tests passed: one-answer OpenAI schema, reflection fallback, fixed rule outputs, 3/7 fallback, previous-analysis continuity');
+console.log('Greenhouse AI tests passed: discovery analysis schema, reflection fallback, fixed rule outputs, 5/10/14 fallback, previous-analysis continuity');

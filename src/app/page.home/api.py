@@ -47,7 +47,6 @@ WORLD_PORTAL_DEFAULTS = (
     ("project-room", "campus", 1220, 2050),
     ("government", "campus", 1120, 1731),
     ("government", "government-central-plaza", 720, 1010),
-    ("government", "government-policy-hall", 1200, 760),
     ("government", "government-observatory", 1680, 1010),
     ("government", "sejong-smart-city", 1200, 1190),
     ("government-central-plaza", "government", 1200, 1690),
@@ -58,7 +57,6 @@ WORLD_PORTAL_KEYS = {(item[0], item[1]) for item in WORLD_PORTAL_DEFAULTS}
 FROZEN_WORLD_PORTAL_MAPS = {
     "town",
     "campus",
-    "government",
     "arts-center",
     "festival-experience",
     "food-experience",
@@ -69,6 +67,7 @@ CANONICAL_WORLD_PORTAL_KEYS = {
     ("campus", "club-street-festival"),
     ("campus", "recruitment-center"),
     ("campus", "project-room"),
+    ("government", "campus"),
     ("arts-center", "town"),
     ("festival-experience", "town"),
     ("food-experience", "town"),

@@ -74,10 +74,12 @@ export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
     if(item.selectedEmotion)counts.set(item.selectedEmotion,(counts.get(item.selectedEmotion)??0)+1);
     return counts;
   },new Map<string,number>()).entries()].map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label,'ko'));
-  const dominant=emotionCounts.length?dominantEmotion(greenhouse.collected):undefined;
-  const representativeId=greenhouse.representativePlant?.plantId
-    ??greenhouse.aiAnalysis?.analysis.representativePlant.plantId
-    ??(greenhouse.collected.length>=3?recommendRepresentativePlant(greenhouse.collected):undefined);
+  const dominant=greenhouse.aiAnalysis&&emotionCounts.length?dominantEmotion(greenhouse.collected):undefined;
+  const representativeId=greenhouse.collected.length>=14
+    ?greenhouse.representativePlant?.plantId
+      ??greenhouse.aiAnalysis?.analysis.representativePlant.plantId
+      ??recommendRepresentativePlant(greenhouse.collected)
+    :undefined;
   const plant=representativeId?greenhousePlantById.get(representativeId):undefined;
   const decisionResult=loadBearHabitatProgress(profile.nickname).result;
   const coreCount=[interests.length>0,Boolean(dominant),Boolean(plant),Boolean(decisionResult)].filter(Boolean).length;

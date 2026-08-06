@@ -77,7 +77,7 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260805-fixed-campus-portals-v92';
+      const buildId = '20260806-stable-home-styles-v112';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
       if ('caches' in window) {
@@ -90,9 +90,43 @@
       window.location.replace(url.toString());
     })();
   </script>
-  <script type="module" crossorigin src="/auth/jochwon-assets/assets/index-bvxZ59Ju.js?_build=20260805-fixed-campus-portals-v92"></script>
+  <script>
+  (() => {
+    const runtimeBuildId="20260806-stable-home-styles-v112";
+    const runtimeEntryPath="/auth/jochwon-assets/assets/index-D3Jn7mUZ.js";
+    const pageUrl=new URL(window.location.href);
+    const entryRetry=pageUrl.searchParams.get('_entry_retry');
+    let recoveryStarted=false;
+    const recover=async()=>{
+      if(recoveryStarted)return;
+      recoveryStarted=true;
+      if(entryRetry){
+        const root=document.getElementById('root');
+        if(root)root.textContent='새 버전을 불러오지 못했습니다. 페이지를 새로고침해 주세요.';
+        return;
+      }
+      const cacheReset='caches' in window
+        ?caches.keys().then(keys=>Promise.all(keys.map(key=>caches.delete(key)))).catch(()=>undefined)
+        :Promise.resolve();
+      const workerReset='serviceWorker' in navigator
+        ?navigator.serviceWorker.getRegistrations().then(items=>Promise.all(items.map(item=>item.unregister()))).catch(()=>undefined)
+        :Promise.resolve();
+      await Promise.all([cacheReset,workerReset]);
+      pageUrl.searchParams.set('_build',runtimeBuildId);
+      pageUrl.searchParams.set('_entry_retry',String(Date.now()));
+      window.location.replace(pageUrl.toString());
+    };
+    window.__recoverJochwonRuntime=recover;
+    window.addEventListener('error',event=>{
+      const filename=typeof event.filename==='string'?event.filename:'';
+      if(filename.includes(runtimeEntryPath))void recover();
+    });
+  })();
+</script>
+<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-BspWljsg.css?_build=20260806-stable-home-styles-v112" onerror="void window.__recoverJochwonRuntime?.()">
+<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-D3Jn7mUZ.js?_build=20260806-stable-home-styles-v112" onerror="void window.__recoverJochwonRuntime?.()"></script>
   <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-n5LQ9ujS.js">
-  <link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-DUFeS9hD.css">
+
 </head>
 <body>
   <div id="root"></div>

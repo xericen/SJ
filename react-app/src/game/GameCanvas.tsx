@@ -46,7 +46,7 @@ const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;descripti
 const authoredRendererOptionsFor=(mapId:MapId)=>mapId==='personal-farm'?PERSONAL_FARM_RENDERER_OPTIONS:mapId==='arts-center'?SEJONG_ARTS_CENTER_RENDERER_OPTIONS:mapId==='festival-experience'?FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:mapId==='food-experience'?FOOD_EXPERIENCE_RENDERER_OPTIONS:mapId==='club-street-festival'?CLUB_STREET_FESTIVAL_RENDERER_OPTIONS:mapId==='town'?LAKE_PARK_RENDERER_OPTIONS:mapId==='bear-tree-park'?BEAR_TREE_PARK_RENDERER_OPTIONS:mapId==='bear-play-zone'?BEAR_PLAY_ZONE_RENDERER_OPTIONS:mapId==='garden'?GARDEN_RENDERER_OPTIONS:mapId==='campus'?CAMPUS_RENDERER_OPTIONS:mapId==='student-hall'?STUDENT_HALL_RENDERER_OPTIONS:mapId==='recruitment-center'?RECRUITMENT_CENTER_RENDERER_OPTIONS:mapId==='project-room'?PROJECT_ROOM_RENDERER_OPTIONS:mapId==='government'?GOVERNMENT_RENDERER_OPTIONS:mapId==='government-central-plaza'?GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:mapId==='government-observatory'?GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:mapId==='sejong-smart-city'?SEJONG_SMART_CITY_RENDERER_OPTIONS:undefined;
 const rendererOptionsFor=(mapId:MapId)=>{
   const options=authoredRendererOptionsFor(mapId);
-  return options&&usesUnifiedWorldNavigation(mapId)?applyUnifiedWorldCamera(options):options;
+  return options&&usesUnifiedWorldNavigation(mapId)?applyUnifiedWorldCamera(options,mapId):options;
 };
 
 export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnly=false,previewDragRotate=false,authenticated=Boolean(localStorage.getItem('jochiwon-kakao-user-id')?.trim())}:{profile:UserProfile;returnState?:GameReturnState;previewOnly?:boolean;previewDragRotate?:boolean;authenticated?:boolean}){
@@ -138,7 +138,13 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
         syncPortalPositions(latestPortalPositions.map(item=>item.mapId===position.mapId&&item.destination===position.destination?result.position??position:item));
         gameEvents.emit('portal-position-save-result',result);
         socket.emit('savePortalPosition',position,()=>undefined);
-      }).catch(error=>gameEvents.emit('portal-position-save-result',{ok:false,message:error instanceof Error?error.message:'포탈 위치를 저장하지 못했어요.'}));
+      }).catch(error=>{
+        // Reconcile immediately with the WIZ source of truth when persistence
+        // fails, instead of leaving an optimistic position that jumps back on
+        // the next polling tick with no explanation.
+        void loadSharedWorldPortalState().then(({positions})=>{if(!cancelled&&positions.length)syncPortalPositions(positions)}).catch(()=>undefined);
+        gameEvents.emit('portal-position-save-result',{ok:false,message:error instanceof Error?error.message:'포탈 위치를 저장하지 못했어요.'});
+      });
     };
     const recommendationProfile=()=>{
       const recommendation=buildExperienceRecommendationProfile(profile);

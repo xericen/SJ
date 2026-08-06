@@ -1,4 +1,4 @@
-export type GreenhouseAnalysisStage=3|7;
+export type GreenhouseAnalysisStage=5|10|14;
 export type GreenhouseAnalysisSource='ai'|'fallback';
 export type GreenhouseReflectionSource='openai'|'fallback';
 export type GreenhouseReflectionEmotion=

@@ -23,6 +23,7 @@ export interface PlantDefinition{
   category:PlantCategory;
   shortDescription:string;
   characteristics:string[];
+  flowerLanguage?:string;
   season?:string;
   observationPoint?:string;
   observationPoints?:string[];
@@ -244,6 +245,24 @@ const plantKnowledge:Record<string,PlantKnowledge>={
 };
 
 greenhousePlants.forEach(plant=>Object.assign(plant,plantKnowledge[plant.id]));
+
+const plantFlowerLanguages:Record<string,string>={
+  'flower-01':'숭고한 사랑',
+  'flower-02':'영원한 행복',
+  'flower-03':'사랑의 기쁨',
+  'flower-04':'진심과 인내',
+  'flower-05':'사랑의 고백',
+  'flower-06':'좋은 소식',
+  'flower-07':'순결과 변함없는 사랑',
+  'flower-08':'겸손한 아름다움',
+  'flower-09':'동경과 기다림',
+  'flower-10':'어머니의 사랑',
+  'flower-11':'끈기와 일편단심',
+  'flower-12':'영원불변',
+  'peach-tree':'사랑의 매력과 희망',
+  'red-tree':'소중한 추억과 변화',
+};
+greenhousePlants.forEach(plant=>{plant.flowerLanguage=plantFlowerLanguages[plant.id]});
 
 const commonsPage=(fileName:string)=>`https://commons.wikimedia.org/wiki/File:${encodeURIComponent(fileName.replaceAll(' ','_'))}`;
 const plantPhotos:Record<string,{url:string;file:string}>={

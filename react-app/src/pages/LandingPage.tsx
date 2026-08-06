@@ -39,7 +39,7 @@ import type { MapId } from '../../shared/socket-events';
 import type { UserProfile } from '../types';
 import './LandingPage.css';
 
-type LandingPageProps={profile:UserProfile;onStart:()=>void;onEnterWorld:(mapId:MapId)=>void;onLogin:()=>void;onUserClick?:()=>void;actionLabel?:string;userName?:string};
+type LandingPageProps={profile:UserProfile;onStart:()=>void;onLogin:()=>void;onUserClick?:()=>void;actionLabel?:string;userName?:string};
 type WorldPlace={name:string;description:string;people:string;image:string;modelUrl:string;modelSize:string;accent:string;emoji:string;points:string[];mapId?:MapId};
 const WorldModelPreview=lazy(()=>import('../components/WorldModelPreview').then(module=>({default:module.WorldModelPreview})));
 const SmartCityWorldPreview=lazy(()=>import('../components/SmartCityWorldPreview').then(module=>({default:module.SmartCityWorldPreview})));
@@ -99,7 +99,7 @@ const guideWorlds:WorldPlace[]=GUIDE_WORLD_ORDER.map(mapId=>{
 
 const livingAreas=[
   {number:1,emoji:'🎪',title:'세종에서 나의 취향을 발견해요',names:['세종호수공원'],summary:'세종의 축제·공연·먹거리·지역 상점을 둘러보고 관심 있는 볼거리를 저장해요.',activities:['축제 공간과 공연·특산품·지역 상점 안내 살펴보기','관심 장소 저장과 하고 싶은 활동 선택','시민 방문 코스 게시판에서 ‘나도 가고 싶어요’ 반응'],reward:'축제 관심사 · 선호 활동 · 가고 싶은 장소',role:'전체 여정의 시작점이자 결과가 다시 공유되는 중심 공간',communication:'1대1·단체 대화는 열지 않고 저장과 가벼운 반응만 제공',connection:'관심사가 하나 이상 쌓이면 수목원에서 개인 탐험 기록 만들기를 안내'},
-  {number:2,emoji:'🌿',title:'나만의 탐험 기록을 만들어요',names:['국립세종수목원','베어트리파크'],summary:'수목원의 식물과 베어트리파크의 곰·자연을 탐색하며 나만의 생태 탐험 기록을 만들어요.',activities:['수목원에서 식물을 촬영해 도감을 채우고 대표 식물·사진·메모 선택','베어트리파크에서 숲길을 탐색하고 아기곰 관찰·돌봄 공간 경험','식물 발견과 곰 체험을 하나의 자연 탐험 기록으로 정리해 공개'],reward:'식물도감 진행도 · 대표 식물 · 곰 관찰 기록 · 자연 취향',role:'수목원의 식물 수집과 베어트리파크의 동물·숲 체험을 개인 생태 기록으로 전환',communication:'수목원 탐험 쉼터에서는 공개 기록을 본 뒤 서로 수락하면 1대1 대화 가능',connection:'식물도감·곰 관찰 기록·호수공원 관심사를 조합해 공동캠퍼스 사용자와 동아리 추천에 활용'},
+  {number:2,emoji:'🌿',title:'발견할수록 기억나무가 자라요',names:['국립세종수목원','베어트리파크'],summary:'수목원 식물 14종을 발견하며 도감을 채우고, 5·10·14종마다 충녕 AI가 탐험 기록을 분석해 기억나무와 자연 취향 프로필을 성장시켜요.',activities:['식물의 특징·꽃말·서식 정보를 발견해 식물도감 완성','5종 새싹·10종 성장·14종 완성 단계에서만 충녕 AI 분석 확인','새롭게 발견한 식물을 마이홈 정원에 기록하고 반복 발견으로 풍성도 성장'],reward:'식물도감 진행도 · 기억나무 3단계 · 대표 식물 · 자연·힐링 성향',role:'질문 없이 누적된 탐험 행동을 자연 취향과 개인 정원의 시각적 성장으로 전환',communication:'충녕 AI는 매 발견마다 질문하지 않고 기억나무가 성장하는 순간에만 분석 결과를 안내',connection:'완성된 기억나무의 대표 식물·선호 꽃말·자연 성향을 정부청사 AI 맞춤 코스 추천에 활용'},
   {number:3,emoji:'🎓',title:'비슷한 사람과 관계를 만들어요',names:['공동캠퍼스'],summary:'축제 관심사와 탐험 기록이 비슷한 사람을 만나 대화하고 동아리를 만들어요.',activities:['공통 관심사와 추천 이유가 표시된 사용자 카드 확인','1대1 대화 신청·수락 또는 관심사 동아리 가입','가고 싶은 장소 투표와 정부청사 이동 제안'],reward:'연결된 사용자 · 동아리 · 공동 관심 장소',role:'서비스의 핵심 커뮤니케이션 맵으로 기록을 실제 관계로 연결',communication:'1대1 채팅과 동아리 단체 채팅을 모두 제공',connection:'상대가 이동 제안을 수락하면 같은 정부청사 계획 세션으로 연결'},
   {number:4,emoji:'🗺️',title:'함께 실제 방문을 계획해요',names:['정부청사'],summary:'세종의 도시 주제와 장소를 함께 선택하면 인공지능이 실제 방문 코스를 완성해요.',activities:['대형 지도에서 도시 주제와 공통 장소 1~3곳 선택','방문 시간·이동 방법·식사·카페·체험 여부 조정','인공지능 코스의 장소·순서·시간을 수정하고 공동 저장'],reward:'추천 이유가 포함된 실제 세종 방문 코스',role:'대화를 결정으로 바꾸고 세종의 도시 정체성을 전달하는 마무리 공간',communication:'새로운 사람을 찾지 않고 기존 1대1·동아리 채팅을 유지',connection:'완성된 코스를 호수공원 게시판이나 동아리 채팅에 공유해 새로운 만남 생성'}
 ];
@@ -112,7 +112,7 @@ const experienceRooms=[
   {name:'세종 카페 산책부',emoji:'☕',stage:'공동캠퍼스',status:'주말 방문 장소 투표 중',members:'5명',interests:['카페','지역상점']}
 ];
 
-export function LandingPage({profile,onStart,onEnterWorld,onLogin,onUserClick,actionLabel='세종 월드 입장하기',userName}:LandingPageProps){
+export function LandingPage({profile,onStart,onLogin,onUserClick,actionLabel='세종 월드 입장하기',userName}:LandingPageProps){
   const [view,setView]=useState<'home'|'neighborhoods'|'neighbors'>('home');
   const [selectedChapter,setSelectedChapter]=useState<(typeof livingAreas)[number]|null>(null);
   const [selectedWorld,setSelectedWorld]=useState<WorldPlace|null>(null);
@@ -146,7 +146,6 @@ export function LandingPage({profile,onStart,onEnterWorld,onLogin,onUserClick,ac
             <p>{selectedWorld.description}</p>
             <div className="world-model-points"><small>이 월드의 주요 체험</small>{selectedWorld.points.map((point,index)=><div key={point}><span style={{background:selectedWorld.accent}}>{String(index+1).padStart(2,'0')}</span><b>{point}</b></div>)}</div>
             <div className="world-model-actions">
-              {selectedWorld.mapId&&<button type="button" className="world-model-enter" onClick={()=>{const mapId=selectedWorld.mapId;if(!mapId)return;setSelectedWorld(null);onEnterWorld(mapId)}}><Play size={15} fill="currentColor"/> {userName?`${selectedWorld.name} 입장하기`:'맵 구경하기'}</button>}
               <button type="button" onClick={()=>{setSelectedWorld(null);showNeighborhoods()}}>{view==='home'?`${guideWorlds.length}개 공간 자세히 보기`:'다른 공간 둘러보기'} <ArrowRight/></button>
             </div>
             <small className="world-model-note">3D 모형은 실제 인게임 GLB 파일을 사용합니다.</small>

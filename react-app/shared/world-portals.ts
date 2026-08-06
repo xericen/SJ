@@ -26,7 +26,6 @@ export const WORLD_PORTAL_DEFAULTS:readonly PortalPosition[]=[
   {mapId:'project-room',destination:'campus',x:1220,z:2050},
   {mapId:'government',destination:'campus',x:1120,z:1731},
   {mapId:'government',destination:'government-central-plaza',x:720,z:1010},
-  {mapId:'government',destination:'government-policy-hall',x:1200,z:760},
   {mapId:'government',destination:'government-observatory',x:1680,z:1010},
   {mapId:'government',destination:'sejong-smart-city',x:1200,z:1190},
   {mapId:'government-central-plaza',destination:'government',x:1200,z:1690},

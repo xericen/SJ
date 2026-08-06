@@ -1,18 +1,17 @@
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import { BookOpen,Check,ChevronLeft,ChevronRight,ImageOff,Leaf,Lock,MoreVertical,Search,Sparkles,Trash2,X,ZoomIn } from 'lucide-react';
 import type { MapId } from '../../shared/socket-events';
-import type { GreenhouseAnalysisStage,GreenhousePlantReflectionAnalysis,GreenhouseReflectionSource } from '../../shared/greenhouse-analysis';
+import type { GreenhouseAnalysisStage } from '../../shared/greenhouse-analysis';
 import { greenhousePlantById,greenhousePlants } from '../data/greenhouse-plants';
 import { gameEvents } from '../game/events';
-import { requestGreenhouseAnalysis,requestPlantReflectionAnalysis } from '../services/greenhouseAi';
-import { analyzeGreenhouseDiscoveries,compareGreenhouseRecords,createFallbackGreenhouseAnalysis,createFallbackPlantMessage,createGreenhouseCompletionStory,dominantEmotion,GreenhouseProgressService,greenhouseCompletion,greenhouseInputLocked,memoryLeafNeedsGrowth,nextGreenhouseAnalysisStage,normalizeMemoryText,recommendRepresentativePlant,representativePlantExplanation,type GreenhouseProgress,type MemoryLeaf } from '../services/greenhouseProgress';
-import { greenhouseReflectionQuestion } from '../services/greenhouseReflection';
+import { requestGreenhouseAnalysis } from '../services/greenhouseAi';
+import { analyzeGreenhouseDiscoveries,createFallbackGreenhouseAnalysis,createFallbackPlantMessage,createGreenhouseCompletionStory,dominantEmotion,GreenhouseProgressService,greenhouseCompletion,greenhouseInputLocked,memoryLeafNeedsGrowth,nextGreenhouseAnalysisStage,normalizeMemoryText,recommendRepresentativePlant,representativePlantExplanation,type GreenhouseProgress,type MemoryLeaf } from '../services/greenhouseProgress';
 import { hasUsablePlantImage,plantGallery } from '../services/plantImages';
 import { loadPublicGreenhouseMemories,publishGreenhouseMemory,type PublicGreenhouseMemory } from '../services/publicGreenhouseMemories';
 import './GreenhouseExperience.base.css';
 import './GreenhouseExperience.css';
 
-type View='intro'|'plant'|'first'|'comparison'|'analyzing'|'taste'|'growth'|'book'|'representative'|'memory'|'complete'|null;
+type View='intro'|'plant'|'analyzing'|'taste'|'growth'|'book'|'representative'|'memory'|'complete'|null;
 type Nearby={kind:'plant';plantId:string;distance:number}|{kind:'memory-tree';distance:number}|null;
 const date=(value:string)=>new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'short',day:'numeric'}).format(new Date(value));
 const memoryPlaceholders:Record<string,string>={
@@ -25,22 +24,19 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
   const service=useMemo(()=>new GreenhouseProgressService(localStorage,userKey),[userKey]);
   const [active,setActive]=useState(false),[view,setView]=useState<View>(null),[nearby,setNearby]=useState<Nearby>(null);
   const [progress,setProgress]=useState<GreenhouseProgress>(()=>service.load());
-  const [plantId,setPlantId]=useState<string|null>(null),[reflectionAnswer,setReflectionAnswer]=useState('');
-  const [reflectionResult,setReflectionResult]=useState<GreenhousePlantReflectionAnalysis|null>(null),[reflectionSource,setReflectionSource]=useState<GreenhouseReflectionSource>('fallback');
-  const [reflectionLoading,setReflectionLoading]=useState(false),[reflectionError,setReflectionError]=useState('');
-  const [recordStep,setRecordStep]=useState<'observe'|'answer'>('observe'),[recordUpdateNotice,setRecordUpdateNotice]=useState(false);
+  const [plantId,setPlantId]=useState<string|null>(null),[recordUpdateNotice,setRecordUpdateNotice]=useState(false);
   const [skipIntro,setSkipIntro]=useState(false);
   const [message,setMessage]=useState(''),[loadingMessage,setLoadingMessage]=useState(false),[filter,setFilter]=useState<'all'|'flower'|'tree'>('all');
   const [imageFailed,setImageFailed]=useState(false),[imageLoading,setImageLoading]=useState(false),[lightboxIndex,setLightboxIndex]=useState<number|null>(null);
-  const modalRef=useRef<HTMLDivElement>(null),previousFocusRef=useRef<HTMLElement|null>(null),memoryExpansionRunRef=useRef(0),reflectionSubmittingRef=useRef(false);
+  const modalRef=useRef<HTMLDivElement>(null),previousFocusRef=useRef<HTMLElement|null>(null),memoryExpansionRunRef=useRef(0),plantViewStartedAtRef=useRef(0);
   const [memoryType,setMemoryType]=useState('오늘 가장 기억에 남은 순간'),[memoryText,setMemoryText]=useState(''),[letter,setLetter]=useState(''),[loadingLetter,setLoadingLetter]=useState(false),[selectedLeaf,setSelectedLeaf]=useState<MemoryLeaf|null>(null);
   const [memoryStep,setMemoryStep]=useState<'write'|'creating'|'review'>('write'),[creationStage,setCreationStage]=useState<1|2>(1);
   const [expandingLeafId,setExpandingLeafId]=useState<string|null>(null);
   const [memoryArea,setMemoryArea]=useState<'mine'|'community'>('mine'),[publicMemories,setPublicMemories]=useState<PublicGreenhouseMemory[]>([]),[publicLoading,setPublicLoading]=useState(false),[publicError,setPublicError]=useState(''),[selectedPublicMemory,setSelectedPublicMemory]=useState<PublicGreenhouseMemory|null>(null);
   const [representativeId,setRepresentativeId]=useState<string|null>(null),[representativeMemo,setRepresentativeMemo]=useState('');
-  const [analysisStage,setAnalysisStage]=useState<GreenhouseAnalysisStage>(3);
+  const [analysisStage,setAnalysisStage]=useState<GreenhouseAnalysisStage>(5);
   const completion=greenhouseCompletion(progress),plant=plantId?greenhousePlantById.get(plantId):undefined,discoveries=analyzeGreenhouseDiscoveries(progress.collected);
-  const fallbackNarrative=completion.count>=3?createFallbackGreenhouseAnalysis(progress,progress.aiAnalysis?.stage??(completion.count>=7?7:3)):undefined;
+  const fallbackNarrative=completion.count>=5?createFallbackGreenhouseAnalysis(progress,progress.aiAnalysis?.stage??(completion.count>=14?14:completion.count>=10?10:5)):undefined;
   const narrative=progress.aiAnalysis?.analysis??fallbackNarrative;
   const completionStory=completion.complete?createGreenhouseCompletionStory(progress):undefined;
   const modalOpen=greenhouseInputLocked(view);
@@ -68,7 +64,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     setCreationStage(2);
     await new Promise(resolve=>window.setTimeout(resolve,750));
     if(runId!==memoryExpansionRunRef.current)return;
-    const base=narrative?.memoryLetter??createFallbackGreenhouseAnalysis(progress,completion.count>=7?7:3).memoryLetter;
+    const base=narrative?.memoryLetter??createFallbackGreenhouseAnalysis(progress,completion.count>=14?14:completion.count>=10?10:5).memoryLetter;
     const grownLetter=`${base}\n\n처음 남긴 마음을 이어서: “${normalizeMemoryText(existingLeaf.originalText)}”`;
     setLetter(grownLetter);setLoadingLetter(false);setMemoryStep('review');
   },[completion.count,narrative,progress]);
@@ -80,15 +76,8 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     const definition=greenhousePlantById.get(id);if(!definition)return;
     const saved=progress.collected.find(item=>item.plantId===id);
     const savedMessage=saved?.aiMessage&&!/^안녕, 나는 꽃 \d/.test(saved.aiMessage)?saved.aiMessage:createFallbackPlantMessage(definition);
-    const savedReflection=saved?.selectedEmotion&&saved.reasonCategory&&saved.recordStyle&&saved.shortReflection?{
-      emotion:saved.selectedEmotion,
-      reasonCategory:saved.reasonCategory,
-      recordStyle:saved.recordStyle,
-      keywords:saved.keywords??[],
-      reflectionTitle:saved.reflectionTitle??`${saved.selectedEmotion}이 머문 마음`,
-      shortReflection:saved.shortReflection,
-    }:null;
-    setPlantId(id);setReflectionAnswer((saved?.userAnswer??'').slice(0,100));setReflectionResult(savedReflection);setReflectionSource(saved?.analysisSource??'fallback');setReflectionLoading(false);setReflectionError('');setRecordStep('observe');setMessage(savedMessage??'');setView('plant');
+    plantViewStartedAtRef.current=Date.now();
+    setPlantId(id);setMessage(savedMessage??'');setView('plant');
     setImageFailed(false);setImageLoading(Boolean(definition.imageUrl));setLightboxIndex(null);
     if(!saved){setLoadingMessage(false);setMessage(createFallbackPlantMessage(definition))}
   },[progress.collected]);
@@ -165,78 +154,25 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
 
   if(!active)return null;
   const existing=plantId?progress.collected.find(item=>item.plantId===plantId):undefined;
-  const hasReflection=Boolean(
-    existing
-    &&existing.includeInAnalysis!==false
-    &&existing.selectedEmotion
-    &&existing.reasonCategory
-    &&existing.recordStyle
-  );
   const analyzeAndStore=async(next:GreenhouseProgress,stage:GreenhouseAnalysisStage)=>{
     setAnalysisStage(stage);setView('analyzing');
     const result=await requestGreenhouseAnalysis(next,stage);
     const analyzed=service.setAiAnalysis(next,{stage,source:result.source,generatedAt:new Date().toISOString(),analysis:result.analysis});
-    publish(analyzed);setView(stage===3?'taste':'growth');
-  };
-  const savePlant=async(
-    analysis=reflectionResult,
-    source=reflectionSource,
-  )=>{
-    if(!plant||!analysis||reflectionAnswer.trim().length<2)return;
-    const wasNew=!existing;
-    const answer=reflectionAnswer.trim().slice(0,100);
-    const next=service.collect(progress,plant.id,analysis.emotion,message||createFallbackPlantMessage(plant),undefined,{
-      reasonCategory:analysis.reasonCategory,
-      reasonText:answer,
-      recordStyle:analysis.recordStyle,
-      userAnswer:answer,
-      keywords:analysis.keywords,
-      reflectionTitle:analysis.reflectionTitle,
-      shortReflection:analysis.shortReflection,
-      analysisSource:source,
-      includeInAnalysis:true,
-    });publish(next);
-    if(!wasNew&&completion.count>=3)setRecordUpdateNotice(true);
-    if(wasNew&&completion.count>=3)setRecordUpdateNotice(true);
-    const nextAnalysisStage=wasNew?nextGreenhouseAnalysisStage(completion.count,next.collected.length):null;
-    if(nextAnalysisStage){await analyzeAndStore(next,nextAnalysisStage);return}
-    if(greenhouseCompletion(next).complete&&!completion.complete){setView('complete');return}
-    setView(wasNew&&next.collected.length===1?'first':wasNew&&next.collected.length===2?'comparison':'book');
-  };
-  const analyzeAndSavePlant=async()=>{
-    if(!plant||reflectionAnswer.trim().length<2||reflectionSubmittingRef.current)return;
-    reflectionSubmittingRef.current=true;
-    setReflectionLoading(true);setReflectionError('');setReflectionResult(null);
-    try{
-      const result=await requestPlantReflectionAnalysis(plant.id,reflectionAnswer);
-      setReflectionResult(result.analysis);setReflectionSource(result.source);
-      await savePlant(result.analysis,result.source);
-    }catch{
-      setReflectionError('마음을 기록하지 못했어요. 잠시 후 다시 시도해 주세요.');
-    }finally{
-      reflectionSubmittingRef.current=false;
-      setReflectionLoading(false);
+    if(stage===14){
+      const representativeId=recommendRepresentativePlant(analyzed.collected,analyzeGreenhouseDiscoveries(analyzed.collected));
+      const completed=representativeId?service.selectRepresentative(analyzed,representativeId,representativePlantExplanation(representativeId,analyzeGreenhouseDiscoveries(analyzed.collected))):analyzed;
+      publish(completed);setView('complete');return;
     }
+    publish(analyzed);setView(stage===5?'taste':'growth');
   };
   const saveDiscoveryOnly=async()=>{
-    if(!plant||completion.count<3)return;
+    if(!plant)return;
     const wasNew=!existing;
-    const next=service.collectDiscovery(progress,plant.id,message||createFallbackPlantMessage(plant));publish(next);
+    const viewMs=plantViewStartedAtRef.current?Date.now()-plantViewStartedAtRef.current:0;
+    const next=service.collectDiscovery(progress,plant.id,message||createFallbackPlantMessage(plant),viewMs);publish(next);
+    setRecordUpdateNotice(true);
     const nextAnalysisStage=wasNew?nextGreenhouseAnalysisStage(completion.count,next.collected.length):null;
     if(nextAnalysisStage){await analyzeAndStore(next,nextAnalysisStage);return}
-    setView(greenhouseCompletion(next).complete&&!completion.complete?'complete':'book');
-  };
-  const deletePlantReflection=()=>{
-    if(!plant||!hasReflection)return;
-    const confirmed=window.confirm(`${plant.displayName}의 마음 기록을 삭제할까요?\n\n작성한 답변과 함께 식물도감에서도 삭제됩니다.`);
-    if(!confirmed)return;
-    const next=service.removePlant(progress,plant.id);
-    publish(next);
-    setReflectionAnswer('');
-    setReflectionResult(null);
-    setReflectionSource('fallback');
-    setReflectionError('');
-    setRecordUpdateNotice(true);
     setView('book');
   };
   const generateLetter=async()=>{
@@ -246,7 +182,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     await new Promise(resolve=>window.setTimeout(resolve,650));
     setCreationStage(2);
     await new Promise(resolve=>window.setTimeout(resolve,750));
-    const base=narrative?.memoryLetter??createFallbackGreenhouseAnalysis(progress,completion.count>=7?7:3).memoryLetter;
+    const base=narrative?.memoryLetter??createFallbackGreenhouseAnalysis(progress,completion.count>=14?14:completion.count>=10?10:5).memoryLetter;
     const createdLetter=`${base}\n\n오늘 내가 덧붙인 마음: “${normalized}”`;
     setLetter(createdLetter);setLoadingLetter(false);setMemoryStep('review');
   };
@@ -264,7 +200,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
       createdAt:existingLeaf?.createdAt??new Date().toISOString(),
       originalText:existingLeaf?.originalText??memoryText.trim(),
       aiLetter:letter,
-      analysisStage:progress.aiAnalysis?.stage??(completion.count>=7?7:3),
+      analysisStage:progress.aiAnalysis?.stage??(completion.count>=14?14:completion.count>=10?10:5),
       dominantEmotion:dominantEmotion(progress.collected),
       collectedPlantIds:progress.collected.map(item=>item.plantId),
       representativePlantId:progress.representativePlant?.plantId,
@@ -289,10 +225,9 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     publish(service.selectRepresentative(progress,representativeId,memo));setView('memory');
   };
   const visiblePlants=greenhousePlants.filter(item=>filter==='all'||filter==='flower'&&item.category==='flower'||filter==='tree'&&item.category!=='flower');
-  const comparisonPlants=progress.collected.slice(-2);
-  const needsRepresentative=completion.count>=3&&!progress.representativePlant;
-  const nextTarget=completion.count<3?3:needsRepresentative?3:completion.count<7?7:14;
-  const nextGoal=completion.count<3?'나에 대한 발견':needsRepresentative?'대표 식물 확정':completion.count<7?'더 선명한 발견':'수목원 완전 탐험';
+  const needsRepresentative=completion.complete&&!progress.representativePlant;
+  const nextTarget=completion.count<5?5:completion.count<10?10:14;
+  const nextGoal=completion.count<5?'새싹 단계':completion.count<10?'성장 단계':'기억나무 완성';
 
   return <div className="greenhouse-ui">
     <button
@@ -305,9 +240,9 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     {view&&<section className="greenhouse-overlay" role="dialog" aria-modal="true" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}>
       <div ref={modalRef} className={`greenhouse-modal greenhouse-${view}`}>
         <button className="greenhouse-close" type="button" onClick={close} aria-label="닫기"><X size={18}/></button>
-        {view==='intro'&&<><div className="greenhouse-hero-icon">🌿</div><small>수목원 마음 기록</small><h2>식물 3종과 짧게 대화해 보세요</h2><p className="greenhouse-intro-lead">식물을 보고 떠오른 마음을 한 문장으로 남기면<br/>나만의 자연 기록을 만들어 드려요.</p><div className="greenhouse-entry-guide greenhouse-entry-guide-simple"><span><b>1</b><i>🍃</i><strong>식물 보기</strong><small>가까이 가서 E를 눌러요.</small></span><span><b>2</b><i>💬</i><strong>한 문장 답하기</strong><small>AI 질문에 짧게 답해요.</small></span><span><b>3</b><i>✨</i><strong>내 결과 보기</strong><small>3개를 기록하면 열려요.</small></span></div><div className="greenhouse-intro-actions"><label className="greenhouse-intro-skip"><input type="checkbox" checked={skipIntro} onChange={event=>setSkipIntro(event.target.checked)}/><span>다시 안 보기</span></label><button className="greenhouse-primary greenhouse-intro-start" type="button" onClick={()=>{if(skipIntro)publish(service.save({...progress,introSeen:true}));close()}}>첫 식물 찾기</button></div></>}
+        {view==='intro'&&<><div className="greenhouse-hero-icon">🌿</div><small>수목원 안을 탐험해요</small><h2>식물을 발견할수록 기억나무가 자라요</h2><p className="greenhouse-intro-lead">다양한 식물을 찾아 도감을 채우고<br/>특징·꽃말·서식 정보를 하나씩 발견해 보세요.</p><div className="greenhouse-entry-guide greenhouse-entry-guide-simple"><span><b>5</b><i>🌱</i><strong>새싹 단계</strong><small>충녕 AI가 첫 자연 성향을 요약해요.</small></span><span><b>10</b><i>🌿</i><strong>성장 단계</strong><small>탐험 패턴을 분석해 프로필을 키워요.</small></span><span><b>14</b><i>🌳</i><strong>기억나무 완성</strong><small>대표 식물을 선정해 코스 추천에 연결해요.</small></span></div><div className="greenhouse-link-guide"><article><span>🏡</span><div><b>마이홈 정원</b><small>발견한 식물은 정원에 자동으로 기록되고, 반복 발견할수록 더 풍성하게 성장해요.</small></div></article><article><span>🤖</span><div><b>충녕 AI 큐레이터</b><small>질문을 반복하지 않고 기억나무가 성장하는 순간에만 탐험 데이터를 분석해요.</small></div></article></div><div className="greenhouse-intro-actions"><label className="greenhouse-intro-skip"><input type="checkbox" checked={skipIntro} onChange={event=>setSkipIntro(event.target.checked)}/><span>다시 안 보기</span></label><button className="greenhouse-primary greenhouse-intro-start" type="button" onClick={()=>{if(skipIntro)publish(service.save({...progress,introSeen:true}));close()}}>첫 식물 찾기</button></div></>}
         {view==='plant'&&plant&&<>
-          {recordStep==='observe'?<div className="greenhouse-plant-layout">
+          <div className="greenhouse-plant-layout">
             <div className="greenhouse-media">
               {hasUsablePlantImage(plant.imageUrl,imageFailed)
                 ?<button type="button" className="greenhouse-photo-button" onClick={()=>setLightboxIndex(0)} aria-label={`${plant.displayName} 사진 확대`}>
@@ -323,48 +258,21 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
               <div className="greenhouse-traits">{plant.characteristics.map(item=><span key={item}>{item}</span>)}</div>
               {plant.season&&<p className="greenhouse-meta"><b>피는 계절</b>{plant.season}</p>}
               <div className="greenhouse-knowledge-grid">
+                {plant.flowerLanguage&&<article className="greenhouse-flower-language"><small>💐 꽃말</small><p>{plant.flowerLanguage}</p></article>}
                 {plant.nameStory&&<article><small>📖 이름 이야기</small><p>{plant.nameStory}</p></article>}
                 {plant.habitat&&<article><small>🌿 사는 곳</small><p>{plant.habitat}</p></article>}
                 {plant.everydayStory&&<article><small>🏡 생활 속 식물</small><p>{plant.everydayStory}</p></article>}
                 {plant.comparisonTip&&<article><small>🔎 닮은 식물 구별법</small><p>{plant.comparisonTip}</p></article>}
               </div>
               <div className="greenhouse-observation"><Search size={18}/><div><b>관찰 포인트</b><ul>{(plant.observationPoints?.length?plant.observationPoints:[plant.observationPoint].filter(Boolean) as string[]).map(item=><li key={item}>{item}</li>)}</ul></div></div>
-              <div className="greenhouse-ai-message"><Search size={17}/><div><small>충녕이의 관찰 가이드</small>{loadingMessage?<p className="greenhouse-skeleton">관찰 가이드를 준비하고 있어요…</p>:<p>{message}</p>}</div></div>
+              <div className="greenhouse-ai-message"><Search size={17}/><div><small>식물 관찰 팁</small>{loadingMessage?<p className="greenhouse-skeleton">관찰 팁을 준비하고 있어요…</p>:<p>{message}</p>}</div></div>
               {plant.emotionBridge&&<p className="greenhouse-emotion-bridge"><Leaf size={16}/><span>{plant.emotionBridge}</span></p>}
-              <h3>{hasReflection?'이 식물에 남긴 마음':'이 식물을 보며 가장 먼저 떠오른 감정은 무엇인가요?'}</h3>
-              {hasReflection
-                ?<div className="greenhouse-existing-reflection"><Sparkles size={16}/><div><small>저장된 마음 기록</small><strong>{existing?.reflectionTitle??`${existing?.selectedEmotion}이 머문 마음`}</strong><p>{existing?.shortReflection??existing?.userAnswer??existing?.reasonText}</p></div></div>
-                :existing&&<p className="greenhouse-saved-note"><Check size={14}/> 발견은 도감에 저장되어 있어요. 원하면 마음 기록을 더할 수 있어요.</p>}
+              {existing&&<p className="greenhouse-saved-note"><Check size={14}/> 도감과 마이홈 정원에 기록된 식물이에요. 지금까지 {existing.discoveryCount??1}번 발견했어요.</p>}
             </div>
-          </div>:<section className="greenhouse-reflection">
-            <header><span style={{background:plant.fallbackColor}}>🌱</span><div><small>AI와 한 번 기록 · 100자 이내</small><h2>{plant.displayName}의 마음 기록</h2></div></header>
-            <div className="greenhouse-ai-question"><Sparkles size={18}/><div><small>{plant.displayName}의 질문</small><h3>{greenhouseReflectionQuestion(plant)}</h3></div></div>
-            <p>정답은 없어요. 가장 먼저 떠오른 생각이나 느낌을 짧게 적어주세요.</p>
-            <label className="greenhouse-reflection-input">
-              <span className="sr-only">{plant.displayName}을 보며 떠오른 마음</span>
-              <textarea
-                maxLength={100}
-                value={reflectionAnswer}
-                disabled={reflectionLoading}
-                onChange={event=>{setReflectionAnswer(event.target.value);setReflectionResult(null);setReflectionError('')}}
-                onKeyDown={event=>event.stopPropagation()}
-                onKeyUp={event=>event.stopPropagation()}
-                placeholder="예: 햇빛을 받아 따뜻해 보이고, 새로운 일이 시작될 것 같아요."
-                autoFocus
-              />
-              <small>{reflectionAnswer.length} / 100</small>
-            </label>
-            {reflectionLoading&&<div className="greenhouse-reflection-analyzing" role="status"><i/><span><b>마음을 살펴보고 있어요</b><small>답변에서 감정과 그 이유, 기록 성향을 정리하는 중이에요.</small></span></div>}
-            {reflectionResult&&!reflectionLoading&&<div className="greenhouse-selection-response greenhouse-ai-reflection-result"><Sparkles size={16}/><div><small>AI가 발견한 마음</small><strong>{reflectionResult.reflectionTitle}</strong><p>{reflectionResult.shortReflection}</p></div></div>}
-            {reflectionError&&<p className="greenhouse-reflection-error">{reflectionError}</p>}
-          </section>}
+          </div>
           <div className="greenhouse-actions">
-            <button type="button" onClick={()=>recordStep==='observe'?close():setRecordStep('observe')}>{recordStep==='observe'?'닫기':'이전'}</button>
-            {recordStep==='observe'&&completion.count>=3&&!existing&&<button type="button" className="greenhouse-discovery-only" onClick={saveDiscoveryOnly}>발견만 저장하기</button>}
-            {recordStep==='observe'&&hasReflection
-              ?<button className="greenhouse-remove-reflection" type="button" onClick={deletePlantReflection}><Trash2 size={16}/>마음 기록 삭제하기</button>
-              :recordStep==='observe'?<button className="greenhouse-primary greenhouse-save-button" type="button" disabled={loadingMessage} onClick={()=>{setReflectionResult(null);setReflectionError('');setRecordStep('answer')}}>AI와 마음 기록하기</button>
-              :<button className="greenhouse-primary" type="button" disabled={reflectionAnswer.trim().length<2||reflectionLoading} onClick={()=>void analyzeAndSavePlant()}>{reflectionLoading?'분석하고 저장하는 중…':'이 마음 기록하기'}</button>}
+            <button type="button" onClick={close}>닫기</button>
+            <button className="greenhouse-primary greenhouse-save-button" type="button" disabled={loadingMessage} onClick={()=>void saveDiscoveryOnly()}>{existing?'한 번 더 발견하기':'식물도감에 추가하기'}</button>
           </div>
           {lightboxIndex!==null&&plantGallery(plant)[lightboxIndex]&&<div className="greenhouse-lightbox" role="dialog" aria-modal="true" aria-label={`${plant.displayName} 사진 확대 보기`} onMouseDown={event=>{if(event.target===event.currentTarget)setLightboxIndex(null)}}>
             <button type="button" className="greenhouse-lightbox-close" onClick={()=>setLightboxIndex(null)} aria-label="확대 보기 닫기"><X/></button>
@@ -372,32 +280,30 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
             {plantGallery(plant).length>1&&<><button type="button" className="greenhouse-lightbox-prev" onClick={()=>setLightboxIndex((lightboxIndex-1+plantGallery(plant).length)%plantGallery(plant).length)} aria-label="이전 사진"><ChevronLeft/></button><button type="button" className="greenhouse-lightbox-next" onClick={()=>setLightboxIndex((lightboxIndex+1)%plantGallery(plant).length)} aria-label="다음 사진"><ChevronRight/></button><span>{lightboxIndex+1} / {plantGallery(plant).length}</span></>}
           </div>}
         </>}
-        {view==='first'&&<><div className="greenhouse-hero-icon">🌱</div><small>첫 번째 AI 마음 기록</small><h2>첫 번째 마음 기록을 남겼어요</h2>{progress.collected.at(-1)?.shortReflection&&<div className="greenhouse-selection-response greenhouse-ai-reflection-result greenhouse-first-reflection"><Sparkles size={16}/><div><small>AI가 발견한 마음</small><strong>{progress.collected.at(-1)?.reflectionTitle??`${progress.collected.at(-1)?.selectedEmotion}이 머문 마음`}</strong><p>{progress.collected.at(-1)?.shortReflection}</p></div></div>}<p>짧은 답변에서 발견한 감정과 이유, 기록 성향이 원문과 함께 도감에 저장됐어요.</p><button className="greenhouse-primary" type="button" onClick={close}>다음 식물 찾기</button></>}
-        {view==='comparison'&&<><div className="greenhouse-hero-icon">🌿</div><small>두 번째 마음 기록 · 중간 발견</small><h2>두 마음의 공통점과 차이를 발견했어요</h2><p className="greenhouse-comparison-lead">아직 유형을 정하지 않고, 마음이 시작된 장면을 함께 살펴봐요.</p><div className="greenhouse-comparison-cards">{comparisonPlants.map((entry,index)=>{const item=greenhousePlantById.get(entry.plantId);return <div key={entry.plantId}><span>{index+1}</span><b>{item?.displayName}</b><em>{entry.selectedEmotion??'발견'}</em><small>{entry.reasonText}</small></div>})}</div><p className="greenhouse-comparison-summary">{compareGreenhouseRecords(comparisonPlants[0],comparisonPlants[1])}<br/>이제 한 식물만 더 기록하면 나에 대한 네 가지 발견을 만날 수 있어요.</p><button className="greenhouse-primary greenhouse-comparison-next" type="button" onClick={close}>세 번째 식물 찾기</button></>}
-        {view==='analyzing'&&<><div className="greenhouse-memory-orbit"><Leaf/><i/><i/><i/></div><small>{analysisStage}종 기록 분석</small><h2>{analysisStage===3?'나에 대한 발견을 만들고 있어요':'기존 발견을 더 선명하게 확장하고 있어요'}</h2>{reflectionResult&&<p className="greenhouse-analysis-last-reflection">“{reflectionResult.shortReflection}”</p>}<p>각 답변에서 추출한 감정·이유·기록 방식과 대표 식물 후보를 바탕으로 문장을 다듬는 중이에요.</p><div className="greenhouse-creation-steps"><span className="done"><b>1</b><em>규칙 분석 완료</em></span><i/><span className="active"><b>2</b><em>AI 문장 해석</em></span></div></>}
-        {view==='taste'&&narrative&&<><div className="greenhouse-hero-icon">✨</div><small>{progress.aiAnalysis?.stage===7?'7종 기록 · 더 선명해진 발견':'세 번째 마음 기록 · 기본 발견'}</small><h2>수목원에서 발견한 내 기록</h2><p>코드가 계산한 분석 근거를 바탕으로 기록의 의미를 자연스러운 문장으로 해석했어요.</p><span className={`greenhouse-analysis-source ${progress.aiAnalysis?.source==='ai'?'ai':'fallback'}`}>{progress.aiAnalysis?.source==='ai'?'AI 해석 결과':'안전한 기본 결과'}</span><div className="greenhouse-discoveries">
-          <article><small>01 · 내가 자주 찾는 감정</small><h3>{narrative.frequentEmotion.title}</h3><p>{narrative.frequentEmotion.description}</p></article>
-          <article><small>02 · 자연에서 중요하게 보는 가치</small><h3>{narrative.natureValue.title}</h3><p>{narrative.natureValue.description}</p></article>
-          <article><small>03 · 나의 기록 방식</small><h3>{narrative.recordStyle.title}</h3><p>{narrative.recordStyle.description}</p></article>
-          <article><small>04 · 나를 닮은 대표 식물</small><h3>{narrative.representativePlant.plantName}</h3><p>{narrative.representativePlant.reason}</p></article>
-        </div><blockquote className="greenhouse-analysis-letter"><b>기억나무 기본 편지</b>{narrative.memoryLetter}</blockquote><div className="greenhouse-seed-notice"><span>🌱</span><div><b>규칙 분석이 추천한 대표 식물을 확인해 주세요</b><small>추천을 그대로 확정하거나 다른 식물로 바꿀 수 있어요.</small></div></div><button className="greenhouse-primary greenhouse-representative-open" type="button" onClick={openRepresentative}>대표 식물 확인하기</button></>}
-        {view==='growth'&&narrative&&<><div className="greenhouse-unlock">🌳🌸</div><small>7종 탐험 달성 · 더 선명해진 발견</small><h2>기억나무에 꽃이 피었어요</h2><p>기존 결과의 핵심 방향을 유지하면서 새 기록을 반영해 문장과 편지를 확장했어요.</p><span className={`greenhouse-analysis-source ${progress.aiAnalysis?.source==='ai'?'ai':'fallback'}`}>{progress.aiAnalysis?.source==='ai'?'AI 확장 결과':'안전한 기본 확장'}</span><div className="greenhouse-growth-discoveries"><span><b>{narrative.frequentEmotion.title}</b>{narrative.frequentEmotion.description}</span><span><b>{narrative.natureValue.title}</b>{narrative.natureValue.description}</span><span><b>{narrative.recordStyle.title}</b>{narrative.recordStyle.description}</span></div><blockquote className="greenhouse-analysis-letter"><b>확장된 기억나무 편지</b>{narrative.memoryLetter}</blockquote><button className="greenhouse-primary" type="button" onClick={()=>void expandLatestMemory()}>{progress.memoryLeaves.length?'내 기억에도 반영하기':'내 기억 남기기'}</button></>}
+        {view==='analyzing'&&<><div className="greenhouse-memory-orbit"><Leaf/><i/><i/><i/></div><small>{analysisStage}종 발견 · 충녕 AI 분석</small><h2>{analysisStage===5?'첫 자연 성향을 발견하고 있어요':analysisStage===10?'성장한 탐험 프로필을 만들고 있어요':'완성된 자연 성향을 정리하고 있어요'}</h2><p>발견한 식물의 특징과 꽃말, 살펴본 시간과 반복 발견 기록을 바탕으로 자연 취향을 분석하는 중이에요.</p><div className="greenhouse-creation-steps"><span className="done"><b>1</b><em>탐험 데이터 정리</em></span><i/><span className="active"><b>2</b><em>충녕 AI 분석</em></span></div></>}
+        {view==='taste'&&narrative&&<><div className="greenhouse-hero-icon">🌱</div><small>5종 발견 · 기억나무 새싹 단계</small><h2>충녕 AI가 첫 자연 성향을 발견했어요</h2><p>질문에 답하지 않아도 식물의 특징·꽃말과 탐험 행동을 바탕으로 분석했어요.</p><span className={`greenhouse-analysis-source ${progress.aiAnalysis?.source==='ai'?'ai':'fallback'}`}>{progress.aiAnalysis?.source==='ai'?'충녕 AI 분석 결과':'안전한 기본 분석'}</span><div className="greenhouse-discoveries">
+          <article><small>01 · 자연 성향</small><h3>{narrative.frequentEmotion.title}</h3><p>{narrative.frequentEmotion.description}</p></article>
+          <article><small>02 · 선호 꽃말</small><h3>{narrative.natureValue.title}</h3><p>{narrative.natureValue.description}</p></article>
+          <article><small>03 · 자연·힐링 성향</small><h3>{narrative.recordStyle.title}</h3><p>{narrative.recordStyle.description}</p></article>
+          <article><small>04 · 다음 성장</small><h3>10종 발견까지 5종 남았어요</h3><p>새로운 식물을 더 발견하면 성장 단계 분석이 열려요.</p></article>
+        </div><blockquote className="greenhouse-analysis-letter"><b>충녕 AI의 첫 탐험 요약</b>{narrative.memoryLetter}</blockquote><div className="greenhouse-seed-notice"><span>🌱</span><div><b>자연 취향 프로필이 업데이트됐어요</b><small>이 기록은 기억나무 성장과 정부청사 AI 코스 추천에 이어서 활용돼요.</small></div></div><button className="greenhouse-primary greenhouse-representative-open" type="button" onClick={()=>setView('book')}>다음 식물 찾기</button></>}
+        {view==='growth'&&narrative&&<><div className="greenhouse-unlock">🌿</div><small>10종 발견 · 기억나무 성장 단계</small><h2>탐험 프로필이 더 선명해졌어요</h2><p>최근 발견과 반복 관찰 기록을 반영해 자연·탐험 성향을 확장했어요.</p><span className={`greenhouse-analysis-source ${progress.aiAnalysis?.source==='ai'?'ai':'fallback'}`}>{progress.aiAnalysis?.source==='ai'?'충녕 AI 성장 분석':'안전한 기본 분석'}</span><div className="greenhouse-growth-discoveries"><span><b>자연 ★★★★★</b>{narrative.frequentEmotion.description}</span><span><b>탐험 ★★★☆☆</b>{narrative.natureValue.description}</span><span><b>{narrative.recordStyle.title}</b>{narrative.recordStyle.description}</span></div><blockquote className="greenhouse-analysis-letter"><b>10종 탐험 프로필 요약</b>{narrative.memoryLetter}</blockquote><button className="greenhouse-primary" type="button" onClick={()=>setView('book')}>14종 완성에 도전하기</button></>}
         {view==='book'&&<><header className="greenhouse-book-head greenhouse-book-head-simple"><div><small>수목원 식물 기록</small><h2>식물도감</h2></div><strong>{completion.count} / {completion.total}</strong></header><div className="greenhouse-progress"><i style={{width:`${completion.ratio*100}%`}}/></div>
-          {recordUpdateNotice&&<button type="button" className="greenhouse-update-notice" onClick={()=>setRecordUpdateNotice(false)}><Sparkles size={15}/>새로운 기록을 반영해 ‘내 기록’이 조금 더 선명해졌어요.<X size={13}/></button>}
-          <div className="greenhouse-book-next"><span>{completion.complete?'✨':needsRepresentative?'🌱':'🍃'}</span><div><small>다음 목표</small><b>{completion.complete?'14종 기록을 모두 완성했어요':needsRepresentative?'대표 식물을 선택해 주세요':`${nextGoal}까지 ${nextTarget-completion.count}종 남았어요`}</b></div><strong>{completion.complete?'완료':needsRepresentative?'선택':`${completion.count}/${nextTarget}`}</strong></div>
+          {recordUpdateNotice&&<button type="button" className="greenhouse-update-notice" onClick={()=>setRecordUpdateNotice(false)}><Sparkles size={15}/>도감과 마이홈 정원에 발견 기록을 반영했어요.<X size={13}/></button>}
+          <div className="greenhouse-book-next"><span>{completion.complete?'🌳':completion.blooming?'🌿':'🌱'}</span><div><small>다음 성장 목표</small><b>{completion.complete?'14종 발견 · 기억나무를 완성했어요':`${nextGoal}까지 ${nextTarget-completion.count}종 남았어요`}</b></div><strong>{completion.complete?'완료':`${completion.count}/${nextTarget}`}</strong></div>
           <div className="greenhouse-book-highlights">
-            {completion.analysisUnlocked&&narrative?<section className="greenhouse-nature-result greenhouse-book-result"><Sparkles/><div><small>나의 발견 · {progress.aiAnalysis?.source==='ai'?'AI 해석':'기본 결과'}</small><h3>{narrative.frequentEmotion.title}</h3><button type="button" onClick={()=>setView('taste')}>발견 보기</button></div></section>:<section className="greenhouse-analysis-locked"><Lock size={16}/><span>{Math.max(0,3-completion.count)}종을 더 기록하면 내 발견이 열려요.</span></section>}
-            {completion.representativeUnlocked&&<section className="greenhouse-representative-summary greenhouse-book-representative"><div><small>대표 식물</small><b>{progress.representativePlant?greenhousePlantById.get(progress.representativePlant.plantId)?.displayName:'아직 선택하지 않았어요'}</b></div><button type="button" onClick={openRepresentative}>{progress.representativePlant?'변경':'선택'}</button></section>}
+            {completion.analysisUnlocked&&narrative?<section className="greenhouse-nature-result greenhouse-book-result"><Sparkles/><div><small>충녕 AI · {progress.aiAnalysis?.stage??5}종 분석</small><h3>{narrative.frequentEmotion.title}</h3><button type="button" onClick={()=>setView(progress.aiAnalysis?.stage===14?'complete':(progress.aiAnalysis?.stage??5)>=10?'growth':'taste')}>분석 보기</button></div></section>:<section className="greenhouse-analysis-locked"><Lock size={16}/><span>{Math.max(0,5-completion.count)}종을 더 발견하면 충녕 AI 분석이 열려요.</span></section>}
+            {completion.representativeUnlocked&&<section className="greenhouse-representative-summary greenhouse-book-representative"><div><small>대표 식물 · 정부청사 AI 추천 연계</small><b>{progress.representativePlant?greenhousePlantById.get(progress.representativePlant.plantId)?.displayName:'완성 분석을 준비하고 있어요'}</b></div><button type="button" onClick={openRepresentative}>{progress.representativePlant?'보기':'확인'}</button></section>}
           </div>
-          <div className="greenhouse-filters">{(['all','flower','tree'] as const).map(value=><button type="button" className={filter===value?'active':''} onClick={()=>setFilter(value)} key={value}>{value==='all'?'전체':value==='flower'?'꽃':'나무'}</button>)}</div><div className="greenhouse-grid greenhouse-book-grid">{visiblePlants.map(item=>{const saved=progress.collected.find(entry=>entry.plantId===item.id);return <button type="button" key={item.id} className={saved?'collected':'locked'} onClick={()=>saved&&void observePlant(item.id)}><span style={saved?{background:item.fallbackColor}:undefined}>{saved?'🌱':'?'}</span><div><small>{item.category==='flower'?'꽃':'나무'}</small><b>{saved?item.displayName:'아직 발견 전'}</b>{saved&&<em>{saved.selectedEmotion??'마음 기록'}</em>}</div>{saved?<Check size={16}/>:<Lock size={14}/>}</button>})}</div></>}
-        {view==='representative'&&<><div className="greenhouse-hero-icon">🌱</div><small>네 번째 발견 · 나를 닮은 대표 식물</small><h2>추천 식물을 확인해 주세요</h2><p>기록한 감정·이유·기록 방식을 바탕으로 추천했어요. 다른 식물을 고르면 설명도 함께 달라져요.</p><div className="greenhouse-representative-grid">{progress.collected.filter(entry=>entry.selectedEmotion).map(entry=>{const item=greenhousePlantById.get(entry.plantId);if(!item)return null;const recommended=entry.plantId===recommendRepresentativePlant(progress.collected,discoveries);return <button type="button" key={entry.plantId} className={representativeId===entry.plantId?'active':''} onClick={()=>{setRepresentativeId(entry.plantId);setRepresentativeMemo(representativePlantExplanation(entry.plantId,discoveries))}}><span style={{background:item.fallbackColor}}>🌱</span><b>{item.displayName}</b><small>{recommended?'규칙 분석 추천':entry.selectedEmotion}</small>{representativeId===entry.plantId&&<Check size={15}/>}</button>})}</div><div className="greenhouse-representative-reason"><b>이 식물이 나와 닮은 이유</b><p>{representativeId===narrative?.representativePlant.plantId?narrative.representativePlant.reason:representativeId?representativePlantExplanation(representativeId,discoveries):''}</p></div><div className="greenhouse-actions greenhouse-representative-actions"><button type="button" onClick={()=>setView('book')}>나중에 확정</button><button className="greenhouse-primary" type="button" disabled={!representativeId} onClick={saveRepresentative}>대표 식물 확정하기</button></div></>}
-        {view==='memory'&&<><div className={`greenhouse-memory-symbol ${completion.unlocked?'awake':''} ${completion.complete?'radiant':completion.blooming?'blooming':'sprout'}`}>{completion.complete?'✨🌳✨':completion.blooming?'🌳🌸':'🌱'}</div><small>{completion.complete?'기억나무 3단계 · 완전 탐험':completion.blooming?'기억나무 2단계 해금':completion.unlocked?'기억나무 1단계 해금':'발견할수록 함께 성장하는 기억나무'}</small><h2>{completion.complete?'완전히 빛나는 기억나무':completion.blooming?'꽃이 핀 기억나무':'새싹 기억나무'}</h2>{!completion.unlocked?<>{completion.count<3?<><p>식물 3종에서 AI 질문에 짧게 답하면 내 기록이 열려요.</p><div className="greenhouse-locked-progress"><Lock/><b>{completion.count} / 3</b><span>개의 마음 기록을 모았어요.</span></div><button className="greenhouse-primary" type="button" onClick={()=>setView('book')}>식물도감 확인하기</button></>:<><p>추천된 대표 식물을 확인하면 새싹 기억나무가 깨어나요.</p><button className="greenhouse-primary" type="button" onClick={openRepresentative}>대표 식물 확인하기</button></>}</>:<>
+          <div className="greenhouse-filters">{(['all','flower','tree'] as const).map(value=><button type="button" className={filter===value?'active':''} onClick={()=>setFilter(value)} key={value}>{value==='all'?'전체':value==='flower'?'꽃':'나무'}</button>)}</div><div className="greenhouse-grid greenhouse-book-grid">{visiblePlants.map(item=>{const saved=progress.collected.find(entry=>entry.plantId===item.id);return <button type="button" key={item.id} className={saved?'collected':'locked'} onClick={()=>saved&&void observePlant(item.id)}><span style={saved?{background:item.fallbackColor}:undefined}>{saved?'🌱':'?'}</span><div><small>{item.category==='flower'?'꽃':'나무'}</small><b>{saved?item.displayName:'아직 발견 전'}</b>{saved&&<em>발견 {saved.discoveryCount??1}회</em>}</div>{saved?<Check size={16}/>:<Lock size={14}/>}</button>})}</div></>}
+        {view==='representative'&&<><div className="greenhouse-hero-icon">🌸</div><small>14종 발견 · 충녕 AI 대표 식물</small><h2>당신의 대표 식물을 선정했어요</h2><p>전체 탐험 기록과 반복 발견, 오래 살펴본 식물을 바탕으로 선정했어요. 이 결과는 정부청사 AI 맞춤 코스 추천에 활용돼요.</p><div className="greenhouse-representative-grid">{progress.collected.filter(entry=>entry.selectedEmotion).map(entry=>{const item=greenhousePlantById.get(entry.plantId);if(!item)return null;const recommended=entry.plantId===recommendRepresentativePlant(progress.collected,discoveries);return <button type="button" key={entry.plantId} className={representativeId===entry.plantId?'active':''} onClick={()=>{setRepresentativeId(entry.plantId);setRepresentativeMemo(representativePlantExplanation(entry.plantId,discoveries))}}><span style={{background:item.fallbackColor}}>🌱</span><b>{item.displayName}</b><small>{recommended?'충녕 AI 선정':`발견 ${entry.discoveryCount??1}회`}</small>{representativeId===entry.plantId&&<Check size={15}/>}</button>})}</div><div className="greenhouse-representative-reason"><b>이 식물이 나와 닮은 이유</b><p>{representativeId===narrative?.representativePlant.plantId?narrative.representativePlant.reason:representativeId?representativePlantExplanation(representativeId,discoveries):''}</p></div><div className="greenhouse-actions greenhouse-representative-actions"><button type="button" onClick={()=>setView('book')}>도감으로 돌아가기</button><button className="greenhouse-primary" type="button" disabled={!representativeId} onClick={saveRepresentative}>대표 식물로 저장하기</button></div></>}
+        {view==='memory'&&<><div className={`greenhouse-memory-symbol ${completion.unlocked?'awake':''} ${completion.complete?'radiant':completion.blooming?'blooming':'sprout'}`}>{completion.complete?'✨🌳✨':completion.blooming?'🌿':completion.unlocked?'🌱':'🔒'}</div><small>{completion.complete?'기억나무 3단계 · 완성':completion.blooming?'기억나무 2단계 · 성장':completion.unlocked?'기억나무 1단계 · 새싹':'발견할수록 함께 성장하는 기억나무'}</small><h2>{completion.complete?'완성된 기억나무':completion.blooming?'성장한 기억나무':completion.unlocked?'새싹 기억나무':'아직 잠든 기억나무'}</h2>{!completion.unlocked?<><p>식물을 발견할수록 기억나무가 자라요. 성장 단계마다 충녕 AI가 탐험 데이터를 분석해 자연 취향을 프로필에 저장합니다.</p><div className="greenhouse-locked-progress"><Lock/><b>{completion.count} / 5</b><span>5종 발견 시 새싹 단계가 열려요.</span></div><button className="greenhouse-primary" type="button" onClick={()=>setView('book')}>식물도감 확인하기</button></>:<>
           {memoryStep==='write'&&!selectedLeaf&&!selectedPublicMemory&&<nav className="greenhouse-memory-audience-tabs" aria-label="기억나무 보기">
             <button type="button" className={memoryArea==='mine'?'active':''} onClick={()=>setMemoryArea('mine')}>🌱 내 기억</button>
             <button type="button" className={memoryArea==='community'?'active':''} onClick={()=>setMemoryArea('community')}>🌳 모두의 기억 <small>{publicMemories.length}</small></button>
           </nav>}
           {memoryStep==='write'&&memoryArea==='mine'&&<section className="greenhouse-memory-write">
-            {narrative&&<blockquote className="greenhouse-analysis-letter"><b>{completion.complete?'14종 기록으로 완성된 편지':progress.aiAnalysis?.stage===7?'7종 기록으로 확장된 편지':'세 기록으로 만든 기본 편지'}</b>{completionStory?.finalLetter??narrative.memoryLetter}</blockquote>}
+            {narrative&&<blockquote className="greenhouse-analysis-letter"><b>{completion.complete?'14종 발견으로 완성된 탐험 요약':progress.aiAnalysis?.stage===10?'10종 성장 분석':'5종 새싹 분석'}</b>{completionStory?.finalLetter??narrative.memoryLetter}</blockquote>}
             <div className="greenhouse-memory-write-head"><span>✍️</span><div><small>STEP 1 · 오늘의 마음</small><h3>기억하고 싶은 이야기를 적어주세요</h3></div></div>
             <div className="greenhouse-memory-tabs">{Object.keys(memoryPlaceholders).map(item=><button type="button" className={memoryType===item?'active':''} onClick={()=>setMemoryType(item)} key={item}>{item}</button>)}</div>
             <textarea maxLength={500} value={memoryText} onChange={event=>setMemoryText(event.target.value)} onKeyDown={event=>event.stopPropagation()} onKeyUp={event=>event.stopPropagation()} placeholder={memoryPlaceholders[memoryType]}/>
@@ -432,7 +338,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
             <button className="greenhouse-primary greenhouse-letter-return" type="button" onClick={()=>setSelectedPublicMemory(null)}>모두의 기억으로 돌아가기</button>
           </div>}
         </>}</>}
-        {view==='complete'&&completionStory&&<><div className="greenhouse-completion-burst" aria-hidden="true">{Array.from({length:12},(_,index)=><i key={index}>✦</i>)}</div><div className="greenhouse-unlock greenhouse-final-tree">✨🌳✨</div><small>14종 완전 탐험 달성 · 기억나무 완성</small><h2>나의 자연 기록이 완성됐어요</h2><div className="greenhouse-completion-journey">{completionStory.stages.map(stage=><span key={stage.count}><b>{stage.count}종</b><small>{stage.label}</small><strong>{stage.emotion}</strong></span>)}</div><blockquote className="greenhouse-analysis-letter greenhouse-final-letter"><b>최종 완성 편지</b>{completionStory.finalLetter}</blockquote><section className="greenhouse-nature-declaration"><small>나의 자연 선언문</small><strong>“{completionStory.declaration}”</strong><em>🏅 14종 완전 탐험</em></section><button className="greenhouse-primary" type="button" onClick={openMemoryTree}>완성된 기억나무 확인하기</button></>}
+        {view==='complete'&&completionStory&&<><div className="greenhouse-completion-burst" aria-hidden="true">{Array.from({length:12},(_,index)=><i key={index}>✦</i>)}</div><div className="greenhouse-unlock greenhouse-final-tree">✨🌳✨</div><small>14종 완전 탐험 달성 · 기억나무 완성</small><h2>충녕 AI가 당신의 자연 성향을 완성했어요</h2><div className="greenhouse-completion-journey">{completionStory.stages.map(stage=><span key={stage.count}><b>{stage.count}종</b><small>{stage.label}</small><strong>{stage.emotion}</strong></span>)}</div><blockquote className="greenhouse-analysis-letter greenhouse-final-letter"><b>최종 탐험 분석</b>{completionStory.finalLetter}</blockquote><section className="greenhouse-nature-declaration"><small>대표 식물 · {progress.representativePlant?greenhousePlantById.get(progress.representativePlant.plantId)?.displayName:'선정 중'}</small><strong>“{completionStory.declaration}”</strong><em>정부청사 AI 맞춤 코스 추천의 핵심 데이터로 저장됐어요.</em></section><button className="greenhouse-primary" type="button" onClick={openMemoryTree}>완성된 기억나무 확인하기</button></>}
       </div>
     </section>}
   </div>

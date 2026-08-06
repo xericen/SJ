@@ -3,7 +3,7 @@ import {existsSync,readFileSync} from 'node:fs';
 import test from 'node:test';
 import {parseArtsCenterFavorites,toggleArtsCenterFavorite} from '../src/game/artsCenterFavorites';
 import {ARTS_CENTER_PERFORMANCES,artsCenterPerformanceImageUrl} from '../src/game/artsCenterPerformances';
-import {loadPerformanceSourcePreview,renderPerformanceReaderDocument} from '../src/services/foodSourcePreview';
+import {loadPerformanceSourcePreview,renderPerformanceReaderDocument,renderPerformanceSummaryDocument} from '../src/services/foodSourcePreview';
 
 test('5개 공연은 공식 페이지 원본 이미지의 로컬 사본을 사용한다',()=>{
   assert.equal(ARTS_CENTER_PERFORMANCES.length,5);
@@ -22,7 +22,8 @@ test('클릭 전 3D 포스터 캔버스를 클릭 후 HTML 포스터가 그대�
   assert.doesNotMatch(component,/arts-center-object-badge/);
   assert.match(component,/className="arts-center-poster-detail"/);
   assert.match(component,/loadPerformanceSourcePreview\(performance\.detailUrl\)/);
-  assert.match(component,/<iframe srcDoc=\{detailPreview\?\.html\} sandbox=""/);
+  assert.match(component,/<iframe srcDoc=\{detailPreview\?\.html\?\?performanceSummaryHtml\} sandbox=""/);
+  assert.doesNotMatch(component,/공식 공연 정보를 준비하고 있어요/);
   assert.doesNotMatch(component,/<iframe src=\{performance\.detailUrl\}/);
   assert.doesNotMatch(component,/새 창/);
   assert.doesNotMatch(component,/target="_blank"/);
@@ -32,6 +33,17 @@ test('클릭 전 3D 포스터 캔버스를 클릭 후 HTML 포스터가 그대�
   assert.match(renderer,/▶  영상 선택/);
   assert.match(renderer,/♡  관심 있어요/);
   assert.match(renderer,/ⓘ  자세히 보기/);
+});
+
+test('공연 상세는 네트워크 응답 전에도 공식 포스터와 기본 정보를 즉시 표시한다',()=>{
+  const performance=ARTS_CENTER_PERFORMANCES[0];
+  const html=renderPerformanceSummaryDocument(performance,performance.image);
+  assert.match(html,new RegExp(performance.title.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+  assert.match(html,/공연 일정/);
+  assert.match(html,/관람 등급/);
+  assert.match(html,/러닝타임/);
+  assert.match(html,/공연 포스터/);
+  assert.doesNotMatch(html,/준비하고 있어요|loading|spinner/i);
 });
 
 test('공식 공연 상세는 외부 스크립트를 실행하지 않는 읽기 전용 HTML을 사용한다',()=>{

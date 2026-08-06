@@ -29,6 +29,7 @@
     "test:personal-farm-portals": "tsx --test scripts/personalFarmPortals.test.ts",
     "test:camera-follow": "tsx --test scripts/cameraFollow.test.ts",
     "test:world-navigation": "tsx --test scripts/worldNavigationConsistency.test.ts",
+    "test:world-camera-editor": "tsx --test scripts/worldCameraEditor.test.ts",
     "test:postmessage": "tsx --test scripts/postMessageOrigins.test.ts",
     "test:runtime-entry": "tsx --test scripts/runtimeEntry.test.ts",
     "test:runtime-warnings": "tsx --test scripts/runtimeWarnings.test.ts",

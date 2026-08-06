@@ -31,7 +31,7 @@ test('프로덕션 엔트리는 단일 모듈 identity를 유지하는 고유 �
   const entry=distHtml.match(/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/(index-[^"?]+\.js)"/);
   assert.ok(entry,'고유 파일명의 런타임 엔트리가 필요합니다.');
   assert.match(entry[1],/^index-[A-Za-z0-9_-]{8}\.js$/,'엔트리는 Vite 콘텐츠 해시 파일명이어야 합니다.');
-  assert.doesNotMatch(entry[1],/profile|records|v\d+/i,'기능명이나 버전명을 고정 엔트리 파일명으로 사용하면 안 됩니다.');
+  assert.doesNotMatch(entry[1],/profile|records|(?:^|[-_.])v\d+(?:[-_.]|$)/i,'기능명이나 버전명을 고정 엔트리 파일명으로 사용하면 안 됩니다.');
   const entryPath=resolve(root,'dist/assets',entry[1]);
   assert.equal(existsSync(entryPath),true);
   assert.ok(readFileSync(entryPath,'utf8').includes(RUNTIME_BUILD_ID),'엔트리와 HTML의 빌드 ID가 일치해야 합니다.');

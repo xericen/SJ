@@ -7,7 +7,7 @@ export const WORLD_GUIDE_MAP_IDS=[
   'government','government-central-plaza','government-observatory','sejong-smart-city',
 ] as const satisfies readonly MapId[];
 
-export const AUTHORED_CAMERA_MAP_IDS=['town','bear-tree-park'] as const satisfies readonly MapId[];
+export const AUTHORED_CAMERA_MAP_IDS=['town','garden'] as const satisfies readonly MapId[];
 const authoredCameraMapIds=new Set<MapId>(AUTHORED_CAMERA_MAP_IDS);
 export const UNIFIED_WORLD_MAP_IDS=WORLD_GUIDE_MAP_IDS.filter(mapId=>!authoredCameraMapIds.has(mapId));
 
@@ -36,7 +36,12 @@ export const personalFarmCameraDistance=(interior:boolean)=>interior
   :PERSONAL_FARM_CAMERA_PROFILE.outdoorDistance;
 
 export const CAMPUS_NAVIGATION_PROFILE={
-  cameraDistance:1150,
+  cameraDistance:800,
+  characterHeight:80,
+} as const;
+
+export const BEAR_TREE_NAVIGATION_PROFILE={
+  cameraDistance:1000,
   characterHeight:80,
 } as const;
 
@@ -44,7 +49,7 @@ export const GOVERNMENT_NAVIGATION_PROFILE={
   characterHeight:94,
 } as const;
 
-export const SHOWCASE_WORLD_CAMERA_DISTANCE=1400;
+export const SHOWCASE_WORLD_CAMERA_DISTANCE=1550;
 const showcaseWorldMapIds=new Set<MapId>(['arts-center','festival-experience','food-experience']);
 
 const unifiedWorldMapIds=new Set<MapId>(UNIFIED_WORLD_MAP_IDS);
@@ -58,11 +63,15 @@ export function applyUnifiedWorldCamera<T extends object>(options:T,mapId?:MapId
       ?PERSONAL_FARM_CAMERA_PROFILE.outdoorDistance
       :mapId==='campus'
         ?CAMPUS_NAVIGATION_PROFILE.cameraDistance
+      :mapId==='bear-tree-park'
+        ?BEAR_TREE_NAVIGATION_PROFILE.cameraDistance
       :mapId&&showcaseWorldMapIds.has(mapId)
         ?SHOWCASE_WORLD_CAMERA_DISTANCE
       :SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.camera.cameraDistance,
     characterHeight:mapId==='campus'
       ?CAMPUS_NAVIGATION_PROFILE.characterHeight
+      :mapId==='bear-tree-park'
+        ?BEAR_TREE_NAVIGATION_PROFILE.characterHeight
       :mapId==='government'
         ?GOVERNMENT_NAVIGATION_PROFILE.characterHeight
       :SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.character.height,

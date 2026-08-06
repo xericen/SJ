@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,statSync} from 'node:fs';
 import test from 'node:test';
 import {WORLD_PORTAL_DEFAULTS} from '../shared/world-portals';
 import {RoomStore} from '../server/src/rooms/roomStore';
@@ -10,6 +10,10 @@ const expected=[
   {mapId:'bear-tree-park',destination:'town',x:1185,z:1616},
   {mapId:'bear-tree-park',destination:'garden',x:767,z:751},
   {mapId:'bear-tree-park',destination:'bear-play-zone',x:1482,z:661},
+] as const;
+const expectedGarden=[
+  {mapId:'garden',destination:'bear-tree-park',x:1218,z:1585},
+  {mapId:'garden',destination:'personal-farm',x:1196,z:258},
 ] as const;
 const read=(path:string)=>readFileSync(new URL(path,import.meta.url),'utf8');
 
@@ -22,7 +26,28 @@ test('베어트리파크 포탈 3개는 요청자가 확정한 공용 좌표를 
   });
 });
 
-test('베어트리파크에서 수목원으로 이동하면 귀환 포탈 아래쪽에 도착한다',()=>{
+test('베어트리파크의 곰 체험소 포탈은 실제 GLB를 선로딩하고 수락될 때까지 이동을 재시도한다',()=>{
+  const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
+  const canvas=read('../src/game/GameCanvas.tsx');
+  const bearPlayZoneAsset=new URL('../src/assets/maps/park-landscape.glb',import.meta.url);
+  const bearPlayZoneOptions=renderer.slice(
+    renderer.indexOf('export const BEAR_PLAY_ZONE_RENDERER_OPTIONS'),
+    renderer.indexOf('const PERSONAL_FARM_COLLIDER_PREFIXES'),
+  );
+
+  assert.ok(statSync(bearPlayZoneAsset).size>5_000_000);
+  assert.match(renderer,/import bearPlayZoneModelUrl from '\.\.\/\.\.\/assets\/maps\/park-landscape\.glb\?url'/);
+  assert.match(bearPlayZoneOptions,/modelUrl:bearPlayZoneModelUrl/);
+  assert.match(renderer,/export const preloadBearPlayZoneDownload=/);
+  assert.match(canvas,/mapId==='bear-tree-park'\?'bear-play-zone':'bear-tree-park'/);
+  assert.match(canvas,/target==='bear-play-zone'\?preloadBearPlayZoneDownload:preloadBearTreeParkDownload/);
+  assert.match(renderer,/private interactionTravelGate=new PortalTravelGate\(\)/);
+  assert.match(renderer,/this\.interactionTravelGate\.update\(performance\.now\(\),chargeDuration,accept=>/);
+  assert.match(renderer,/gameEvents\.emit\('travel-to-map',this\.options\.interaction!\.destination,accept\)/);
+  assert.match(renderer,/if\(this\.options\.interaction\?\.destination===mapId\)this\.resetInteractionCharge\(\)/);
+});
+
+test('베어트리파크에서 수목원으로 이동하면 귀환 포탈에서 떨어진 안전 보행로에 도착한다',()=>{
   const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
   const worldScene=read('../src/game/scenes/WorldScene.ts');
   const gardenOptions=renderer.slice(
@@ -33,7 +58,7 @@ test('베어트리파크에서 수목원으로 이동하면 귀환 포탈 아래
 
   assert.deepEqual(arrival,BEAR_TREE_TO_GARDEN_ARRIVAL);
   assert.deepEqual(arrival,{x:1200,z:1400,yaw:0});
-  assert.equal(arrival.z>WORLD_GUIDE_PORTAL_POSITIONS.garden.z,true);
+  assert.ok(Math.hypot(arrival.x-WORLD_GUIDE_PORTAL_POSITIONS.garden.x,arrival.z-WORLD_GUIDE_PORTAL_POSITIONS.garden.z)>=140);
   assert.equal(worldPortalArrivalOverride('town','garden'),undefined);
   assert.match(gardenOptions,/destination:'bear-tree-park'[\s\S]*?arrivalDirection:\{x:0,z:1\}/);
   assert.match(worldScene,/const routeArrival=worldPortalArrivalOverride\(sourceMapId,mapId\)/);
@@ -72,6 +97,53 @@ test('수목원은 선명한 식생과 입체감을 위한 기본 렌더링 품�
   assert.match(options,/lowQualityFallback:\{maxTextureSize:512,performancePixelRatio:\.75,performanceFrameRate:30,balancedTextureQuality:false\}/);
 });
 
+test('수목원 카메라는 세종호수공원과 같은 각도·거리·줌을 사용한다',()=>{
+  const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
+  const options=renderer.slice(renderer.indexOf('export const GARDEN_RENDERER_OPTIONS'),renderer.indexOf('export const CAMPUS_RENDERER_OPTIONS'));
+
+  assert.match(options,/perspectiveCamera:false/);
+  assert.match(options,/cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG/);
+  assert.match(options,/cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE/);
+  assert.match(options,/cameraZoom:LAKE_PARK_CAMERA_ZOOM/);
+  assert.doesNotMatch(options,/cameraFollowBounds|cameraTargetHeight|cameraFov/);
+});
+
+test('수목원 포탈 2개는 요청자가 확정한 공용 좌표를 사용하고 위치 편집을 허용하지 않는다',()=>{
+  assert.deepEqual(WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='garden'),expectedGarden);
+  assert.deepEqual(WORLD_GUIDE_PORTAL_POSITIONS.garden,{x:1218,z:1585});
+
+  const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
+  const gardenOptions=renderer.slice(renderer.indexOf('export const GARDEN_RENDERER_OPTIONS'),renderer.indexOf('export const CAMPUS_RENDERER_OPTIONS'));
+  assert.match(gardenOptions,/x:1218,[\s\S]*?z:1585,[\s\S]*?destination:'bear-tree-park'/);
+  assert.match(gardenOptions,/x:1196,[\s\S]*?z:258,[\s\S]*?destination:'personal-farm'/);
+  assert.doesNotMatch(gardenOptions,/positionEditable:true/);
+  assert.match(renderer,/position\.mapId==='campus'\|\|position\.mapId==='garden'/);
+  assert.match(renderer,/!mapId\|\|mapId==='garden'\|\|!this\.getPortalDestinations/);
+
+  const page=read('../src/pages/GamePage.tsx');
+  const canvas=read('../src/game/GameCanvas.tsx');
+  assert.match(page,/\['bear-tree-park','personal-farm','garden','campus','recruitment-center','project-room'\]/);
+  assert.match(page,/\['town','personal-farm','garden','campus','arts-center'/);
+  assert.match(canvas,/if\(activeMapId==='garden'\)return/);
+
+  const store=new RoomStore();
+  for(const position of expectedGarden){
+    assert.equal(store.setPortalPosition({...position,x:position.x+100,z:position.z+100}),false);
+    assert.deepEqual(store.portalPositions.get(`${position.mapId}:${position.destination}`),position);
+  }
+
+  const socketHandlers=read('../server/src/socket/registerSocketHandlers.ts');
+  const serverModel=read('../server/src/models/WorldPortalPosition.ts');
+  const wizApi=read('../../src/app/page.home/api.py');
+  assert.match(socketHandlers,/position\.mapId==='campus'\|\|position\.mapId==='garden'/);
+  assert.match(serverModel,/fixedGardenPortals/);
+  assert.match(wizApi,/"garden",[\s\S]*?CANONICAL_WORLD_PORTAL_KEYS/);
+  expectedGarden.forEach(({destination,x,z})=>{
+    assert.match(wizApi,new RegExp(`\\("garden", "${destination}", ${x}, ${z}\\)`));
+    assert.match(wizApi,new RegExp(`\\("garden", "${destination}"\\),`));
+  });
+});
+
 test('실시간 서버는 베어트리파크 포탈 위치 변경을 거부한다',()=>{
   const store=new RoomStore();
   expected.forEach(position=>{
@@ -90,7 +162,7 @@ test('React와 WIZ의 편집 UI·저장 API가 베어트리파크 포탈을 고�
   const wizApi=read('../../src/app/page.home/api.py');
 
   assert.doesNotMatch(page,/bear-tree-portal-place-at-player/);
-  assert.match(page,/!\['bear-tree-park','personal-farm','campus','recruitment-center','project-room'\]\.includes\(currentMapId\)/);
+  assert.match(page,/!\['bear-tree-park','personal-farm','garden','campus','recruitment-center','project-room'\]\.includes\(currentMapId\)/);
   assert.match(renderer,/position\.mapId==='bear-tree-park'/);
   assert.match(socketHandlers,/position\.mapId==='bear-tree-park'/);
   assert.match(serverModel,/fixedBearTreePortals/);

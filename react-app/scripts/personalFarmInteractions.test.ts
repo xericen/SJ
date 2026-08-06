@@ -84,8 +84,9 @@ test('마이홈 정원 버튼 대신 정원 현황을 상단 메뉴 위치에 �
   assert.doesNotMatch(page,/className="is-current"[^>]*>[^<]*<span[^>]*>🌿<\/span> 마이홈 정원/);
   assert.match(page,/맵 이동/);
   assert.match(farmProgress,/personal-farm-reward-status"><b>마이홈 정원 현황<\/b>/);
-  assert.match(pageCss,/\.personal-farm-top-actions\{position:fixed;[^}]*right:20px[^}]*top:20px[^}]*width:190px[^}]*display:grid/);
-  assert.match(pageCss,/grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(pageCss,/\.game-page>\.personal-farm-top-actions\{position:fixed;[^}]*inset:20px 20px auto auto[^}]*width:auto[^}]*display:flex[^}]*flex-direction:row[^}]*flex-wrap:nowrap/);
+  assert.match(pageCss,/\.game-page>\.personal-farm-top-actions>button\{position:static;width:82px;min-width:82px[^}]*flex:0 0 82px/);
+  assert.match(pageCss,/\.game-page>\.personal-farm-top-actions>button:first-child\{width:96px;min-width:96px;flex-basis:96px\}/);
   assert.match(farmCss,/\.personal-farm-reward-status\{[^}]*right:218px[^}]*top:20px[^}]*max-width:calc\(100vw - 238px\)[^}]*min-height:42px[^}]*flex-wrap:nowrap/);
   assert.match(farmCss,/@media\(max-width:800px\)[\s\S]*\.personal-farm-reward-status\{[^}]*top:12px/);
 });

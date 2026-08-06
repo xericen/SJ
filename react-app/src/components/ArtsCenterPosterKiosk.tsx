@@ -1,15 +1,15 @@
 import {useEffect,useState} from 'react';
 import {ArrowLeft,Check,Heart,Info,Play,X} from 'lucide-react';
 import {ARTS_CENTER_FAVORITES_STORAGE_KEY,parseArtsCenterFavorites,toggleArtsCenterFavorite} from '../game/artsCenterFavorites';
-import {ARTS_CENTER_PERFORMANCES} from '../game/artsCenterPerformances';
+import {ARTS_CENTER_PERFORMANCES,artsCenterPerformanceImageUrl} from '../game/artsCenterPerformances';
 import {gameEvents} from '../game/events';
-import {loadPerformanceSourcePreview} from '../services/foodSourcePreview';
+import {loadPerformanceSourcePreview,renderPerformanceSummaryDocument} from '../services/foodSourcePreview';
 import {recordExperienceAction} from '../services/experienceHarness';
 import './ArtsCenterPosterKiosk.css';
 
 type PosterFocus={active:boolean;index:number;ready:boolean;posterDataUrl?:string};
 type PosterRect={left:number;top:number;width:number;height:number};
-type DetailPreview={html?:string;loading:boolean;error?:string}|null;
+type DetailPreview={html:string}|null;
 
 export function ArtsCenterPosterKiosk(){
   const [focus,setFocus]=useState<PosterFocus>({active:false,index:0,ready:false});
@@ -25,17 +25,16 @@ export function ArtsCenterPosterKiosk(){
     return()=>{gameEvents.off('arts-center-poster-focus-mode-changed',changed);gameEvents.off('arts-center-poster-screen-rect',rectChanged)};
   },[]);
   const performance=ARTS_CENTER_PERFORMANCES[Math.max(0,Math.min(ARTS_CENTER_PERFORMANCES.length-1,focus.index))];
+  const performanceSummaryHtml=renderPerformanceSummaryDocument(performance,artsCenterPerformanceImageUrl(performance));
   useEffect(()=>{
     if(!detailOpen){setDetailPreview(null);return}
     let active=true;
-    setDetailPreview({loading:true});
+    setDetailPreview({html:performanceSummaryHtml});
     void loadPerformanceSourcePreview(performance.detailUrl).then(preview=>{
-      if(active)setDetailPreview({loading:false,html:preview.html});
-    }).catch(error=>{
-      if(active)setDetailPreview({loading:false,error:error instanceof Error?error.message:'공연 상세 정보를 불러오지 못했어요.'});
-    });
+      if(active)setDetailPreview({html:preview.html});
+    }).catch(()=>undefined);
     return()=>{active=false};
-  },[detailOpen,performance.detailUrl]);
+  },[detailOpen,performance.detailUrl,performanceSummaryHtml]);
   if(!focus.active)return null;
   const closePoster=(event:React.MouseEvent<HTMLButtonElement>)=>{
     event.preventDefault();
@@ -72,11 +71,7 @@ export function ArtsCenterPosterKiosk(){
           <strong>자세히 보기</strong>
           <button type="button" className="arts-center-web-detail-close" onPointerDown={stopPointer} onClick={closePoster} aria-label="상세 화면 닫기"><X/></button>
         </header>
-        {detailPreview?.loading
-          ?<div className="arts-center-web-detail-state"><span/><b>공식 공연 정보를 준비하고 있어요</b></div>
-          :detailPreview?.error
-            ?<div className="arts-center-web-detail-state is-error"><Info/><b>공연 정보를 불러오지 못했어요</b><p>{detailPreview.error}</p></div>
-            :<iframe srcDoc={detailPreview?.html} sandbox="" title={`${performance.title} 공식 상세 페이지`} referrerPolicy="no-referrer"/>}
+        <iframe srcDoc={detailPreview?.html??performanceSummaryHtml} sandbox="" title={`${performance.title} 공식 상세 페이지`} referrerPolicy="no-referrer"/>
       </section>}
     </article>}
   </div>;

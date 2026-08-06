@@ -218,3 +218,15 @@
 | 2026-08-06 | 046 | 축제 스탬프 실제 높이에 맞춰 현재 활동 패널 동적 연결 | [상세](devlog/2026-08-06/046-festival-dynamic-hud-stack.md) |
 | 2026-08-06 | 047 | 예술의전당·축제·먹거리 부스 카메라 거리 소폭 확대 | [상세](devlog/2026-08-06/047-increase-showcase-camera-distance.md) |
 | 2026-08-06 | 048 | 원격 수목원·베어트리파크 미션 선택 병합 및 MySQL·WIZ 연동 | [상세](devlog/2026-08-06/048-merge-garden-bear-tree-upstream.md) |
+| 2026-08-06 | 049 | 공동캠퍼스 카메라 거리 1000 적용 | [상세](devlog/2026-08-06/049-campus-camera-distance-1000.md) |
+| 2026-08-06 | 050 | 세 체험 맵 카메라 거리 1550 및 공연 상세 즉시 표시 | [상세](devlog/2026-08-06/050-camera-1550-instant-arts-detail.md) |
+| 2026-08-06 | 051 | 수목원 카메라를 세종호수공원 각도·거리로 통일 | [상세](devlog/2026-08-06/051-garden-lake-camera.md) |
+| 2026-08-06 | 052 | 수목원 마이홈·베어트리파크 포탈 공용 좌표 고정 | [상세](devlog/2026-08-06/052-freeze-garden-portals.md) |
+| 2026-08-06 | 053 | 베어트리파크 곰 체험소 GLB 이동 연결 복구 | [상세](devlog/2026-08-06/053-fix-bear-play-zone-link.md) |
+| 2026-08-06 | 054 | 베어트리파크 공동캠퍼스형 추적 카메라 적용 | [상세](devlog/2026-08-06/054-bear-tree-dynamic-follow-camera.md) |
+| 2026-08-06 | 055 | 공동캠퍼스 카메라 800 및 편집형 정부청사 포탈 추가 | [상세](devlog/2026-08-06/055-campus-government-portal.md) |
+| 2026-08-06 | 056 | 17개 맵 권한형 카메라 편집 바 및 공용 프로필 저장 | [상세](devlog/2026-08-06/056-world-camera-editor.md) |
+| 2026-08-06 | 057 | 공동캠퍼스 정부청사 포탈 요청자 좌표 고정 및 편집 제거 | [상세](devlog/2026-08-06/057-freeze-campus-government-portal.md) |
+| 2026-08-06 | 058 | 정부청사 이동 렉 개선 및 공동캠퍼스 포탈 편집 허용 | [상세](devlog/2026-08-06/058-government-performance-campus-portal.md) |
+| 2026-08-06 | 059 | 마이홈 맵 이동·나가기 버튼 우측 상단 가로 정렬 | [상세](devlog/2026-08-06/059-my-home-actions-horizontal.md) |
+| 2026-08-06 | 060 | 누적 해커톤 기능·MySQL 구성 문서화 및 GitHub 공개 배포 | [상세](devlog/2026-08-06/060-publish-hackathon-release.md) |

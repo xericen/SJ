@@ -7,7 +7,7 @@ import type { UserProfile } from '../types';
 import { LakeParkExperiences } from '../components/LakeParkExperiences';
 import { GreenhouseExperience } from '../components/GreenhouseExperience';
 import { NatureDiscoveryGuide } from '../components/NatureDiscoveryGuide';
-import { BEAR_PLAY_ZONE_RENDERER_OPTIONS,BEAR_TREE_PARK_RENDERER_OPTIONS,CAMPUS_RENDERER_OPTIONS,CLUB_STREET_FESTIVAL_RENDERER_OPTIONS,FESTIVAL_EXPERIENCE_RENDERER_OPTIONS,FOOD_EXPERIENCE_RENDERER_OPTIONS,GARDEN_RENDERER_OPTIONS,GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS,GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS,GOVERNMENT_RENDERER_OPTIONS,LAKE_PARK_RENDERER_OPTIONS,LAKE_PARK_SPAWN,PERSONAL_FARM_RENDERER_OPTIONS,preloadBearTreeParkDownload,PROJECT_ROOM_RENDERER_OPTIONS,RECRUITMENT_CENTER_RENDERER_OPTIONS,SEJONG_ARTS_CENTER_RENDERER_OPTIONS,SEJONG_SMART_CITY_RENDERER_OPTIONS,STUDENT_HALL_RENDERER_OPTIONS,VillageMapRenderer,WORLD_RENDERER_LAYOUT_TOKEN } from './renderers/VillageMapRenderer';
+import { BEAR_PLAY_ZONE_RENDERER_OPTIONS,BEAR_TREE_PARK_RENDERER_OPTIONS,CAMPUS_RENDERER_OPTIONS,CLUB_STREET_FESTIVAL_RENDERER_OPTIONS,FESTIVAL_EXPERIENCE_RENDERER_OPTIONS,FOOD_EXPERIENCE_RENDERER_OPTIONS,GARDEN_RENDERER_OPTIONS,GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS,GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS,GOVERNMENT_RENDERER_OPTIONS,LAKE_PARK_RENDERER_OPTIONS,LAKE_PARK_SPAWN,PERSONAL_FARM_RENDERER_OPTIONS,preloadBearPlayZoneDownload,preloadBearTreeParkDownload,PROJECT_ROOM_RENDERER_OPTIONS,RECRUITMENT_CENTER_RENDERER_OPTIONS,SEJONG_ARTS_CENTER_RENDERER_OPTIONS,SEJONG_SMART_CITY_RENDERER_OPTIONS,STUDENT_HALL_RENDERER_OPTIONS,VillageMapRenderer,WORLD_RENDERER_LAYOUT_TOKEN } from './renderers/VillageMapRenderer';
 import type { MapId,PortalPosition,PortalSaveResult,RespawnPosition } from '../../shared/socket-events';
 import { buildExperienceRecommendationProfile,recordMapExperience } from '../services/experienceRecommendationProfile';
 import type { GameReturnState } from './gameReturnState';
@@ -17,6 +17,7 @@ import {loadSharedWorldPortalState,saveSharedWorldPortalPosition} from '../servi
 import {PersonalFarmProgressExperience} from '../components/PersonalFarmProgressExperience';
 import {PERSONAL_FARM_PROGRESS_CHANGED,refreshPersonalFarmProgress,setPersonalFarmProgressUser} from '../services/personalFarmApi';
 import {applyUnifiedWorldCamera,usesUnifiedWorldNavigation} from './worldNavigationProfile';
+import {loadSharedWorldCameraProfiles,type WorldCameraProfile} from '../services/worldCameraProfiles';
 
 const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;description:string;tasks:string[]}>>={
   'bear-play-zone':{place:'곰 체험소',title:'곰 체험소로 이동 중...',description:'곰 체험소 공간을 자유롭게 둘러볼 수 있도록 준비하고 있어요.',tasks:['곰 체험소 입구 확인','체험소 공간 불러오기','캐릭터 배치','곰 조형물 배치','베어트리파크 귀환 포털 연결']},
@@ -83,18 +84,32 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     let cancelled=false,mapTravelActive=false,gardenReleaseTimer=0;
     const experienceHarness=previewOnly?undefined:new ExperienceHarnessCollector(profile.nickname);
     if(!previewOnly)void hydrateGeneratedExperienceProfile(profile.nickname);
-    const preloadIdleHandles:number[]=[];
+    const preloadIdleHandles:number[]=[],queuedBearMapPreloads=new Set<'bear-tree-park'|'bear-play-zone'>();
     const initialMapId=returnState?.mapId??('mapId' in entrySpawn?entrySpawn.mapId:'town'),initialOptions=rendererOptionsFor(initialMapId);
     experienceHarness?.enter(initialMapId);
     const previewOptions={hideCharacters:true,previewNavigation:true,previewDragRotate,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
     const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,mapId:initialMapId,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
-    let latestPortalPositions:PortalPosition[]=[],activeMapId=initialMapId;
+    let latestPortalPositions:PortalPosition[]=[],activeMapId=initialMapId,latestCameraProfiles=new Map<MapId,WorldCameraProfile>();
+    const preloadConnectedBearMap=(mapId:MapId)=>{
+      const target=mapId==='bear-tree-park'?'bear-play-zone':'bear-tree-park';
+      if(queuedBearMapPreloads.has(target))return;
+      queuedBearMapPreloads.add(target);
+      const preload=target==='bear-play-zone'?preloadBearPlayZoneDownload:preloadBearTreeParkDownload;
+      preloadIdleHandles.push(window.requestIdleCallback(()=>{
+        if(cancelled)return;
+        void preload().catch(error=>{
+          queuedBearMapPreloads.delete(target);
+          console.warn(`[${target} preload] download failed`,error);
+        });
+      },{timeout:1800}));
+    };
     const ensureWorldRenderer=(mapId:MapId)=>{
       const existing=worldRenderers[mapId];if(existing)return existing;
       const options=rendererOptionsFor(mapId);
       if(!options)return;
       const renderer=new VillageMapRenderer(ref.current!,profile,{...options,mapId,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
+      const cameraProfile=latestCameraProfiles.get(mapId);if(cameraProfile)renderer.applyWorldCameraProfile(cameraProfile);
       latestPortalPositions.filter(position=>position.mapId===mapId).forEach(position=>renderer.setPortalPosition(position));
       return renderer;
     };
@@ -112,7 +127,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
         },160);
       }
     };
-    const hideMapTravelLoading=(mapId?:MapId)=>{if(mapId)setLoadingMapId(mapId);if(!mapTravelActive)return;mapTravelActive=false;setLoading(false)};
+    const hideMapTravelLoading=(mapId?:MapId)=>{if(mapId){setLoadingMapId(mapId);preloadConnectedBearMap(mapId)}if(!mapTravelActive)return;mapTravelActive=false;setLoading(false)};
     const showMapTravelError=({message}:{message:string})=>{if(!mapTravelActive)return;mapTravelActive=false;setLoadError(message);setLoading(false)};
     gameEvents.on('map-travel-started',showMapTravelLoading);
     gameEvents.on('map-travel-complete',hideMapTravelLoading);
@@ -120,18 +135,23 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     void (initialRenderer?.ready??Promise.resolve()).then(()=>{
       if(cancelled)return;
       setLoading(false);
-      const preloadNextMap=()=>{
-        if(cancelled)return;
-        void preloadBearTreeParkDownload().catch(error=>console.warn('[bear tree park preload] download failed',error));
-      };
-      preloadIdleHandles.push(window.requestIdleCallback(preloadNextMap,{timeout:1800}));
+      preloadConnectedBearMap(initialMapId);
+      gameEvents.emit('world-camera-profile-ready',initialMapId);
     }).catch(error=>{if(!cancelled)setLoadError(error instanceof Error?error.message:String(error))});
     const syncWorldClock=(serverNow:number)=>Object.values(worldRenderers).forEach(renderer=>renderer?.setWorldClock(serverNow));
     const syncPortalPositions=(positions:PortalPosition[])=>{
       latestPortalPositions=positions;
       positions.forEach(position=>worldRenderers[position.mapId]?.setPortalPosition(position));
     };
+    const syncCameraProfiles=(profiles:WorldCameraProfile[])=>{
+      latestCameraProfiles=new Map(profiles.map(profile=>[profile.mapId,profile]));
+      Object.entries(worldRenderers).forEach(([mapId,renderer])=>{const cameraProfile=latestCameraProfiles.get(mapId as MapId);if(renderer&&cameraProfile)renderer.applyWorldCameraProfile(cameraProfile)});
+    };
+    const previewCameraProfile=(cameraProfile:WorldCameraProfile)=>{latestCameraProfiles.set(cameraProfile.mapId,cameraProfile);worldRenderers[cameraProfile.mapId]?.applyWorldCameraProfile(cameraProfile)};
+    const resetCameraProfile=(mapId:MapId)=>{latestCameraProfiles.delete(mapId);worldRenderers[mapId]?.resetWorldCameraProfile()};
+    const requestCameraProfile=(mapId:MapId,reply:(profile?:WorldCameraProfile)=>void)=>reply(worldRenderers[mapId]?.getWorldCameraProfile());
     const placeWorldPortal=(destination:MapId)=>{
+      if(activeMapId==='garden')return;
       const position=worldRenderers[activeMapId]?.placePortalAtPlayer(destination);
       if(!position)return;
       void saveSharedWorldPortalPosition(position).then(result=>{
@@ -170,11 +190,16 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
         renderer.destroy();
         delete worldRenderers[storedMapId as MapId];
       });
+      void worldRenderers[mapId]?.ready.then(()=>{if(!cancelled)gameEvents.emit('world-camera-profile-ready',mapId)});
     };
     let sharedPortalTimer=0;
     const refreshSharedPortals=()=>{void loadSharedWorldPortalState().then(({positions})=>{if(!cancelled&&positions.length)syncPortalPositions(positions)}).catch(()=>undefined)};
     if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('portalPositionsUpdated',syncPortalPositions);refreshSharedPortals();sharedPortalTimer=window.setInterval(refreshSharedPortals,2500)}
     gameEvents.on('world-portal-place-at-player',placeWorldPortal);
+    gameEvents.on('world-camera-profile-preview',previewCameraProfile);
+    gameEvents.on('world-camera-profile-reset',resetCameraProfile);
+    gameEvents.on('world-camera-profile-request',requestCameraProfile);
+    if(!previewOnly)void loadSharedWorldCameraProfiles().then(({profiles})=>{if(!cancelled)syncCameraProfiles(profiles)}).catch(()=>undefined);
     if(!previewOnly){
       socket.once('currentMapUsers',enrich);
       window.addEventListener('sejong-lake-interest-updated',experienceChanged);
@@ -194,6 +219,9 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       socket.off('worldClock',syncWorldClock);
       socket.off('portalPositionsUpdated',syncPortalPositions);
       gameEvents.off('world-portal-place-at-player',placeWorldPortal);
+      gameEvents.off('world-camera-profile-preview',previewCameraProfile);
+      gameEvents.off('world-camera-profile-reset',resetCameraProfile);
+      gameEvents.off('world-camera-profile-request',requestCameraProfile);
       socket.off('currentMapUsers',enrich);
       window.removeEventListener('sejong-lake-interest-updated',experienceChanged);
       window.removeEventListener('sejong-experience-profile-updated',experienceChanged);

@@ -18,6 +18,22 @@ AVATAR_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 AVATAR_TEXT_FIELDS = ("faceId", "hairStyleId", "topId", "bottomId", "shoesId")
 AVATAR_COLOR_FIELDS = ("hairColor", "skinColor", "topColor", "bottomColor", "shoesColor")
 WORLD_PORTAL_LAYOUT_ID = "shared-world-portals-v1"
+WORLD_CAMERA_LAYOUT_ID = "shared-world-camera-profiles-v1"
+WORLD_CAMERA_MAP_IDS = {
+    "personal-farm", "town", "arts-center", "festival-experience",
+    "food-experience", "club-street-festival", "bear-tree-park",
+    "bear-play-zone", "garden", "campus", "student-hall",
+    "recruitment-center", "project-room", "government",
+    "government-central-plaza", "government-observatory", "sejong-smart-city",
+}
+WORLD_CAMERA_FIELD_LIMITS = {
+    "characterHeight": (60, 220),
+    "cameraElevationDeg": (15, 65),
+    "cameraAzimuthDeg": (-180, 180),
+    "cameraDistance": (500, 2400),
+    "cameraTargetHeight": (0, 300),
+    "cameraFov": (30, 70),
+}
 WORLD_PORTAL_DEFAULTS = (
     ("town", "bear-tree-park", 2122, 944),
     ("town", "campus", 1178, 122),
@@ -32,8 +48,8 @@ WORLD_PORTAL_DEFAULTS = (
     ("bear-tree-park", "garden", 767, 751),
     ("bear-tree-park", "bear-play-zone", 1482, 661),
     ("bear-play-zone", "bear-tree-park", 1200, 1650),
-    ("garden", "bear-tree-park", 1200, 1260),
-    ("garden", "personal-farm", 1840, 1130),
+    ("garden", "bear-tree-park", 1218, 1585),
+    ("garden", "personal-farm", 1196, 258),
     ("personal-farm", "town", 1960, 1580),
     ("personal-farm", "bear-tree-park", 1780, 1510),
     ("personal-farm", "garden", 500, 1510),
@@ -42,6 +58,7 @@ WORLD_PORTAL_DEFAULTS = (
     ("campus", "club-street-festival", 1537, 499),
     ("campus", "recruitment-center", 817, 1318),
     ("campus", "project-room", 1590, 1543),
+    ("campus", "government", 368, 899),
     ("student-hall", "campus", 1200, 1660),
     ("recruitment-center", "campus", 1200, 2014),
     ("project-room", "campus", 1220, 2050),
@@ -60,6 +77,7 @@ FROZEN_WORLD_PORTAL_MAPS = {
     "arts-center",
     "festival-experience",
     "food-experience",
+    "garden",
 }
 CANONICAL_WORLD_PORTAL_KEYS = {
     ("club-street-festival", "campus"),
@@ -68,7 +86,7 @@ CANONICAL_WORLD_PORTAL_KEYS = {
     ("campus", "club-street-festival"),
     ("campus", "recruitment-center"),
     ("campus", "project-room"),
-    ("government", "campus"),
+    ("campus", "government"),
     ("recruitment-center", "campus"),
     ("project-room", "campus"),
     ("arts-center", "town"),
@@ -77,6 +95,8 @@ CANONICAL_WORLD_PORTAL_KEYS = {
     ("bear-tree-park", "town"),
     ("bear-tree-park", "garden"),
     ("bear-tree-park", "bear-play-zone"),
+    ("garden", "bear-tree-park"),
+    ("garden", "personal-farm"),
 }
 FOOD_SOURCE_PREVIEW_HOSTS = {
     "www.diningcode.com",
@@ -655,6 +675,18 @@ def _saved_world_portals(db):
 
 
 def portal_positions():
+    payload = wiz.request.query("payload", "")
+    if isinstance(payload, dict):
+        routed_payload = payload
+    else:
+        try:
+            routed_payload = json.loads(payload) if payload else None
+        except (TypeError, ValueError, json.JSONDecodeError):
+            routed_payload = None
+    if isinstance(routed_payload, dict) and routed_payload.get("resource") == "worldCameraProfiles":
+        camera_payload = routed_payload.get("profile")
+        serialized_camera_payload = "" if camera_payload is None else json.dumps(camera_payload, ensure_ascii=False)
+        return camera_profiles(serialized_camera_payload)
     source_preview_url = wiz.request.query("foodSourceUrl", "").strip()
     if source_preview_url:
         return _food_source_preview_response(source_preview_url)
@@ -665,8 +697,6 @@ def portal_positions():
     db = struct.db("world_portal_layout")
     db.orm.create_table(safe=True)
     editor = _world_portal_editor()
-    payload = wiz.request.query("payload", "")
-
     if not payload:
         return wiz.response.status(
             200,
@@ -730,6 +760,83 @@ def portal_positions():
         canEdit=True,
         message="모든 사용자에게 적용되는 포탈 위치로 저장했어요.",
     )
+
+
+def _saved_world_camera_profiles(db):
+    record = db.get(id=WORLD_CAMERA_LAYOUT_ID)
+    if record is None:
+        return []
+    try:
+        profiles = json.loads(record.get("payload") or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    if not isinstance(profiles, list):
+        return []
+    valid = {}
+    for profile in profiles:
+        if not isinstance(profile, dict) or profile.get("mapId") not in WORLD_CAMERA_MAP_IDS:
+            continue
+        normalized = {"mapId": profile["mapId"]}
+        for field, limits in WORLD_CAMERA_FIELD_LIMITS.items():
+            value = profile.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not limits[0] <= value <= limits[1]:
+                normalized = None
+                break
+            normalized[field] = round(value, 2)
+        if normalized is not None:
+            valid[normalized["mapId"]] = normalized
+    return list(valid.values())
+
+
+def camera_profiles(payload=None):
+    db = struct.db("world_camera_profiles")
+    db.orm.create_table(safe=True)
+    editor = _world_portal_editor()
+    if payload is None:
+        payload = wiz.request.query("payload", "")
+    profiles = _saved_world_camera_profiles(db)
+
+    if not payload:
+        return wiz.response.status(200, profiles=profiles, canEdit=editor is not None)
+    if editor is None:
+        return wiz.response.status(403, message="카메라 설정을 변경할 권한이 없어요.")
+
+    try:
+        candidate = json.loads(payload)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return wiz.response.status(400, message="카메라 설정 값이 올바르지 않아요.")
+    if not isinstance(candidate, dict) or candidate.get("mapId") not in WORLD_CAMERA_MAP_IDS:
+        return wiz.response.status(400, message="카메라 설정 맵이 올바르지 않아요.")
+
+    map_id = candidate["mapId"]
+    normalized = None
+    if candidate.get("reset") is True:
+        profiles = [item for item in profiles if item["mapId"] != map_id]
+        message = "이 맵의 기본 카메라 설정으로 되돌렸어요."
+    else:
+        normalized = {"mapId": map_id}
+        for field, limits in WORLD_CAMERA_FIELD_LIMITS.items():
+            value = candidate.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not limits[0] <= value <= limits[1]:
+                return wiz.response.status(400, message="카메라 설정 범위를 확인해 주세요.")
+            normalized[field] = round(value, 2)
+        profiles = [normalized if item["mapId"] == map_id else item for item in profiles]
+        if not any(item["mapId"] == map_id for item in profiles):
+            profiles.append(normalized)
+        message = "모든 사용자에게 적용되는 카메라 설정으로 저장했어요."
+
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    record = db.get(id=WORLD_CAMERA_LAYOUT_ID)
+    values = {
+        "payload": json.dumps(profiles, ensure_ascii=False, separators=(",", ":")),
+        "updated_by": editor["id"],
+        "updated": now,
+    }
+    if record is None:
+        db.insert({"id": WORLD_CAMERA_LAYOUT_ID, "created": now, **values})
+    else:
+        db.update(values, id=WORLD_CAMERA_LAYOUT_ID)
+    return wiz.response.status(200, profile=normalized, profiles=profiles, canEdit=True, message=message)
 
 
 def _validated_avatar():

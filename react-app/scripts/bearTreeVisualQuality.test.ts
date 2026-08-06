@@ -22,8 +22,8 @@ test('베어트리파크는 선명한 화면을 위한 렌더링 품질을 고�
   assert.doesNotMatch(bearTree,/maxTextureSize:512|performancePixelRatio:\.75/);
 });
 
-test('베어트리파크 이름표는 멀어진 카메라 배율만큼 확대해 가독성을 유지한다',()=>{
-  assert.match(bearTree,/nameplateScale:BEAR_TREE_PARK_CAMERA_DISTANCE_MULTIPLIER/);
+test('베어트리파크는 캐릭터를 줄여도 이름표 가독성을 유지한다',()=>{
+  assert.match(bearTree,/nameplateScale:1\.25/);
   assert.match(renderer,/\*this\.nameplateScale/);
   assert.match(renderer,/options\.nameplateScale\?\?1/);
 });

@@ -30,5 +30,5 @@ test('공동캠퍼스 맵은 가까이 보이고 캐릭터는 공통 맵보다 �
   assert.equal(options.characterHeight,CAMPUS_NAVIGATION_PROFILE.characterHeight);
   assert.equal(options.cameraDistance,CAMPUS_NAVIGATION_PROFILE.cameraDistance);
   assert.ok(options.characterHeight<94);
-  assert.ok(options.cameraDistance<1250);
+  assert.equal(options.cameraDistance,800);
 });

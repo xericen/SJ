@@ -56,9 +56,10 @@ import { LAKE_PARK_PORTALS } from '../lakeParkPortals';
 import { CAMPUS_FEATURE_PORTALS,CAMPUS_FEATURE_PORTAL_DESTINATIONS,type CampusFeaturePortalConfig } from '../campusFeaturePortals';
 import { isPortalChargePositionHeld,PortalTravelGate } from '../portalTravelGate';
 import { ARTS_CENTER_CHARACTER_FOOT_LIFT,ARTS_CENTER_MAX_JUMP_STEP_HEIGHT,characterVisualY,DEFAULT_MAX_STEP_HEIGHT,isGroundFootprintCoherent,JUMP_COLLISION_CLEARANCE,reachableStepHeight } from '../groundTraversal';
-import { BEAR_TREE_PARK_CAMERA_DISTANCE_MULTIPLIER,BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,BEAR_TREE_PARK_CAMERA_ZOOM,BEAR_TREE_PARK_FOLLOW_CAMERA_DISTANCE,clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
+import { clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
 import { DEFAULT_BEAR_PHOTO_PORTAL_POSITION } from '../bearPhotoZonePosition';
 import {personalFarmCameraDistance} from '../worldNavigationProfile';
+import type {WorldCameraProfile} from '../../services/worldCameraProfiles';
 
 const WORLD_WIDTH=2400;
 const WORLD_HEIGHT=1900;
@@ -120,6 +121,7 @@ function preloadWorldMapDownload(url:string,label:string){
 }
 export const preloadCampusDownload=()=>preloadWorldMapDownload(campusModelUrl,'Campus');
 export const preloadBearTreeParkDownload=()=>preloadWorldMapDownload(bearTreeParkModelUrl,'Bear Tree Park');
+export const preloadBearPlayZoneDownload=()=>preloadWorldMapDownload(bearPlayZoneModelUrl,'Bear Play Zone');
 export const LAKE_PARK_SPAWN:{x:number;z:number;yaw:number}={...FIXED_LAKE_RESPAWN};
 export const BEAR_TREE_PARK_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1610,yaw:Math.PI};
 export const BEAR_PLAY_ZONE_SPAWN:{x:number;z:number;yaw:number}={x:1200,z:1570,yaw:Math.PI};
@@ -367,8 +369,7 @@ export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
     {id:'BEAR_FEED_SPOT_04',x:1120,z:980},{id:'BEAR_FEED_SPOT_05',x:820,z:1080},
   ],
   bearFeedingAnchor:{x:1250,z:1120,radius:150},
-  perspectiveCamera:false,cameraZoom:BEAR_TREE_PARK_CAMERA_ZOOM,cameraDistance:BEAR_TREE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:BEAR_TREE_PARK_CAMERA_ELEVATION_DEG,characterHeight:150,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
-  nameplateScale:BEAR_TREE_PARK_CAMERA_DISTANCE_MULTIPLIER,
+  nameplateScale:1.25,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
   lightingIntensityMultiplier:.76,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
   performancePixelRatio:1.25,simplifiedCollision:false,bearPhotoZone:true,bearCollisionRadius:72,
 };
@@ -404,12 +405,12 @@ export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:gardenModelUrl,
   mapName:'수목원',
   spawn:GARDEN_SPAWN,
-  perspectiveCamera:true,
-  cameraElevationDeg:35,
-  cameraDistance:1080,
-  cameraFov:45,
-  cameraTargetHeight:110,
-  cameraFollowBounds:{minX:360,maxX:2040,minZ:260,maxZ:1510},
+  // Match the lake park's higher, steadier overview so the central memory
+  // tree does not block the garden paths in front of the character.
+  perspectiveCamera:false,
+  cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG,
+  cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,
+  cameraZoom:LAKE_PARK_CAMERA_ZOOM,
   characterHeight:140,
   groundFillColor:0xdfe3c4,
   sceneBackgroundColor:'#b8d9c3',
@@ -427,7 +428,8 @@ export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
   lightingIntensityMultiplier:1.02,
   lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.75,performanceFrameRate:30,balancedTextureQuality:false},
   fixedPortals:[{
-    ...WORLD_GUIDE_PORTAL_POSITIONS.garden,
+    x:1218,
+    z:1585,
     destination:'bear-tree-park',
     label:'베어트리파크',
     appearance:'white-circle',
@@ -435,8 +437,8 @@ export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
     chargeSeconds:3,
     arrivalDirection:{x:0,z:1},
   },{
-    x:1840,
-    z:1130,
+    x:1196,
+    z:258,
     destination:'personal-farm',
     label:'마이홈으로 이동',
     appearance:'white-circle',
@@ -449,6 +451,7 @@ export const CAMPUS_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapName:'공동캠퍼스',
   spawn:CAMPUS_SPAWN,
   portal:{...WORLD_GUIDE_PORTAL_POSITIONS.campus,destination:'town',label:'세종호수공원',theme:'blue',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
+  fixedPortals:[{x:368,z:899,destination:'government',label:'정부청사',appearance:'standing',theme:'blue',chargeSeconds:3,activationRadius:140,fixedPosition:true,sharedPosition:false}],
   campusFeaturePortals:CAMPUS_FEATURE_PORTALS.map(config=>({...config})),
   // Preserve the authored campus perspective. The orthographic overview made
   // the buildings look flattened and exposed too much of the bright ground.
@@ -602,7 +605,7 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:governmentModelUrl,
   mapName:'정부청사',
   spawn:GOVERNMENT_SPAWN,
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',theme:'orange',fixedPosition:true,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',theme:'orange',fixedPosition:false,sharedPosition:true,positionEditable:true},
   fixedPortals:[
     {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'standing',theme:'blue',fixedPosition:false,sharedPosition:true,positionEditable:true},
     {x:1680,z:1010,destination:'government-observatory',label:'전망대',appearance:'standing',theme:'orange',fixedPosition:false,sharedPosition:true,positionEditable:true},
@@ -612,8 +615,13 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraZoom:1.05,
   characterHeight:CHARACTER_HEIGHT,
   performanceMode:true,
+  performanceFrameRate:60,
+  minPixelRatio:.65,
+  performancePixelRatio:.9,
   balancedTextureQuality:true,
-  performancePixelRatio:1.1,
+  simplifiedCollision:true,
+  fastGroundSampling:true,
+  lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.7,performanceFrameRate:30,balancedTextureQuality:false},
 };
 export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:governmentCentralPlazaModelUrl,
@@ -1366,6 +1374,11 @@ class WorldCharacter{
 
   setNameplateVisible(visible:boolean){this.nameplate.visible=visible}
 
+  setHeight(height:number){
+    if(!Number.isFinite(height)||height<=0||Math.abs(height-this.height)<.001)return;
+    this.root.scale.multiplyScalar(height/this.height);this.height=height;
+  }
+
   setPhotoPose(active:boolean){
     if(!this.photoAction)return;
     this.photoPoseActive=active;
@@ -1413,6 +1426,8 @@ export class VillageMapRenderer{
   private raycaster=new THREE.Raycaster();
   private bodyRaycaster=new THREE.Raycaster();
   private localCharacter:WorldCharacter;
+  private authoredCameraProfile:WorldCameraProfile;
+  private cameraProfileOverride?:WorldCameraProfile;
   private guideNpc?:WorldCharacter;
   private guideNpcPosition=new THREE.Vector3();
   private readonly guideNpcUprightNormal=new THREE.Vector3(0,1,0);
@@ -1444,8 +1459,7 @@ export class VillageMapRenderer{
   private portalTravelGate=new PortalTravelGate();
   private interactionNearby=false;
   private interactionEntryArmed=true;
-  private interactionChargeSeconds=0;
-  private interactionTravelTriggered=false;
+  private interactionTravelGate=new PortalTravelGate();
   private interactionPosition?:{x:number;z:number};
   private interactionRoot?:THREE.Group;
   private lakeExperienceNearby?:LakeExperienceId;
@@ -1626,6 +1640,15 @@ export class VillageMapRenderer{
     const lowEndDevice=(navigator.hardwareConcurrency>0&&navigator.hardwareConcurrency<=4)||(navigatorWithMemory.deviceMemory!==undefined&&navigatorWithMemory.deviceMemory<=4);
     const qualityOverride=lowEndDevice&&options.lowQualityFallback?options.lowQualityFallback:{};
     options=this.options={...options,...qualityOverride,wildlifeClues:options.wildlifeClues?.map(config=>({...config}))};
+    this.authoredCameraProfile={
+      mapId:options.mapId??'town',
+      characterHeight:options.characterHeight??CHARACTER_HEIGHT,
+      cameraElevationDeg:options.cameraElevationDeg??33,
+      cameraAzimuthDeg:options.cameraAzimuthDeg??0,
+      cameraDistance:options.personalFarm?personalFarmCameraDistance(false):(options.cameraDistance??CAMERA_DISTANCE),
+      cameraTargetHeight:options.cameraTargetHeight??0,
+      cameraFov:options.cameraFov??42,
+    };
     if(options.personalFarm)this.personalFarmProgress=getCachedPersonalFarmProgress();
     // The lake is the busiest hub. Avoid the expensive body-path raycast grid
     // and start slightly below native resolution; adaptive quality can still
@@ -2852,6 +2875,20 @@ export class VillageMapRenderer{
     if(!visible&&this.localNpcNearbyId){this.localNpcNearbyId=undefined;gameEvents.emit('local-npc-proximity-changed',null);gameEvents.emit('local-npc-screen-position',null)}
   }
   setWorldClock(serverNow:number){if(Number.isFinite(serverNow))this.worldClockOffset=serverNow-Date.now()}
+  getWorldCameraProfile(){return {...(this.cameraProfileOverride??this.authoredCameraProfile)}}
+  applyWorldCameraProfile(profile:WorldCameraProfile){
+    if(profile.mapId!==this.options.mapId)return false;
+    this.cameraProfileOverride={...profile};this.options.characterHeight=profile.characterHeight;
+    this.localCharacter.setHeight(profile.characterHeight);this.remotes.forEach(character=>character.setHeight(profile.characterHeight));
+    const groundPosition=this.followTarget.set(this.localX,this.localGround+this.characterGroundClearance,this.worldToSceneZ(this.localZ));
+    this.followCharacter(groundPosition,0,true);this.render();return true;
+  }
+  resetWorldCameraProfile(){
+    this.cameraProfileOverride=undefined;this.options.characterHeight=this.authoredCameraProfile.characterHeight;
+    this.localCharacter.setHeight(this.authoredCameraProfile.characterHeight);this.remotes.forEach(character=>character.setHeight(this.authoredCameraProfile.characterHeight));
+    const groundPosition=this.followTarget.set(this.localX,this.localGround+this.characterGroundClearance,this.worldToSceneZ(this.localZ));
+    this.followCharacter(groundPosition,0,true);this.render();
+  }
   setHiddenCharacterIds(ids:string[]){
     this.hiddenCharacterIds=new Set(ids);
     this.localNpcs.forEach(npc=>{npc.character.root.visible=!this.hiddenCharacterIds.has(npc.config.id)&&!this.bearPhotoMode&&!isProjectRoomKioskInteraction(this.projectRoomFocus)&&!this.studentHallBoardActive});
@@ -2925,7 +2962,7 @@ export class VillageMapRenderer{
   }
   setPortalPosition(position:PortalPosition,sharedUpdate=true){
     if(this.options.mapId&&position.mapId!==this.options.mapId)return false;
-    if(position.mapId==='campus'||position.mapId==='club-street-festival'&&position.destination==='campus'||position.mapId==='recruitment-center'&&position.destination==='campus'||position.mapId==='project-room'&&position.destination==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience'||position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return true;
+    if(position.mapId==='campus'||position.mapId==='garden'||position.mapId==='club-street-festival'&&position.destination==='campus'||position.mapId==='recruitment-center'&&position.destination==='campus'||position.mapId==='project-room'&&position.destination==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience'||position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return true;
     const primary=this.options.portal?.destination===position.destination?this.options.portal:undefined;
     const fixedIndex=this.options.fixedPortals?.findIndex(config=>config.destination===position.destination)??-1;
     const fixed=fixedIndex>=0?this.options.fixedPortals?.[fixedIndex]:undefined;
@@ -2960,7 +2997,7 @@ export class VillageMapRenderer{
   }
   placePortalAtPlayer(destination:MapId){
     const mapId=this.options.mapId;
-    if(!mapId||!this.getPortalDestinations().includes(destination))return undefined;
+    if(!mapId||mapId==='garden'||!this.getPortalDestinations().includes(destination))return undefined;
     const position:PortalPosition={mapId,destination,x:Math.round(this.localX),z:Math.round(this.localZ)};
     return this.setPortalPosition(position,false)?position:undefined;
   }
@@ -2969,8 +3006,7 @@ export class VillageMapRenderer{
     gameEvents.emit('portal-charge-progress',0);
   }
   private resetInteractionCharge(){
-    this.interactionChargeSeconds=0;
-    this.interactionTravelTriggered=false;
+    this.interactionTravelGate.reset();
     gameEvents.emit('interaction-charge-progress',0);
   }
 
@@ -3539,6 +3575,7 @@ export class VillageMapRenderer{
   private onGameInputLock=(locked:boolean)=>{this.inputLocked=locked};
   private onMapTravelFailed=({mapId}:{mapId:MapId})=>{
     if(this.activePortal?.destination===mapId)this.resetPortalCharge();
+    if(this.options.interaction?.destination===mapId)this.resetInteractionCharge();
   };
   private onFestivalStageFocusChanged=(active:boolean)=>{
     if(!active){
@@ -5608,13 +5645,11 @@ export class VillageMapRenderer{
         gameEvents.emit('world-interaction-proximity-changed',interactionNearby?this.options.interaction:null);
       }
       const chargeDuration=this.options.interaction.chargeSeconds;
-      if(interactionNearby&&chargeDuration&&!this.interactionTravelTriggered){
-        this.interactionChargeSeconds+=delta;
-        gameEvents.emit('interaction-charge-progress',Math.min(1,this.interactionChargeSeconds/chargeDuration));
-        if(this.interactionChargeSeconds>=chargeDuration){
-          this.interactionTravelTriggered=true;
-          gameEvents.emit('travel-to-map',this.options.interaction.destination);
-        }
+      if(interactionNearby&&chargeDuration){
+        const charge=this.interactionTravelGate.update(performance.now(),chargeDuration,accept=>{
+          gameEvents.emit('travel-to-map',this.options.interaction!.destination,accept);
+        });
+        gameEvents.emit('interaction-charge-progress',charge.progress);
       }
     }
     if(this.options.studentHallFeatures&&this.studentHallFeatureTargets.length){
@@ -5764,11 +5799,11 @@ export class VillageMapRenderer{
     if(this.options.cameraDownScreenLimitZ!==undefined){
       target.z=clampCameraBehindLimit(target.z,this.worldToSceneZ(this.options.cameraDownScreenLimitZ));
     }
-    target.y+=this.options.personalFarm&&this.personalFarmInterior?75:(this.options.cameraTargetHeight??0);
+    target.y+=this.cameraProfileOverride?.cameraTargetHeight??(this.options.personalFarm&&this.personalFarmInterior?75:(this.options.cameraTargetHeight??0));
     const screenOffset=this.options.personalFarm&&this.personalFarmInterior?0:(this.options.cameraScreenOffsetY??0);
     target.z-=screenOffset/GROUND_PROJECTION;
     if(immediate)this.cameraTarget.copy(target);else this.cameraTarget.lerp(target,1-Math.exp(-5*delta));
-    const elevation=THREE.MathUtils.degToRad(this.options.personalFarm&&this.personalFarmInterior?36:(this.options.cameraElevationDeg??33));
+    const elevation=THREE.MathUtils.degToRad(this.cameraProfileOverride?.cameraElevationDeg??(this.options.personalFarm&&this.personalFarmInterior?36:(this.options.cameraElevationDeg??33)));
     if(this.camera instanceof THREE.PerspectiveCamera){
       if(this.smartCityExperienceActive&&this.smartCityFocusView){
         const view=this.smartCityFocusView,transition=this.smartCityFocusTransition;
@@ -5928,13 +5963,13 @@ export class VillageMapRenderer{
         return;
       }
       if(this.options.fixedCameraTarget&&!this.mapBounds.isEmpty())this.mapBounds.getCenter(this.cameraTarget);
-      const distance=this.options.personalFarm
+      const distance=this.cameraProfileOverride?.cameraDistance??(this.options.personalFarm
         ?personalFarmCameraDistance(this.personalFarmInterior)
-        :(this.options.cameraDistance??CAMERA_DISTANCE);
-      const azimuth=THREE.MathUtils.degToRad(this.projectRoomCameraAzimuthDeg??this.options.cameraAzimuthDeg??0);
+        :(this.options.cameraDistance??CAMERA_DISTANCE));
+      const azimuth=THREE.MathUtils.degToRad(this.cameraProfileOverride?.cameraAzimuthDeg??this.projectRoomCameraAzimuthDeg??this.options.cameraAzimuthDeg??0);
       const horizontalDistance=this.options.cameraHorizontalDistance??Math.cos(elevation)*distance;
       this.camera.aspect=this.width/Math.max(1,this.height);
-      this.camera.fov=this.options.personalFarm&&this.personalFarmInterior?50:(this.options.cameraFov??42);
+      this.camera.fov=this.cameraProfileOverride?.cameraFov??(this.options.personalFarm&&this.personalFarmInterior?50:(this.options.cameraFov??42));
       this.camera.position.set(
         this.cameraTarget.x+Math.sin(azimuth)*horizontalDistance,
         this.cameraTarget.y+Math.sin(elevation)*distance,
@@ -5960,8 +5995,8 @@ export class VillageMapRenderer{
       this.cameraTarget.z=minZ<=maxZ?THREE.MathUtils.clamp(this.cameraTarget.z,minZ,maxZ):center.z;
     }
     this.camera.left=-this.width/(2*zoom);this.camera.right=this.width/(2*zoom);this.camera.top=this.height/(2*zoom);this.camera.bottom=-this.height/(2*zoom);
-    const azimuth=THREE.MathUtils.degToRad(this.projectRoomCameraAzimuthDeg??this.options.cameraAzimuthDeg??0);
-    const distance=this.options.cameraDistance??CAMERA_DISTANCE;
+    const azimuth=THREE.MathUtils.degToRad(this.cameraProfileOverride?.cameraAzimuthDeg??this.projectRoomCameraAzimuthDeg??this.options.cameraAzimuthDeg??0);
+    const distance=this.cameraProfileOverride?.cameraDistance??this.options.cameraDistance??CAMERA_DISTANCE;
     const horizontalDistance=Math.cos(elevation)*distance;
     this.camera.position.set(
       this.cameraTarget.x+Math.sin(azimuth)*horizontalDistance,

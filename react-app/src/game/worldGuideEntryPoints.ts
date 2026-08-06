@@ -25,7 +25,7 @@ export const WORLD_GUIDE_PORTAL_POSITIONS:Record<GuideWorldMapId,PortalPoint>={
   'club-street-festival':{x:1209,z:502},
   'bear-tree-park':{x:1185,z:1616},
   'bear-play-zone':{x:1200,z:1650},
-  garden:{x:1200,z:1260},
+  garden:{x:1218,z:1585},
   campus:{x:1120,z:1731},
   'student-hall':{x:1200,z:1660},
   'recruitment-center':{x:1200,z:2014},

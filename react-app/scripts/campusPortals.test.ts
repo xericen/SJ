@@ -20,7 +20,7 @@ const expected=[
 ] as const;
 
 test('공동캠퍼스 포탈 5개는 요청자가 확정한 공용 좌표를 사용한다',()=>{
-  assert.deepEqual(WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='campus'),expected);
+  assert.deepEqual(WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='campus'&&position.destination!=='government'),expected);
   const renderer=read('src/game/renderers/VillageMapRenderer.ts');
   for(const position of expected.slice(1)){
     const portal=CAMPUS_FEATURE_PORTALS.find(item=>item.destination===position.destination);
@@ -57,14 +57,14 @@ test('공동캠퍼스의 clubs 포탈 명칭은 동아리 거리제다',()=>{
   assert.doesNotMatch(read('src/game/campusFeaturePortals.ts'),/동아리관/);
 });
 
-test('브라우저별 좌표와 위치 이동 UI를 사용하지 않는다',()=>{
+test('기존 공동캠퍼스 포탈 5개는 브라우저별 좌표와 위치 이동 UI를 사용하지 않는다',()=>{
   const renderer=read('src/game/renderers/VillageMapRenderer.ts');
   const canvas=read('src/game/GameCanvas.tsx');
   const page=read('src/pages/GamePage.tsx');
   assert.doesNotMatch(renderer,/campus-feature-portal-position-v1/);
   assert.doesNotMatch(canvas,/campus-feature-portal-place-at-player|saveCampusFeaturePortalPosition/);
   assert.doesNotMatch(page,/campus-portal-editors|campus-feature-portal-place-at-player/);
-  assert.match(page,/\['bear-tree-park','personal-farm','campus','recruitment-center','project-room'\]/);
+  assert.match(page,/\['bear-tree-park','personal-farm','garden','campus','recruitment-center','project-room'\]/);
 });
 
 test('클라이언트·서버 저장 우회도 공동캠퍼스 좌표를 변경하지 못한다',()=>{
@@ -72,6 +72,7 @@ test('클라이언트·서버 저장 우회도 공동캠퍼스 좌표를 변경�
   for(const position of expected){
     assert.equal(store.setPortalPosition({...position,x:position.x+100}),false);
   }
+  assert.equal(store.setPortalPosition({mapId:'campus',destination:'government',x:1300,z:1250}),false);
   assert.equal(store.setCampusFeaturePortalPosition({portal:'clubs',x:100,z:100}),false);
   assert.deepEqual(store.allCampusFeaturePortalPositions(),[
     {portal:'people',x:881,z:950},
@@ -79,12 +80,45 @@ test('클라이언트·서버 저장 우회도 공동캠퍼스 좌표를 변경�
     {portal:'recruit',x:817,z:1318},
     {portal:'government',x:1590,z:1543},
   ]);
-  assert.match(read('server/src/socket/registerSocketHandlers.ts'),/position\.mapId==='town'\|\|position\.mapId==='campus'/);
+  assert.doesNotMatch(read('server/src/socket/registerSocketHandlers.ts'),/editableCampusGovernment/);
   const wizApi=read('../src/app/page.home/api.py');
   const frozenMaps=wizApi.slice(wizApi.indexOf('FROZEN_WORLD_PORTAL_MAPS'),wizApi.indexOf('CANONICAL_WORLD_PORTAL_KEYS'));
   assert.match(frozenMaps,/"campus",/);
   assert.doesNotMatch(frozenMaps,/"government",/);
-  assert.match(wizApi,/\("government", "campus"\),/);
+  assert.doesNotMatch(wizApi.slice(wizApi.indexOf('CANONICAL_WORLD_PORTAL_KEYS'),wizApi.indexOf('FOOD_SOURCE_PREVIEW_HOSTS')),/\("government", "campus"\),/);
+});
+
+test('공동캠퍼스 정부청사 포탈은 요청자가 확정한 공용 좌표로 고정하고 편집 버튼을 제거한다',()=>{
+  const fixed={mapId:'campus',destination:'government',x:368,z:899} as const;
+  assert.deepEqual(
+    WORLD_PORTAL_DEFAULTS.find(position=>position.mapId===fixed.mapId&&position.destination===fixed.destination),
+    fixed,
+  );
+
+  const renderer=read('src/game/renderers/VillageMapRenderer.ts');
+  const campusOptions=renderer.slice(renderer.indexOf('export const CAMPUS_RENDERER_OPTIONS'),renderer.indexOf('export const CLUB_STREET_FESTIVAL_RENDERER_OPTIONS'));
+  assert.match(campusOptions,/x:368,z:899,destination:'government',label:'정부청사'/);
+  assert.match(campusOptions,/fixedPosition:true,sharedPosition:false/);
+  assert.doesNotMatch(campusOptions,/positionEditable:true/);
+  assert.doesNotMatch(renderer,/editableCampusGovernment/);
+
+  const page=read('src/pages/GamePage.tsx');
+  assert.doesNotMatch(page,/currentMapId==='campus'\?destination==='government'/);
+  assert.match(page,/!\['bear-tree-park','personal-farm','garden','campus','recruitment-center','project-room'\]\.includes\(currentMapId\)/);
+  assert.match(page,/!\['town','personal-farm','garden','campus','arts-center'/);
+
+  const store=new RoomStore();
+  assert.equal(store.setPortalPosition({...fixed,x:1320,z:1180}),false);
+  assert.deepEqual(store.portalPositions.get('campus:government'),fixed);
+
+  const serverModel=read('server/src/models/WorldPortalPosition.ts');
+  const socketHandlers=read('server/src/socket/registerSocketHandlers.ts');
+  const wizApi=read('../src/app/page.home/api.py');
+  assert.match(serverModel,/fixedCampusPortals=WORLD_PORTAL_DEFAULTS\.filter\(position=>position\.mapId==='campus'\)/);
+  assert.match(socketHandlers,/position\.mapId==='town'\|\|position\.mapId==='campus'/);
+  assert.match(wizApi,/\("campus", "government", 368, 899\)/);
+  const canonicalKeys=wizApi.slice(wizApi.indexOf('CANONICAL_WORLD_PORTAL_KEYS'),wizApi.indexOf('FOOD_SOURCE_PREVIEW_HOSTS'));
+  assert.match(canonicalKeys,/\("campus", "government"\),/);
 });
 
 test('모집센터 공동캠퍼스 귀환 포탈은 요청자 좌표로 고정되고 편집 경로를 노출하지 않는다',()=>{
@@ -96,7 +130,7 @@ test('모집센터 공동캠퍼스 귀환 포탈은 요청자 좌표로 고정�
   assert.deepEqual(WORLD_GUIDE_PORTAL_POSITIONS['recruitment-center'],{x:fixed.x,z:fixed.z});
 
   const page=read('src/pages/GamePage.tsx');
-  assert.match(page,/\['bear-tree-park','personal-farm','campus','recruitment-center','project-room'\]/);
+  assert.match(page,/\['bear-tree-park','personal-farm','garden','campus','recruitment-center','project-room'\]/);
   assert.doesNotMatch(page,/currentMapId==='recruitment-center'.*portal-position-editor/);
 
   const store=new RoomStore();
@@ -154,7 +188,7 @@ test('프로젝트실 공동캠퍼스 포탈은 요청자 좌표로 고정되고
   const socketHandlers=read('server/src/socket/registerSocketHandlers.ts');
   const serverModel=read('server/src/models/WorldPortalPosition.ts');
   const wizApi=read('../src/app/page.home/api.py');
-  assert.match(page,/\['bear-tree-park','personal-farm','campus','recruitment-center','project-room'\]/);
+  assert.match(page,/\['bear-tree-park','personal-farm','garden','campus','recruitment-center','project-room'\]/);
   assert.match(renderer,/position\.mapId==='project-room'&&position\.destination==='campus'/);
   assert.match(socketHandlers,/position\.mapId==='project-room'&&position\.destination==='campus'/);
   assert.match(serverModel,/fixedProjectRoomPortal/);

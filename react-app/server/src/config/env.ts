@@ -45,6 +45,11 @@ const schema = z.object({
 
   PORT: numberFromEnv('PORT', 3001, 1, 65535),
 
+  REALTIME_ONLY_MODE: z.preprocess(
+    (value) => value === undefined || value === '' ? 'false' : value,
+    z.enum(['true', 'false']).transform((value) => value === 'true'),
+  ),
+
   CLIENT_ORIGIN: z
     .string()
     .url()

@@ -230,3 +230,4 @@
 | 2026-08-06 | 058 | 정부청사 이동 렉 개선 및 공동캠퍼스 포탈 편집 허용 | [상세](devlog/2026-08-06/058-government-performance-campus-portal.md) |
 | 2026-08-06 | 059 | 마이홈 맵 이동·나가기 버튼 우측 상단 가로 정렬 | [상세](devlog/2026-08-06/059-my-home-actions-horizontal.md) |
 | 2026-08-06 | 060 | 누적 해커톤 기능·MySQL 구성 문서화 및 GitHub 공개 배포 | [상세](devlog/2026-08-06/060-publish-hackathon-release.md) |
+| 2026-08-06 | 063 | Render 실시간 전용 배포 구성 | [상세](devlog/2026-08-06/063-render-realtime-only-deployment.md) |

@@ -23,7 +23,7 @@ docker compose -f deploy/docker-compose.yml ps
 curl --fail http://127.0.0.1:3001/health/ready
 ```
 
-`/health/live`는 프로세스 생존 여부, `/health/ready`는 MySQL 연결과 실시간 서버 준비 여부를 확인합니다. 방 상태의 JSON 파일은 이름 있는 Docker 볼륨에 저장되어 컨테이너 재생성 후에도 유지됩니다.
+`/health/live`는 프로세스 생존 여부를 확인합니다. `/health/ready`는 일반 모드에서는 MySQL 연결까지, `REALTIME_ONLY_MODE=true`에서는 실시간 서버 준비 여부를 확인합니다. 방 상태의 JSON 파일은 이름 있는 Docker 볼륨에 저장되어 컨테이너 재생성 후에도 유지됩니다.
 
 ## 3. HTTPS 프록시 연결
 
@@ -43,7 +43,7 @@ npm run build
 npm run test:multiplayer
 ```
 
-검증 스크립트는 임시 포트에서 컴파일된 운영 서버를 실행하고 두 WebSocket 클라이언트의 입장, 이동 브로드캐스트, 근처 채팅, 맵 이동 후 방 격리를 검사합니다. 실제 운영 MySQL 연결도 준비 상태 검사에 포함됩니다.
+검증 스크립트는 임시 포트에서 컴파일된 운영 서버를 실시간 전용 모드로 실행하고 두 WebSocket 클라이언트의 입장, 이동 브로드캐스트, 근처 채팅, 맵 이동 후 방 격리를 검사합니다.
 
 ## 5. 운영 명령
 
@@ -59,8 +59,8 @@ docker compose -f deploy/docker-compose.yml up -d --build
 ## 6. Render 독립 배포
 
 1. Render Dashboard에서 이 저장소의 `render.yaml`을 사용하는 Blueprint를 생성합니다.
-2. 생성 과정에서 `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `AUTH_SESSION_SECRET`을 입력합니다.
-3. 배포가 끝나면 아래 주소가 JSON을 반환하는지 확인합니다.
+2. 추가 환경 변수 입력 없이 **Deploy Blueprint**를 누릅니다. Blueprint는 `REALTIME_ONLY_MODE=true`로 설정되어 MySQL 없이 캐릭터 입장·이동·근처 채팅·이모티콘·맵 격리를 제공합니다.
+3. 배포가 끝나면 아래 주소가 `mode: "realtime-only"`와 함께 JSON을 반환하는지 확인합니다.
 
 ```bash
 curl --fail https://{render-service}.onrender.com/health/ready
@@ -73,5 +73,7 @@ VITE_SOCKET_URL=https://{render-service}.onrender.com npm run build
 ```
 
 `CLIENT_ORIGIN`은 Blueprint에서 `https://sj.wizide.com`으로 제한합니다. Render가 제공하는 `PORT`를 서버가 사용하며, 서버는 외부 프록시가 접근할 수 있도록 `0.0.0.0`에 바인딩됩니다.
+
+로그인 계정 연동, DB 저장, 개인 메시지 등 MySQL 기반 기능까지 Render 서버에서 사용하려면 `REALTIME_ONLY_MODE=false`로 바꾸고 `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `AUTH_SESSION_SECRET`을 Render 환경 변수에 추가해야 합니다. 이때 `MYSQL_HOST`는 Render에서 접근 가능한 공개 주소여야 합니다.
 
 현재 맵·사용자·그룹 상태는 Node 프로세스 메모리에 있으므로 Render 인스턴스는 1개로 유지합니다. 여러 인스턴스로 확장하려면 먼저 Socket.IO Redis 어댑터와 공유 상태 저장소를 도입해야 합니다.

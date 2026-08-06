@@ -37,9 +37,11 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: '여기 사람 �
 app.get('/health/live', (_req, res) => res.json({ ok: true, service: '여기 사람 있음' }));
 app.get('/health/ready', (_req, res) => {
   const database = databaseStatus();
-  res.status(database.connected ? 200 : 503).json({
-    ok: database.connected,
+  const ready = env.REALTIME_ONLY_MODE || database.connected;
+  res.status(ready ? 200 : 503).json({
+    ok: ready,
     service: '여기 사람 있음',
+    mode: env.REALTIME_ONLY_MODE ? 'realtime-only' : 'full',
     database,
     realtime: true,
   });
@@ -70,6 +72,7 @@ const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, { cors: { origin: env.CLIENT_ORIGIN, credentials: true } });
 setSocketServer(io);
 io.use(async (socket, next) => {
+  if (env.REALTIME_ONLY_MODE) return next();
   const userId = authenticatedUserIdFromCookie(socket.request.headers.cookie);
   if (!userId) return next();
   const user = await UserModel.findById(userId).select('ageGroup profile.chatEnabled profile.recordVisibility portalEditor').lean().catch(() => null);
@@ -99,7 +102,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     await new Promise<void>((resolve) => io.close(() => resolve()));
   }
 
-  await disconnectDatabase();
+  if (!env.REALTIME_ONLY_MODE) await disconnectDatabase();
   process.exit(0);
 };
 
@@ -107,26 +110,31 @@ process.once('SIGINT', () => void shutdown('SIGINT'));
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
 const startServer = async (): Promise<void> => {
-  await connectDatabase();
-  roomStore.replacePortalPositions(await loadOrSeedWorldPortalPositions());
-  let worldPortalSignature=JSON.stringify(roomStore.allPortalPositions().sort((a,b)=>`${a.mapId}:${a.destination}`.localeCompare(`${b.mapId}:${b.destination}`)));
-  worldPortalSyncTimer=setInterval(()=>{void loadWorldPortalPositions().then(positions=>{
-    if(!positions.length)return;
-    const next=positions.map(({mapId,destination,x,z})=>({mapId,destination,x,z})).sort((a,b)=>`${a.mapId}:${a.destination}`.localeCompare(`${b.mapId}:${b.destination}`)),signature=JSON.stringify(next);
-    if(signature===worldPortalSignature)return;
-    worldPortalSignature=signature;roomStore.replacePortalPositions(next);io.emit('portalPositionsUpdated',roomStore.allPortalPositions());
-  }).catch(error=>console.error('[world portal sync failed]',error instanceof Error?error.name:'unknown'))},1500);
   roomStore.setRespawnPosition({...FIXED_LAKE_RESPAWN});
-  roomStore.replaceCampusFeaturePortalPositions(await seedCampusFeaturePortalPositions(roomStore.allCampusFeaturePortalPositions()));
-  let campusPortalSignature=JSON.stringify(roomStore.allCampusFeaturePortalPositions().sort((a,b)=>a.portal.localeCompare(b.portal)));
-  campusPortalSyncTimer=setInterval(()=>{void loadCampusFeaturePortalPositions().then(positions=>{
-    if(!positions.length)return;
-    const merged=new Map(roomStore.allCampusFeaturePortalPositions().map(position=>[position.portal,position]));
-    positions.forEach(position=>merged.set(position.portal,position));
-    const next=[...merged.values()].sort((a,b)=>a.portal.localeCompare(b.portal)),signature=JSON.stringify(next);
-    if(signature===campusPortalSignature)return;
-    campusPortalSignature=signature;roomStore.replaceCampusFeaturePortalPositions(next);io.emit('campusFeaturePortalPositionsUpdated',next);
-  }).catch(error=>console.error('[campus portal sync failed]',error))},1500);
+
+  if (env.REALTIME_ONLY_MODE) {
+    console.log('[Config] Realtime-only mode enabled; MySQL-backed features are disabled');
+  } else {
+    await connectDatabase();
+    roomStore.replacePortalPositions(await loadOrSeedWorldPortalPositions());
+    let worldPortalSignature=JSON.stringify(roomStore.allPortalPositions().sort((a,b)=>`${a.mapId}:${a.destination}`.localeCompare(`${b.mapId}:${b.destination}`)));
+    worldPortalSyncTimer=setInterval(()=>{void loadWorldPortalPositions().then(positions=>{
+      if(!positions.length)return;
+      const next=positions.map(({mapId,destination,x,z})=>({mapId,destination,x,z})).sort((a,b)=>`${a.mapId}:${a.destination}`.localeCompare(`${b.mapId}:${b.destination}`)),signature=JSON.stringify(next);
+      if(signature===worldPortalSignature)return;
+      worldPortalSignature=signature;roomStore.replacePortalPositions(next);io.emit('portalPositionsUpdated',roomStore.allPortalPositions());
+    }).catch(error=>console.error('[world portal sync failed]',error instanceof Error?error.name:'unknown'))},1500);
+    roomStore.replaceCampusFeaturePortalPositions(await seedCampusFeaturePortalPositions(roomStore.allCampusFeaturePortalPositions()));
+    let campusPortalSignature=JSON.stringify(roomStore.allCampusFeaturePortalPositions().sort((a,b)=>a.portal.localeCompare(b.portal)));
+    campusPortalSyncTimer=setInterval(()=>{void loadCampusFeaturePortalPositions().then(positions=>{
+      if(!positions.length)return;
+      const merged=new Map(roomStore.allCampusFeaturePortalPositions().map(position=>[position.portal,position]));
+      positions.forEach(position=>merged.set(position.portal,position));
+      const next=[...merged.values()].sort((a,b)=>a.portal.localeCompare(b.portal)),signature=JSON.stringify(next);
+      if(signature===campusPortalSignature)return;
+      campusPortalSignature=signature;roomStore.replaceCampusFeaturePortalPositions(next);io.emit('campusFeaturePortalPositionsUpdated',next);
+    }).catch(error=>console.error('[campus portal sync failed]',error))},1500);
+  }
 
   httpServer.listen(env.PORT, '0.0.0.0', () => {
     console.log(`[Config] Environment: ${env.NODE_ENV}`);

@@ -87,6 +87,7 @@ const server = spawn(process.execPath, [serverEntry], {
   env: {
     ...process.env,
     NODE_ENV: 'test',
+    REALTIME_ONLY_MODE: 'true',
     PORT: String(port),
     CLIENT_ORIGIN: baseUrl,
     RUNTIME_DATA_DIR: runtimeDirectory,

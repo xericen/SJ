@@ -331,3 +331,4 @@
 | 2026-08-07 | 061 | 전망대 3초 귀환·정부청사 캐릭터 upright·스마트시티 포탈 위치 보정 | [상세](devlog/2026-08-07/061-fix-observatory-return-and-government-avatar.md) |
 | 2026-08-07 | 062 | README 공간별 체험표를 실제 웹 동선 기준으로 갱신 | [상세](devlog/2026-08-07/062-readme-space-experiences.md) |
 | 2026-08-07 | 063 | README 서비스명을 세종한바퀴로 통일하고 현재 웹 기준 개요 정리 | [상세](devlog/2026-08-07/063-readme-brand-and-current-web.md) |
+| 2026-08-07 | 064 | 세종예술의전당·먹거리·축제 체험을 최근 활동기록에 연결 | [상세](devlog/2026-08-07/064-record-lake-experiences.md) |

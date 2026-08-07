@@ -1,8 +1,8 @@
 :host {
     display: block;
     width: 100%;
-    height: 100%;
-    min-height: 0;
+    height: 100vh;
+    min-height: 100vh;
     overflow: hidden;
     background: #f5f7f4;
 }
@@ -10,20 +10,14 @@
 .jochwon-host {
     width: 100%;
     height: 100%;
-    min-height: 0;
     margin: 0;
-    padding: 0;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
 }
 
 .jochwon-frame {
     display: block;
-    flex: 1 1 auto;
     width: 100%;
-    min-height: 0;
+    height: 100%;
     border: 0;
     background: #f5f7f4;
-    transform: translateY(-4px);
 }

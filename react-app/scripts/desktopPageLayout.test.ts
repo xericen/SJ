@@ -13,6 +13,7 @@ test('랜딩 핵심 콘텐츠는 데스크톱 한 화면 대시보드와 네 개
   assert.match(landing,/className="welcome-flow-summary"/);
   assert.match(landing,/탐험[\s\S]*취향 기록[\s\S]*사람 연결[\s\S]*AI 코스 추천/);
   assert.match(landingCss,/@media\(min-width:901px\)[\s\S]*?\.welcome-page\{height:100dvh;min-height:100dvh;[^}]*overflow:hidden/);
+  assert.match(landingCss,/\.welcome-card\{width:min\(1320px,calc\(100vw - 20px\),calc\(150dvh - 30px\)\);height:auto;[^}]*aspect-ratio:3\/2/);
   assert.match(landingCss,/\.welcome-card-home \.welcome-hero\{[^}]*grid-template-columns:minmax\(0,42fr\) minmax\(0,58fr\)/);
   assert.match(landingCss,/\.welcome-place-grid\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)/);
 });

@@ -266,3 +266,7 @@
 | 2026-08-06 | 094 | 친구 요청 수락 UX·체험 맵 HUD 분배·양측 채팅 모션 종료 동기화 | [상세](devlog/2026-08-06/094-friend-request-focus-chat-stop.md) |
 | 2026-08-06 | 095 | 마이홈 외부 포탈 3개 제거 및 집 출입 E 안내 단일화 | [상세](devlog/2026-08-06/095-remove-my-home-portals-single-door-prompt.md) |
 | 2026-08-07 | 001 | 홈 페이지 상단 여백 축소 | [상세](devlog/2026-08-07/001-home-top-spacing.md) |
+| 2026-08-07 | 002 | 홈 화면 압축 배치 원복 및 기존 비율 복구 | [상세](devlog/2026-08-07/002-restore-balanced-home-ratio.md) |
+| 2026-08-07 | 003 | 홈 iframe 높이 축소 복구 및 전체 화면 표시 보장 | [상세](devlog/2026-08-07/003-restore-home-iframe-height.md) |
+| 2026-08-07 | 004 | 홈 데스크톱 캔버스 1320×880 비율 고정 | [상세](devlog/2026-08-07/004-fix-home-canvas-ratio.md) |
+| 2026-08-07 | 005 | 최신 해커톤 변경·README·WIZ 번들 GitHub 게시 | [상세](devlog/2026-08-07/005-publish-latest-hackathon-release.md) |

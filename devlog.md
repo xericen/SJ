@@ -230,5 +230,39 @@
 | 2026-08-06 | 058 | 정부청사 이동 렉 개선 및 공동캠퍼스 포탈 편집 허용 | [상세](devlog/2026-08-06/058-government-performance-campus-portal.md) |
 | 2026-08-06 | 059 | 마이홈 맵 이동·나가기 버튼 우측 상단 가로 정렬 | [상세](devlog/2026-08-06/059-my-home-actions-horizontal.md) |
 | 2026-08-06 | 060 | 누적 해커톤 기능·MySQL 구성 문서화 및 GitHub 공개 배포 | [상세](devlog/2026-08-06/060-publish-hackathon-release.md) |
+| 2026-08-06 | 061 | 정부청사 공동캠퍼스 포탈 저장 후 원점 복귀 방지 | [상세](devlog/2026-08-06/061-stabilize-government-campus-portal-save.md) |
+| 2026-08-06 | 062 | 카메라 편집값 맵 이동·재방문 시 세션 유지 | [상세](devlog/2026-08-06/062-persist-camera-editor-drafts.md) |
 | 2026-08-06 | 063 | Render 실시간 전용 배포 구성 | [상세](devlog/2026-08-06/063-render-realtime-only-deployment.md) |
+| 2026-08-06 | 064 | 주변 반응 패널 및 선택형 주변 메시지 입력창 제거 | [상세](devlog/2026-08-06/064-remove-nearby-chat-ui.md) |
 | 2026-08-06 | 065 | WIZ 동일 출처 실시간 멀티플레이 운영 연결 | [상세](devlog/2026-08-06/065-wiz-same-origin-realtime.md) |
+| 2026-08-06 | 066 | 최신 원본 멀티플레이 검증 및 마이홈 개인팜 전체 이식 | [상세](devlog/2026-08-06/066-import-upstream-multiplayer-myhome-farm.md) |
+| 2026-08-06 | 067 | 도형 계정 운영자 승격 및 포탈·카메라 도구 권한 통합 | [상세](devlog/2026-08-06/067-grant-dohyeong-operator-tools.md) |
+| 2026-08-06 | 068 | 월드 HUD 핵심 정보 중심 간소화 | [상세](devlog/2026-08-06/068-compact-world-hud.md) |
+| 2026-08-06 | 069 | 작은 화면 월드 HUD 한글 가독성 및 줄바꿈 수정 | [상세](devlog/2026-08-06/069-fix-small-screen-hud-typography.md) |
+| 2026-08-06 | 070 | 마이홈 포탈·개인 인스턴스 및 상호 친구·단일 채팅방 수정 | [상세](devlog/2026-08-06/070-fix-private-myhome-social-connections.md) |
+| 2026-08-06 | 071 | 공용 이미지 로고 누끼 자산 적용 및 세종한바퀴 브랜드·탭 아이콘 교체 | [상세](devlog/2026-08-06/071-apply-sejong-hanbakwi-cutout-logo.md) |
+| 2026-08-06 | 072 | 월드별 카메라 비율·재방문 안정화 및 프로젝트실 포탈 수정 | [상세](devlog/2026-08-06/072-stabilize-map-cameras-project-portal.md) |
+| 2026-08-06 | 073 | 운영 홈 로고 미반영 원인 수정 및 React 원본·WIZ 번들 영속 반영 | [상세](devlog/2026-08-06/073-fix-live-brand-logo-source.md) |
+| 2026-08-06 | 074 | 17개 맵 월드 포탈 디자인을 호수공원 공동캠퍼스 포탈로 통일 | [상세](devlog/2026-08-06/074-unify-world-portal-design.md) |
+| 2026-08-06 | 075 | 프로젝트실 전광판 보드 면 투영 및 공연형 확대 화면 수정 | [상세](devlog/2026-08-06/075-fix-project-board-surface-and-zoom.md) |
+| 2026-08-06 | 076 | 작은 화면 홈 추천 문구 반응형 정렬 수정 | [상세](devlog/2026-08-06/076-fix-responsive-landing-stats.md) |
+| 2026-08-06 | 077 | 서버 통합 사용자 프로필 구조·완성도·인증 API 기반 구현 | [상세](devlog/2026-08-06/077-unified-user-profile-foundation.md) |
+| 2026-08-06 | 078 | 축제·마이홈·알림·기억나무 UX 정리 | [상세](devlog/2026-08-06/078-world-ux-layout.md) |
+| 2026-08-06 | 079 | 수목원 직교 카메라 거리 조절 동작 복구 | [상세](devlog/2026-08-06/079-fix-garden-camera-distance-control.md) |
+| 2026-08-06 | 080 | 곰 체험소 먹이 찾기·동적 곰 모션·마이홈 동상 연결 | [상세](devlog/2026-08-06/080-bear-feeding-experience.md) |
+| 2026-08-06 | 081 | 운영 런타임 자산 동기화 및 홈 CSS 복구 흐름 안정화 | [상세](devlog/2026-08-06/081-fix-runtime-asset-sync-and-css-recovery.md) |
+| 2026-08-06 | 082 | 친구 프로필을 내 프로필 디자인으로 통일 | [상세](devlog/2026-08-06/082-match-friend-profile-design.md) |
+| 2026-08-06 | 083 | 프로젝트실 전광판 가로 투영·키오스크형 확대 및 프로젝트 DB 전환 | [상세](devlog/2026-08-06/083-project-board-landscape-kiosk-db.md) |
+| 2026-08-06 | 084 | 학생회관 AI 추천 트리 E 안내 인식 범위 확대 | [상세](devlog/2026-08-06/084-student-hall-ai-tree-range.md) |
+| 2026-08-06 | 085 | 수목원 클릭 채집·관심 식물 TOP 5·기억나무 발광 및 카메라 조망 수정 | [상세](devlog/2026-08-06/085-greenhouse-profile-camera.md) |
+| 2026-08-06 | 086 | 17개 맵 포탈을 추천 코스 원형 디자인으로 변경 및 안내 겹침 수정 | [상세](devlog/2026-08-06/086-recommendation-portal-design-and-prompt-spacing.md) |
+| 2026-08-06 | 087 | 친구 기존 채팅방 재사용·연락 알림·재요청 흐름 구현 | [상세](devlog/2026-08-06/087-friend-chat-resume-notification.md) |
+| 2026-08-06 | 088 | 랜딩·개인 프로필 데스크톱 한 화면 UI 재구성 | [상세](devlog/2026-08-06/088-desktop-landing-profile-layout.md) |
+| 2026-08-06 | 089 | 작은 화면 로그인 하단 잘림 및 진입 스크롤 위치 수정 | [상세](devlog/2026-08-06/089-fix-responsive-login-clipping.md) |
+| 2026-08-06 | 090 | 홈 공간 섹션 사이의 과도한 세로 여백 축소 | [상세](devlog/2026-08-06/090-reduce-home-space-section-gap.md) |
+| 2026-08-06 | 091 | 곰 체험소 5회 순차 급여·두 마리 고정 곰·마이홈 동상 보상 복구 | [상세](devlog/2026-08-06/091-bear-five-step-feeding.md) |
+| 2026-08-06 | 092 | 홈 공간 카드 섹션을 상단 소개 영역에 밀착 배치 | [상세](devlog/2026-08-06/092-tighten-home-space-section-layout.md) |
+| 2026-08-06 | 093 | 공동캠퍼스 포탈과 이름표를 기존 크기의 2/3로 축소 | [상세](devlog/2026-08-06/093-shrink-campus-portals.md) |
+| 2026-08-06 | 094 | 친구 요청 수락 UX·체험 맵 HUD 분배·양측 채팅 모션 종료 동기화 | [상세](devlog/2026-08-06/094-friend-request-focus-chat-stop.md) |
+| 2026-08-06 | 095 | 마이홈 외부 포탈 3개 제거 및 집 출입 E 안내 단일화 | [상세](devlog/2026-08-06/095-remove-my-home-portals-single-door-prompt.md) |
+| 2026-08-07 | 001 | 홈 페이지 상단 여백 축소 | [상세](devlog/2026-08-07/001-home-top-spacing.md) |

@@ -8,6 +8,7 @@ import {
   createProjectApplication,
   loadProjectApplications,
   loadProjectRoomProjects,
+  refreshProjectRoomProjects,
   recommendProjects,
   saveProjectApplications,
   saveProjectRoomProjects,
@@ -131,6 +132,7 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
     };
   },[]);
   useEffect(()=>{if(!active){setNearby(null);setNearbySeat(null);setPanel(null);setSelected(null);setActiveProjectId(null);localStorage.removeItem(ACTIVE_PROJECT_ROOM_KEY);setKioskActive(false);gameEvents.emit('project-room-focus-changed',undefined)}},[active]);
+  useEffect(()=>{if(active)void refreshProjectRoomProjects().then(setProjects).catch(()=>undefined)},[active]);
   useEffect(()=>onOpenChange(panel!==null||kioskActive),[kioskActive,onOpenChange,panel]);
   useEffect(()=>{if(kioskActive)panelRef.current?.scrollTo({top:0,left:0})},[kioskActive,panel]);
   useEffect(()=>{

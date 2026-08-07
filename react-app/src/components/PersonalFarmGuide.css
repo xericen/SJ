@@ -1,0 +1,3 @@
+.personal-farm-guide-card{position:absolute;left:24px;top:82px;width:min(380px,calc(100vw - 48px));padding:12px 14px;display:flex;align-items:flex-start;gap:10px;border:1px solid #d9c59b;border-radius:14px;background:#fffdf5ed;box-shadow:0 10px 28px #3245292b;color:#30442d}
+.personal-farm-guide-card>span{font-size:24px}.personal-farm-guide-card>div{display:grid;gap:4px}.personal-farm-guide-card b{font-size:13px}.personal-farm-guide-card small{color:#65755f;font-size:11px;font-weight:700;line-height:1.55}
+.personal-farm-guest-note{position:fixed;right:24px;bottom:24px;z-index:88;padding:8px 12px;border:1px solid rgba(63,112,84,.24);border-radius:10px;background:rgba(255,255,255,.9);color:#426b58;font-size:11px;box-shadow:0 8px 20px rgba(29,65,47,.12)}

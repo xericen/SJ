@@ -5,6 +5,7 @@ import {
   AUTHORED_CAMERA_MAP_IDS,
   BEAR_TREE_NAVIGATION_PROFILE,
   CAMPUS_NAVIGATION_PROFILE,
+  GARDEN_NAVIGATION_PROFILE,
   PERSONAL_FARM_CAMERA_PROFILE,
   personalFarmCameraDistance,
   SEJONG_ARTS_CENTER_NAVIGATION_PROFILE,
@@ -71,9 +72,13 @@ test('마이홈 카메라는 야외 1820과 이후 확대한 실내 1400 거리�
   assert.equal(applyUnifiedWorldCamera({},'personal-farm').cameraDistance,1820);
 });
 
-test('공동캠퍼스와 베어트리파크는 추적형 카메라로 맵을 가까이 보여주고 캐릭터 비율을 줄인다',()=>{
-  assert.deepEqual(CAMPUS_NAVIGATION_PROFILE,{cameraDistance:800,characterHeight:80});
-  assert.deepEqual(BEAR_TREE_NAVIGATION_PROFILE,{cameraDistance:1000,characterHeight:80});
+test('수목원은 캐릭터 비율을 낮추고 더 넓은 맵 조망을 유지한다',()=>{
+  assert.deepEqual(GARDEN_NAVIGATION_PROFILE,{cameraDistance:1550,cameraZoom:.9,characterHeight:110});
+});
+
+test('공동캠퍼스는 이름표를 줄이고 베어트리파크는 좁은 화각으로 렌즈 왜곡을 줄인다',()=>{
+  assert.deepEqual(CAMPUS_NAVIGATION_PROFILE,{cameraDistance:800,characterHeight:80,nameplateScale:.8});
+  assert.deepEqual(BEAR_TREE_NAVIGATION_PROFILE,{cameraDistance:1200,cameraFov:38,characterHeight:80});
   (['campus','bear-tree-park'] as const).forEach(mapId=>{
     const options=applyUnifiedWorldCamera({},mapId);
     assert.equal(options.perspectiveCamera,true);
@@ -82,5 +87,7 @@ test('공동캠퍼스와 베어트리파크는 추적형 카메라로 맵을 가
     assert.equal(options.cameraFollowBounds,undefined);
   });
   assert.equal(applyUnifiedWorldCamera({},'campus').cameraDistance,800);
-  assert.equal(applyUnifiedWorldCamera({},'bear-tree-park').cameraDistance,1000);
+  assert.equal(applyUnifiedWorldCamera({},'campus').nameplateScale,.8);
+  assert.equal(applyUnifiedWorldCamera({},'bear-tree-park').cameraDistance,1200);
+  assert.equal(applyUnifiedWorldCamera({},'bear-tree-park').cameraFov,38);
 });

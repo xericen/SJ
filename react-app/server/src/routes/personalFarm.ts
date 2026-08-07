@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {requireAuthenticatedUser} from '../middleware/authenticatedUser.js';
 import {
   PersonalFarmProgressError,collectBearFeed,collectGardenFlower,completeBearFeedSpot,feedBear,getOrCreatePersonalFarmProgress,
-  isBearFeedId,isBearFeedSpotId,isFarmRewardId,isGardenFlowerId,personalFarmProgressDto,plantGardenFlower,setActiveFarmRewards,submitVisitProof,
+  isBearFeedId,isBearFeedSpotId,isFarmRewardId,isGardenFlowerId,personalFarmProgressDto,plantGardenFlower,removeGardenFlower,setActiveFarmRewards,submitVisitProof,
 } from '../services/personalFarmProgressService.js';
 
 export const personalFarmRouter=Router();
@@ -17,11 +17,12 @@ const send=async(res:Response,operation:()=>Promise<Awaited<ReturnType<typeof ge
 personalFarmRouter.get('/me/personal-farm',async(_req,res)=>send(res,()=>getOrCreatePersonalFarmProgress(userId(res))));
 personalFarmRouter.post('/me/personal-farm/garden/collect/:flowerId',async(req,res)=>{const value=String(req.params.flowerId);if(!isGardenFlowerId(value))return res.status(400).json({success:false,error:{code:'INVALID_FLOWER_ID',message:'Unsupported flower ID.'}});return send(res,()=>collectGardenFlower(userId(res),value))});
 personalFarmRouter.post('/me/personal-farm/garden/plant/:flowerId',async(req,res)=>{const value=String(req.params.flowerId);if(!isGardenFlowerId(value))return res.status(400).json({success:false,error:{code:'INVALID_FLOWER_ID',message:'Unsupported flower ID.'}});return send(res,()=>plantGardenFlower(userId(res),value))});
+personalFarmRouter.delete('/me/personal-farm/garden/plant/:flowerId',async(req,res)=>{const value=String(req.params.flowerId);if(!isGardenFlowerId(value))return res.status(400).json({success:false,error:{code:'INVALID_FLOWER_ID',message:'Unsupported flower ID.'}});return send(res,()=>removeGardenFlower(userId(res),value))});
 personalFarmRouter.post('/me/personal-farm/bear/collect/:feedId',async(req,res)=>{const value=String(req.params.feedId);if(!isBearFeedId(value))return res.status(400).json({success:false,error:{code:'INVALID_FEED_ID',message:'Unsupported feed ID.'}});return send(res,()=>collectBearFeed(userId(res),value))});
 personalFarmRouter.post('/me/personal-farm/bear/feed/:spotId',async(req,res)=>{const value=String(req.params.spotId);if(!isBearFeedSpotId(value))return res.status(400).json({success:false,error:{code:'INVALID_FEED_SPOT_ID',message:'Unsupported feed spot ID.'}});return send(res,()=>completeBearFeedSpot(userId(res),value))});
 personalFarmRouter.post('/me/personal-farm/bear/feed',async(_req,res)=>send(res,()=>feedBear(userId(res))));
 
-const activeRewardsSchema=z.object({rewardIds:z.array(z.string()).max(4)}).strict();
+const activeRewardsSchema=z.object({rewardIds:z.array(z.string()).max(5)}).strict();
 personalFarmRouter.patch('/me/personal-farm/rewards/active',async(req,res)=>{const parsed=activeRewardsSchema.safeParse(req.body);if(!parsed.success||parsed.data.rewardIds.some(value=>!isFarmRewardId(value)))return res.status(400).json({success:false,error:{code:'INVALID_REWARD_IDS',message:'Invalid reward ID list.'}});return send(res,()=>setActiveFarmRewards(userId(res),parsed.data.rewardIds.filter(isFarmRewardId)))});
 
 const visitProofSchema=z.object({mission:z.enum(['garden','bearTree']),metadata:z.record(z.string().max(40),z.string().max(300)).default({})}).strict();

@@ -57,3 +57,12 @@ test('정부청사 이동 렌더링은 60fps와 단일 지면 샘플링을 사�
   assert.match(options,/fastGroundSampling:true/);
   assert.match(options,/lowQualityFallback:\{maxTextureSize:512,performancePixelRatio:\.7,performanceFrameRate:30/);
 });
+
+test('공동캠퍼스 포탈 저장 중 오래된 좌표 응답을 적용하지 않는다',()=>{
+  const canvas=read('../src/game/GameCanvas.tsx');
+  assert.match(canvas,/pendingPortalSaveCount=0/);
+  assert.match(canvas,/generation===portalSyncGeneration/);
+  assert.match(canvas,/upsertPortalPosition\(latestPortalPositions,saved\)/);
+  assert.doesNotMatch(canvas,/socket\.on\('portalPositionsUpdated'/);
+  assert.doesNotMatch(canvas,/socket\.emit\('savePortalPosition'/);
+});

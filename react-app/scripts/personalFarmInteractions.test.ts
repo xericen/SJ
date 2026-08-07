@@ -46,6 +46,8 @@ test('문 출입과 의자·소파 착석은 E 상호작용으로만 실행한�
   assert.match(renderer,/for\(let index=0;index<3;index\+\+\)/);
   assert.match(renderer,/this\.personalFarmActiveSeat\?20:0/);
   assert.match(page,/E 버튼으로 집 들어가기/);
+  assert.equal(page.match(/E 버튼으로 집 들어가기/g)?.length,1);
+  assert.doesNotMatch(farmProgress,/personal-farm-door-card/);
   assert.match(page,/personal-farm-seat-toggle/);
   assert.match(page,/E 버튼으로 앉기/);
 });
@@ -79,16 +81,22 @@ test('마이홈은 16개 원래 맵을 기억해 맵 이동으로 되돌아간�
   assert.match(page,/gameEvents\.emit\('travel-to-map',personalFarmReturnMap\)/);
 });
 
-test('마이홈 정원 버튼 대신 정원 현황을 상단 메뉴 위치에 표시한다',()=>{
+test('마이홈 정원 현황은 돌아가기 버튼과 간격을 둔 작은 카드로 표시한다',()=>{
   assert.match(page,/personal-farm-top-actions/);
   assert.doesNotMatch(page,/className="is-current"[^>]*>[^<]*<span[^>]*>🌿<\/span> 마이홈 정원/);
   assert.match(page,/맵 이동/);
-  assert.match(farmProgress,/personal-farm-reward-status"><b>마이홈 정원 현황<\/b>/);
+  assert.match(farmProgress,/personal-farm-reward-status"><b>정원 현황<\/b><span>꽃/);
   assert.match(pageCss,/\.game-page>\.personal-farm-top-actions\{position:fixed;[^}]*inset:20px 20px auto auto[^}]*width:auto[^}]*display:flex[^}]*flex-direction:row[^}]*flex-wrap:nowrap/);
   assert.match(pageCss,/\.game-page>\.personal-farm-top-actions>button\{position:static;width:82px;min-width:82px[^}]*flex:0 0 82px/);
   assert.match(pageCss,/\.game-page>\.personal-farm-top-actions>button:first-child\{width:96px;min-width:96px;flex-basis:96px\}/);
-  assert.match(farmCss,/\.personal-farm-reward-status\{[^}]*right:218px[^}]*top:20px[^}]*max-width:calc\(100vw - 238px\)[^}]*min-height:42px[^}]*flex-wrap:nowrap/);
+  assert.match(farmCss,/\.personal-farm-reward-status\{[^}]*right:226px[^}]*top:20px[^}]*max-width:calc\(100vw - 246px\)[^}]*min-height:36px[^}]*flex-wrap:nowrap/);
   assert.match(farmCss,/@media\(max-width:800px\)[\s\S]*\.personal-farm-reward-status\{[^}]*top:12px/);
+});
+
+test('마이홈 화단은 Git 기준 3칸 왼쪽·2칸 오른쪽으로 나누고 앞 수풀 네 개를 숨긴다',()=>{
+  assert.match(renderer,/const slotOffsets=\[\{side:105,front:20\},\{side:195,front:-25\},\{side:285,front:45\},\{side:-300,front:30\},\{side:-420,front:-20\}\]/);
+  assert.match(renderer,/hiddenObjectPrefixes:\['ENV_Bush_01_','ENV_Bush_02_','ENV_Bush_03_','ENV_Bush_04_'\]/);
+  assert.match(renderer,/setupPersonalFarmGardenLayout\(model\)/);
 });
 
 test('확대형 체험 중에는 마이홈 이동 버튼도 다른 HUD와 함께 숨긴다',()=>{
@@ -112,11 +120,14 @@ test('마이홈 실내 카메라는 캐릭터에서 충분히 떨어진다',()=>
   assert.match(renderer,/personalFarmCameraDistance\(this\.personalFarmInterior\)/);
 });
 
-test('베어트리파크 다섯 먹이 지점 뒤 최종 곰 급여를 MySQL API에 저장한다',()=>{
+test('곰 체험소에서 길가 먹이를 하나씩 주워 다섯 번 곰 급여를 MySQL API에 저장한다',()=>{
   assert.match(farmProgress,/canFeedBear/);
+  assert.match(farmProgress,/mapId==='bear-play-zone'/);
+  assert.match(farmProgress,/E · 줍기/);
   assert.match(farmProgress,/bear-feeding-proximity-changed/);
   assert.match(farmApi,/requestWiz\('feedBear'\)/);
   assert.match(farmApi,/requestExpress\('\/bear\/feed'/);
   assert.match(wizApi,/action == "feedBear"/);
-  assert.match(wizApi,/"bearFed"\] = True/);
+  assert.match(wizApi,/"fedFeedSpotIds"\]\.append\(pending_spot_id\)/);
+  assert.match(wizApi,/"bearFed"\] = bear_complete/);
 });

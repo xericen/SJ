@@ -5,7 +5,7 @@ import {WORLD_PORTAL_DEFAULTS} from '../shared/world-portals';
 
 const read=(path:string)=>readFileSync(new URL(path,import.meta.url),'utf8');
 
-test('마이홈에는 다른 월드로 이동하는 포탈이 없다',()=>{
+test('마이홈에는 호수공원·베어트리파크·수목원 포탈이 없다',()=>{
   assert.deepEqual(WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='personal-farm'),[]);
 
   const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
@@ -14,6 +14,7 @@ test('마이홈에는 다른 월드로 이동하는 포탈이 없다',()=>{
     renderer.indexOf('export const GARDEN_RENDERER_OPTIONS'),
   );
   assert.doesNotMatch(personalFarmOptions,/portal:|fixedPortals:|destination:'(?:town|bear-tree-park|garden)'/);
+  assert.match(personalFarmOptions,/mapName:'마이홈'/);
 });
 
 test('마이홈의 포탈 위치 이동 버튼은 노출하지 않는다',()=>{
@@ -24,5 +25,5 @@ test('마이홈의 포탈 위치 이동 버튼은 노출하지 않는다',()=>{
 
 test('마이홈 미션 상태는 나가기 버튼 왼쪽 상단에 배치한다',()=>{
   const statusCss=read('../src/components/PersonalFarmProgressExperience.css');
-  assert.match(statusCss,/\.personal-farm-reward-status\{position:absolute;right:218px;top:20px;/);
+  assert.match(statusCss,/\.personal-farm-reward-status\{position:absolute;right:226px;top:20px;/);
 });

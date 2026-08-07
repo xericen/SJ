@@ -7,7 +7,7 @@ const tutorialSteps=[
     icon:'🌳',
     label:'베어트리파크 · AI 여행 행동 분석',
     title:'자연을 탐험하며 나의 여행 방식을 발견해요',
-    description:'곰 체험소에서 공간과 곰 조형물을 자유롭게 둘러보세요.',
+    description:'곰 체험소에서 길가의 먹이를 찾고 움직이는 곰에게 전달해 보세요.',
     actions:[
       {key:'💧',title:'폭포',copy:'물가와 곰의 생활환경 관찰'},
       {key:'🪨',title:'동굴',copy:'곰의 휴식·보금자리 환경 탐색'},

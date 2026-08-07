@@ -1,7 +1,7 @@
 import type { MapId,PublicMatchProfile } from '../../shared/socket-events';
 import type { UserProfile } from '../types';
 import { greenhousePlantById } from '../data/greenhouse-plants';
-import { analyzeNatureTaste,dominantEmotion,parseGreenhouseProgress } from './greenhouseProgress';
+import { analyzeNatureTaste,dominantEmotion,parseGreenhouseProgress,rankGreenhouseProfilePlants } from './greenhouseProgress';
 import { loadBearProgress } from '../data/bear-wildlife';
 import { loadBearHabitatProgress } from './bearHabitatDecision';
 import { buildAiSejongProfile } from './aiSejongProfile';
@@ -159,6 +159,7 @@ export function buildExperienceRecommendationProfile(profile:UserProfile):Public
       preferredPlaceCategories.push('공원','관광명소');
     }
     if(greenhouse.memoryLeaves.length)experienceRecords.push('수목원 기억 편지 작성');
+    if(greenhouse.collected.length>=14)rankGreenhouseProfilePlants(greenhouse,5).forEach((rank,index)=>{const plant=greenhousePlantById.get(rank.plantId);if(plant)experienceRecords.push(`관심 식물 ${index+1}: ${plant.displayName} (${rank.score}점)`) });
     if(greenhouse.recordVisibility==='public'&&greenhouse.collected.length>=5){
       experienceRecords.push(`자연 유형: ${analyzeNatureTaste(greenhouse.collected).label}`,`대표 감정: ${dominantEmotion(greenhouse.collected)}`);
       if(greenhouse.representativePlant){

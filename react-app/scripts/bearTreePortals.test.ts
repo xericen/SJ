@@ -97,14 +97,15 @@ test('수목원은 선명한 식생과 입체감을 위한 기본 렌더링 품�
   assert.match(options,/lowQualityFallback:\{maxTextureSize:512,performancePixelRatio:\.75,performanceFrameRate:30,balancedTextureQuality:false\}/);
 });
 
-test('수목원 카메라는 세종호수공원과 같은 각도·거리·줌을 사용한다',()=>{
+test('수목원 카메라는 세종호수공원 각도와 고정 내비게이션 프로필을 사용한다',()=>{
   const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
   const options=renderer.slice(renderer.indexOf('export const GARDEN_RENDERER_OPTIONS'),renderer.indexOf('export const CAMPUS_RENDERER_OPTIONS'));
 
   assert.match(options,/perspectiveCamera:false/);
   assert.match(options,/cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG/);
-  assert.match(options,/cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE/);
-  assert.match(options,/cameraZoom:LAKE_PARK_CAMERA_ZOOM/);
+  assert.match(options,/cameraDistance:GARDEN_NAVIGATION_PROFILE\.cameraDistance/);
+  assert.match(options,/cameraZoom:GARDEN_NAVIGATION_PROFILE\.cameraZoom/);
+  assert.match(options,/characterHeight:GARDEN_NAVIGATION_PROFILE\.characterHeight/);
   assert.doesNotMatch(options,/cameraFollowBounds|cameraTargetHeight|cameraFov/);
 });
 
@@ -172,7 +173,7 @@ test('React와 WIZ의 편집 UI·저장 API가 베어트리파크 포탈을 고�
   });
 });
 
-test('베어트리파크 먹이 미션은 복구하고 곰 체험소의 이전 조사 활동은 유지하지 않는다',()=>{
+test('먹이 미션은 베어트리파크에서 제거하고 곰 체험소로 이동한다',()=>{
   const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
   const canvas=read('../src/game/GameCanvas.tsx');
   const guide=read('../src/components/NatureDiscoveryGuide.tsx');
@@ -181,16 +182,18 @@ test('베어트리파크 먹이 미션은 복구하고 곰 체험소의 이전 �
   const wizApi=read('../../src/app/page.home/api.py');
   const bearTreeOptions=renderer.slice(renderer.indexOf('export const BEAR_TREE_PARK_RENDERER_OPTIONS'),renderer.indexOf('export const BEAR_PLAY_ZONE_RENDERER_OPTIONS'));
 
-  assert.match(bearTreeOptions,/wildlifeClues:/);
-  assert.match(bearTreeOptions,/feedSpotAnchors:/);
-  assert.match(bearTreeOptions,/BEAR_FEED_SPOT_05/);
-  assert.match(bearTreeOptions,/bearFeedingAnchor:/);
+  assert.doesNotMatch(bearTreeOptions,/resident:|residentDecor:|wildlifeClues:|feedSpotAnchors:|bearFeedingAnchor:/);
   assert.doesNotMatch(bearTreeOptions,/대표 곰 관찰|먹이 구역 곰 관찰|destination:'personal-farm'/);
   assert.doesNotMatch(shared,/mapId:'bear-tree-park',destination:'personal-farm'/);
   assert.doesNotMatch(wizApi,/\("bear-tree-park", "personal-farm"/);
   assert.match(serverModel,/worldPortalKeys\.has\(worldPortalKey\(position\)\)/);
   const bearLabOptions=renderer.slice(renderer.indexOf('export const BEAR_PLAY_ZONE_RENDERER_OPTIONS'),renderer.indexOf('const PERSONAL_FARM_COLLIDER_PREFIXES'));
-  assert.doesNotMatch(bearLabOptions,/wildlifeClues|불곰 조사|반달가슴곰 조사/);
+  assert.match(bearLabOptions,/modelUrl:bearModelUrl/);
+  assert.match(bearLabOptions,/feedSpotAnchors:/);
+  assert.match(bearLabOptions,/BEAR_FEED_SPOT_05/);
+  assert.match(bearLabOptions,/bearFeedingAnchor:/);
+  assert.match(bearLabOptions,/residentDecor:\[\{modelUrl:bearModelUrl/);
+  assert.doesNotMatch(bearLabOptions,/bearCubModelUrl|grizzlyBearModelUrl|wildlifeClues|불곰 조사|반달가슴곰 조사/);
   assert.doesNotMatch(canvas,/BearHabitatDesignExperience|bear-(?:wildlife-progress|travel-style|habitat-decision)-changed/);
   assert.doesNotMatch(guide,/AI 생태 탐험|두 곰을 조사|loadBearHabitatProgress/);
   assert.doesNotMatch(renderer,/natureJourney='bear'/);

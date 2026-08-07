@@ -78,7 +78,7 @@ function ExperienceLoading({mapId='town'}:{mapId?:MapId}){
     ?['정부청사 입구 확인','정부청사 불러오기','캐릭터 배치','공동 계획 공간 연결','주변 사용자 연결']
     :['입장 위치 확인','호수공원 산책로 불러오기','캐릭터 배치','축제·공연 체험 연결','주변 사용자 연결'];
   return <main className="experience-entry-loading" role="status" aria-live="polite">
-    <div className="experience-entry-brand"><span>🧑🏻‍🌾</span><div><b>세종한바퀴</b><small>세종 소통형 체험 공간</small></div></div>
+    <div className="experience-entry-brand"><span><img className="sejong-brand-logo" src="/assets/brand/sejong-hanbakwi.png" alt="" aria-hidden="true"/></span><div><b>세종한바퀴</b><small>세종 소통형 체험 공간</small></div></div>
     <div className="experience-entry-center">
       <i/>
       <span>{place}</span>

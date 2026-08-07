@@ -1,4 +1,5 @@
 import type { MapId } from '../../shared/socket-events';
+import {syncCampusProfileSignal} from './unifiedProfileApi';
 
 export type ProfileRadarAxis='nature'|'culture'|'explore'|'record'|'relation'|'food';
 export type CampusProfileSignal={
@@ -11,16 +12,26 @@ type SignalInput=Omit<CampusProfileSignal,'id'|'at'|'count'|'axes'|'keywords'|'p
 
 const PREFIX='sejong-campus-profile-signals-v1:';
 const keyFor=(nickname:string)=>`${PREFIX}${nickname.trim().toLowerCase()||'guest'}`;
+const memorySignals=new Map<string,CampusProfileSignal[]>();
+let socialMode=Boolean(typeof window!=='undefined'&&localStorage.getItem('jochiwon-kakao-user-id')?.trim());
 const clean=(value:string)=>value.trim().replace(/^#/,'').slice(0,40);
 const unique=(values:string[])=>[...new Set(values.map(clean).filter(Boolean))];
 const slug=(value:string)=>value.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g,'-').replace(/^-|-$/g,'').slice(0,80)||'general';
 
 export function loadCampusProfileSignals(nickname:string):CampusProfileSignal[]{
+  const key=keyFor(nickname);
+  if(!socialMode)return memorySignals.get(key)??[];
+  if(memorySignals.has(key))return memorySignals.get(key)!;
   try{
-    const parsed=JSON.parse(localStorage.getItem(keyFor(nickname))??'[]') as unknown;
-    return Array.isArray(parsed)?parsed.filter((item):item is CampusProfileSignal=>Boolean(item&&typeof item==='object'&&'id' in item&&'axes' in item)):[];
+    // Legacy display only. Unified profiles never read this local cache.
+    const parsed=JSON.parse(localStorage.getItem(key)??'[]') as unknown;
+    const legacy=Array.isArray(parsed)?parsed.filter((item):item is CampusProfileSignal=>Boolean(item&&typeof item==='object'&&'id' in item&&'axes' in item)):[];
+    memorySignals.set(key,legacy);return legacy;
   }catch{return []}
 }
+
+export function setCampusProfileSignalMode(authenticated:boolean){socialMode=authenticated;if(!authenticated)memorySignals.clear()}
+export function resetGuestCampusProfileSignals(){if(!socialMode)memorySignals.clear()}
 
 export function inferCampusTopicProfile(...values:string[]){
   const text=values.join(' '),axes:Partial<Record<ProfileRadarAxis,number>>={},keywords:string[]=[];
@@ -40,7 +51,8 @@ export function recordCampusProfileSignal(nickname:string,input:SignalInput){
   const existing=previous.find(item=>item.id===id),topic=inferCampusTopicProfile(input.subject,input.title,input.note,...(input.keywords??[]));
   const axes={...topic.axes,...input.axes},keywords=unique([...(input.keywords??[]),...topic.keywords]);
   const next:CampusProfileSignal={...input,id,axes,keywords,point:Math.max(1,Math.min(20,input.point??5)),at:new Date().toISOString(),count:Math.min(9,(existing?.count??0)+1)};
-  localStorage.setItem(keyFor(nickname),JSON.stringify([next,...previous.filter(item=>item.id!==id)].slice(0,120)));
+  memorySignals.set(keyFor(nickname),[next,...previous.filter(item=>item.id!==id)].slice(0,120));
+  if(socialMode)void syncCampusProfileSignal(next).catch(()=>undefined);
   window.dispatchEvent(new CustomEvent('sejong-profile-progress-updated',{detail:{mapId:input.mapId,signal:next}}));
   window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{source:'campus',signal:next}}));
 }

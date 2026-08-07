@@ -1,6 +1,7 @@
 import type { UserProfile } from '../types';
 import { buildAiSejongProfile } from './aiSejongProfile';
 import { analyzeBearTravel,loadBearTravelProgress } from './bearTravelStyle';
+import {fetchUnifiedProjects,syncUnifiedProject,syncUnifiedProjectApplication} from './unifiedProfileApi';
 
 export interface Project{
   id:string;
@@ -54,6 +55,11 @@ export interface AIProjectRecommendation{
 
 const PROJECTS_KEY='sejong-project-room-projects-v1';
 const APPLICATIONS_KEY='sejong-project-room-applications-v1';
+let socialMode=Boolean(typeof window!=='undefined'&&localStorage.getItem('jochiwon-kakao-user-id')?.trim());
+let activeNickname='';
+let memoryProjects:Project[]=[];
+let memoryApplications:ProjectApplication[]=[];
+let projectRefreshRequest:Promise<Project[]>|undefined;
 
 const seedProjects:Project[]=[
   {id:'garden-photo',title:'수목원 사진 기록 프로젝트',summary:'계절별 식물과 풍경을 사진으로 기록해요.',description:'국립세종수목원을 함께 걸으며 대표 식물과 계절의 변화를 촬영하고 작은 온라인 도감을 완성합니다.',placeIds:['국립세종수목원'],activityTypes:['사진','자연','조사'],tags:['사진','자연','수목원','기록'],leaderId:'초록산책',memberIds:['초록산책','하늘여우'],applicantIds:[],maxMembers:5,startDate:'2026-08-08',deadline:'2026-08-05',preferredTraits:['사진 기록형','여유형','대화 중심'],status:'recruiting',thumbnail:'🌸',createdAt:'2026-07-20T09:00:00.000Z'},
@@ -69,6 +75,7 @@ function readArray<T>(key:string,fallback:T[]){
 }
 
 export function loadProjectRoomProjects(){
+  if(!socialMode)return memoryProjects.length?memoryProjects:seedProjects;
   const saved=readArray<Project>(PROJECTS_KEY,[]);
   if(saved.length){
     let changed=false;
@@ -80,25 +87,57 @@ export function loadProjectRoomProjects(){
       if(project.maxMembers!==next.maxMembers||project.status!==next.status||project.memberIds.join('|')!==next.memberIds.join('|'))changed=true;
       return next;
     });
-    if(changed)localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));
+    if(changed)memoryProjects=projects;
     return projects;
   }
-  localStorage.setItem(PROJECTS_KEY,JSON.stringify(seedProjects));
   return seedProjects;
 }
 
 export function saveProjectRoomProjects(projects:Project[]){
-  localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));
+  memoryProjects=projects;
+  if(socialMode)projects.filter(project=>project.leaderId===activeNickname).forEach(project=>void syncUnifiedProject({id:project.id,title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).catch(()=>undefined));
   window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
 }
 
+const strings=(value:unknown)=>Array.isArray(value)?value.filter((item):item is string=>typeof item==='string'):[];
+const storedProject=(value:unknown):Project|null=>{
+  if(!value||typeof value!=='object')return null;
+  const item=value as Record<string,unknown>;
+  if(typeof item.id!=='string'||typeof item.title!=='string'||typeof item.summary!=='string')return null;
+  const status=['recruiting','planning','active','completed'].includes(String(item.status))?item.status as Project['status']:'recruiting';
+  return {
+    id:item.id,title:item.title,summary:item.summary,description:typeof item.description==='string'?item.description:'',
+    placeIds:strings(item.placeIds),activityTypes:strings(item.activityTypes),tags:strings(item.tags),
+    leaderId:typeof item.leaderId==='string'?item.leaderId:(typeof item.leaderNickname==='string'?item.leaderNickname:'프로젝트 운영팀'),
+    memberIds:strings(item.memberIds).length?strings(item.memberIds):strings(item.memberNicknames),
+    applicantIds:strings(item.applicantIds).length?strings(item.applicantIds):strings(item.applicantNicknames),
+    maxMembers:typeof item.maxMembers==='number'?item.maxMembers:5,startDate:typeof item.startDate==='string'?item.startDate:undefined,
+    deadline:typeof item.deadline==='string'?item.deadline:undefined,preferredTraits:strings(item.preferredTraits),status,
+    thumbnail:typeof item.thumbnail==='string'?item.thumbnail:undefined,createdAt:typeof item.createdAt==='string'?item.createdAt:new Date().toISOString(),
+    visibility:item.visibility==='private'?'private':'public',
+  };
+};
+export function refreshProjectRoomProjects(){
+  if(!socialMode)return Promise.resolve(loadProjectRoomProjects());
+  return projectRefreshRequest??(projectRefreshRequest=fetchUnifiedProjects().then(values=>{
+    const projects=values.map(storedProject).filter((project):project is Project=>project!==null);
+    memoryProjects=projects;
+    window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
+    return projects;
+  }).finally(()=>{projectRefreshRequest=undefined}));
+}
+
 export function loadProjectApplications(){
-  return readArray<ProjectApplication>(APPLICATIONS_KEY,[]);
+  if(!socialMode)return memoryApplications;
+  return memoryApplications.length?memoryApplications:readArray<ProjectApplication>(APPLICATIONS_KEY,[]); // legacy UI read only
 }
 
 export function saveProjectApplications(applications:ProjectApplication[]){
-  localStorage.setItem(APPLICATIONS_KEY,JSON.stringify(applications));
+  memoryApplications=applications;
 }
+
+export function setProjectRoomProfileMode(authenticated:boolean,nickname:string){socialMode=authenticated;activeNickname=nickname;if(!authenticated){memoryProjects=[];memoryApplications=[];projectRefreshRequest=undefined}}
+export function resetGuestProjectRoomProfile(){if(!socialMode){memoryProjects=[];memoryApplications=[]}}
 
 function lakeRecord(){
   try{return JSON.parse(localStorage.getItem('sejong-lake-interest-profile-v1')??'null') as {savedContentIds?:unknown;activities?:unknown;likedCourseTitles?:unknown}|null}catch{return null}
@@ -153,6 +192,7 @@ export function createProjectApplication(project:Project,profile:UserProfile,mes
     status:'pending',
     createdAt:new Date().toISOString(),
   };
+  if(socialMode)void syncUnifiedProjectApplication({id:application.id,projectId:application.projectId,profileSnapshot:application.profileSnapshot,status:application.status,createdAt:application.createdAt}).catch(()=>undefined);
   return [application,...applications];
 }
 

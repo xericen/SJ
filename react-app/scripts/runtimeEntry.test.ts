@@ -43,7 +43,8 @@ test('화면은 정적 모듈 엔트리로 렌더링하고 오류 복구 가드�
   const distHtml=readFileSync(resolve(root,'dist/index.html'),'utf8');
   assert.match(distHtml,/<script type="module" crossorigin src="\/auth\/jochwon-assets\/assets\/index-[^"?]+\.js" onerror=/);
   assert.ok(distHtml.includes('window.__recoverJochwonRuntime=recover'));
-  assert.ok(distHtml.includes("pageUrl.searchParams.set('_entry_retry',String(Date.now()))"));
+  assert.ok(distHtml.includes("pageUrl.searchParams.set('_entry_retry',`${runtimeBuildId}:${Date.now()}`)"));
+  assert.ok(distHtml.includes("pageUrl.searchParams.delete('_entry_retry')"));
   assert.doesNotMatch(distHtml,/import\(runtimeEntryUrl\.href\)/);
 });
 
@@ -90,5 +91,5 @@ test('엔트리 로드 실패 시 캐시를 비우고 재시도 URL로 이동한
   await window.__recoverJochwonRuntime();
   const recoveryUrl=new URL(replaced);
   assert.equal(recoveryUrl.searchParams.get('_build'),RUNTIME_BUILD_ID);
-  assert.match(recoveryUrl.searchParams.get('_entry_retry')??'',/^\d+$/);
+  assert.match(recoveryUrl.searchParams.get('_entry_retry')??'',new RegExp(`^${RUNTIME_BUILD_ID}:\\d+$`));
 });

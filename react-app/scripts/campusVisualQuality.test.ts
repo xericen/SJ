@@ -29,6 +29,8 @@ test('공동캠퍼스 맵은 가까이 보이고 캐릭터는 공통 맵보다 �
   const options=applyUnifiedWorldCamera({},'campus');
   assert.equal(options.characterHeight,CAMPUS_NAVIGATION_PROFILE.characterHeight);
   assert.equal(options.cameraDistance,CAMPUS_NAVIGATION_PROFILE.cameraDistance);
+  assert.equal(options.nameplateScale,CAMPUS_NAVIGATION_PROFILE.nameplateScale);
   assert.ok(options.characterHeight<94);
   assert.equal(options.cameraDistance,800);
+  assert.equal(options.nameplateScale,.8);
 });

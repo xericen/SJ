@@ -35,13 +35,23 @@ export const personalFarmCameraDistance=(interior:boolean)=>interior
   ?PERSONAL_FARM_CAMERA_PROFILE.interiorDistance
   :PERSONAL_FARM_CAMERA_PROFILE.outdoorDistance;
 
+export const GARDEN_NAVIGATION_PROFILE={
+  // The garden uses an orthographic camera: zoom changes the visible area,
+  // while distance alone only moves the camera without making the character smaller.
+  cameraDistance:1550,
+  cameraZoom:.9,
+  characterHeight:110,
+} as const;
+
 export const CAMPUS_NAVIGATION_PROFILE={
   cameraDistance:800,
   characterHeight:80,
+  nameplateScale:.8,
 } as const;
 
 export const BEAR_TREE_NAVIGATION_PROFILE={
-  cameraDistance:1000,
+  cameraDistance:1200,
+  cameraFov:38,
   characterHeight:80,
 } as const;
 
@@ -68,6 +78,9 @@ export function applyUnifiedWorldCamera<T extends object>(options:T,mapId?:MapId
       :mapId&&showcaseWorldMapIds.has(mapId)
         ?SHOWCASE_WORLD_CAMERA_DISTANCE
       :SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.camera.cameraDistance,
+    cameraFov:mapId==='bear-tree-park'
+      ?BEAR_TREE_NAVIGATION_PROFILE.cameraFov
+      :SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.camera.cameraFov,
     characterHeight:mapId==='campus'
       ?CAMPUS_NAVIGATION_PROFILE.characterHeight
       :mapId==='bear-tree-park'
@@ -75,6 +88,9 @@ export function applyUnifiedWorldCamera<T extends object>(options:T,mapId?:MapId
       :mapId==='government'
         ?GOVERNMENT_NAVIGATION_PROFILE.characterHeight
       :SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.character.height,
+    nameplateScale:mapId==='campus'
+      ?CAMPUS_NAVIGATION_PROFILE.nameplateScale
+      :'nameplateScale' in options?options.nameplateScale:undefined,
     // These authored constraints made the camera stop while the character
     // kept moving, which changed their apparent distance from map to map.
     cameraHorizontalDistance:undefined,

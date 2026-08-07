@@ -12,15 +12,18 @@ import type { MapId,PortalPosition,PortalSaveResult,RespawnPosition } from '../.
 import { buildExperienceRecommendationProfile,recordMapExperience } from '../services/experienceRecommendationProfile';
 import type { GameReturnState } from './gameReturnState';
 import { getSharedRespawnPosition } from '../services/respawnPosition';
-import {ExperienceHarnessCollector,hydrateGeneratedExperienceProfile,setActiveExperienceUser} from '../services/experienceHarness';
+import {ExperienceHarnessCollector,hydrateGeneratedExperienceProfile,resetGuestExperienceProfile,setActiveExperienceUser,setExperienceProfileMode} from '../services/experienceHarness';
 import {loadSharedWorldPortalState,saveSharedWorldPortalPosition} from '../services/worldPortalPositions';
 import {PersonalFarmProgressExperience} from '../components/PersonalFarmProgressExperience';
-import {PERSONAL_FARM_PROGRESS_CHANGED,refreshPersonalFarmProgress,setPersonalFarmProgressUser} from '../services/personalFarmApi';
+import {PERSONAL_FARM_PROGRESS_CHANGED,clearGuestPersonalFarmProgress,refreshPersonalFarmProgress,setPersonalFarmProgressMode,setPersonalFarmProgressUser} from '../services/personalFarmApi';
 import {applyUnifiedWorldCamera,usesUnifiedWorldNavigation} from './worldNavigationProfile';
-import {loadSharedWorldCameraProfiles,type WorldCameraProfile} from '../services/worldCameraProfiles';
+import {loadSharedWorldCameraProfiles,loadWorldCameraProfileDraft,type WorldCameraProfile} from '../services/worldCameraProfiles';
+import {resetGuestCampusProfileSignals,setCampusProfileSignalMode} from '../services/campusProfileSignals';
+import {resetGuestProjectRoomProfile,setProjectRoomProfileMode} from '../services/projectRoomProjects';
+import {guestUnifiedProfileSession} from '../services/guestUnifiedProfile';
 
 const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;description:string;tasks:string[]}>>={
-  'bear-play-zone':{place:'곰 체험소',title:'곰 체험소로 이동 중...',description:'곰 체험소 공간을 자유롭게 둘러볼 수 있도록 준비하고 있어요.',tasks:['곰 체험소 입구 확인','체험소 공간 불러오기','캐릭터 배치','곰 조형물 배치','베어트리파크 귀환 포털 연결']},
+  'bear-play-zone':{place:'곰 체험소',title:'곰 체험소로 이동 중...',description:'움직이는 곰과 길가의 먹이 찾기 체험을 준비하고 있어요.',tasks:['곰 체험소 입구 확인','체험소 공간 불러오기','캐릭터 배치','움직이는 곰과 먹이 배치','베어트리파크 귀환 포털 연결']},
   'personal-farm':{place:'마이홈',title:'마이홈으로 이동 중...',description:'아늑한 집과 작은 마당을 준비하고 있어요.',tasks:['마이홈 입구 확인','집과 마당 불러오기','캐릭터 배치','꽃밭과 보상 확인','포털 연결']},
   'recruitment-center':{place:'모집센터',title:'모집센터로 이동 중...',description:'함께할 사람과 활동을 찾는 모집 공간을 준비하고 있어요.',tasks:['모집센터 입구 확인','모집센터 GLB 불러오기','캐릭터 배치','안내 데스크 동선 연결','공동 캠퍼스 귀환 포털 연결']},
   town:{place:'세종호수공원',title:'세종호수공원으로 이동중...',description:'호수 산책로와 다양한 취향 체험을 준비하고 있어요.',tasks:['입장 위치 확인','호수공원 산책로 불러오기','캐릭터 배치','축제·공연 체험 연결','주변 사용자 연결']},
@@ -51,15 +54,15 @@ const rendererOptionsFor=(mapId:MapId)=>{
 };
 
 export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnly=false,previewDragRotate=false,authenticated=Boolean(localStorage.getItem('jochiwon-kakao-user-id')?.trim())}:{profile:UserProfile;returnState?:GameReturnState;previewOnly?:boolean;previewDragRotate?:boolean;authenticated?:boolean}){
-  if(!previewOnly){setActiveExperienceUser(profile.nickname);setPersonalFarmProgressUser(profile.nickname)}
+  if(!previewOnly){setExperienceProfileMode(authenticated);setActiveExperienceUser(profile.nickname);setPersonalFarmProgressUser(profile.nickname);setPersonalFarmProgressMode(authenticated);setCampusProfileSignalMode(authenticated);setProjectRoomProfileMode(authenticated,profile.nickname)}
   const [entrySpawn,setEntrySpawn]=useState<RespawnPosition|GameReturnState|undefined>(()=>returnState);
   const ref=useRef<HTMLDivElement>(null),[loading,setLoading]=useState(true),[loadingMapId,setLoadingMapId]=useState<MapId>(()=>returnState?.mapId??'town'),[loadError,setLoadError]=useState('');
   useEffect(()=>{
     if(previewOnly)return;
     const changed=(event:Event)=>gameEvents.emit(PERSONAL_FARM_PROGRESS_CHANGED,(event as CustomEvent).detail);
     window.addEventListener(PERSONAL_FARM_PROGRESS_CHANGED,changed);
-    if(authenticated)void refreshPersonalFarmProgress().catch(()=>undefined);
-    return()=>window.removeEventListener(PERSONAL_FARM_PROGRESS_CHANGED,changed);
+    void refreshPersonalFarmProgress().catch(()=>undefined);
+    return()=>{window.removeEventListener(PERSONAL_FARM_PROGRESS_CHANGED,changed);if(!authenticated){clearGuestPersonalFarmProgress();resetGuestExperienceProfile();resetGuestCampusProfileSignals();resetGuestProjectRoomProfile();guestUnifiedProfileSession.reset()}};
   },[authenticated,previewOnly,profile.nickname]);
   const loadingCopy=MAP_LOADING_COPY[loadingMapId]??{place:'세종예술의전당',title:'세종예술의전당으로 이동중...',description:'공연장 로비와 무대를 준비하고 있어요',tasks:['전당 입구 확인','예술의전당 GLB 불러오기','캐릭터 배치','공연 공간 연결','호수공원 귀환 포탈 연결']};
   useEffect(()=>{
@@ -91,6 +94,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,mapId:initialMapId,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
     let latestPortalPositions:PortalPosition[]=[],activeMapId=initialMapId,latestCameraProfiles=new Map<MapId,WorldCameraProfile>();
+    let portalSyncGeneration=0,pendingPortalSaveCount=0;
     const preloadConnectedBearMap=(mapId:MapId)=>{
       const target=mapId==='bear-tree-park'?'bear-play-zone':'bear-tree-park';
       if(queuedBearMapPreloads.has(target))return;
@@ -109,7 +113,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       const options=rendererOptionsFor(mapId);
       if(!options)return;
       const renderer=new VillageMapRenderer(ref.current!,profile,{...options,mapId,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
-      const cameraProfile=latestCameraProfiles.get(mapId);if(cameraProfile)renderer.applyWorldCameraProfile(cameraProfile);
+      const cameraProfile=loadWorldCameraProfileDraft(mapId)??latestCameraProfiles.get(mapId);if(cameraProfile)renderer.applyWorldCameraProfile(cameraProfile);
       latestPortalPositions.filter(position=>position.mapId===mapId).forEach(position=>renderer.setPortalPosition(position));
       return renderer;
     };
@@ -143,9 +147,21 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       latestPortalPositions=positions;
       positions.forEach(position=>worldRenderers[position.mapId]?.setPortalPosition(position));
     };
+    const portalPositionKey=(position:Pick<PortalPosition,'mapId'|'destination'>)=>`${position.mapId}:${position.destination}`;
+    const upsertPortalPosition=(positions:PortalPosition[],position:PortalPosition)=>{
+      const key=portalPositionKey(position),exists=positions.some(item=>portalPositionKey(item)===key);
+      return exists?positions.map(item=>portalPositionKey(item)===key?position:item):[...positions,position];
+    };
+    const refreshSharedPortals=()=>{
+      if(pendingPortalSaveCount)return;
+      const generation=portalSyncGeneration;
+      void loadSharedWorldPortalState().then(({positions})=>{
+        if(!cancelled&&!pendingPortalSaveCount&&generation===portalSyncGeneration&&positions.length)syncPortalPositions(positions);
+      }).catch(()=>undefined);
+    };
     const syncCameraProfiles=(profiles:WorldCameraProfile[])=>{
       latestCameraProfiles=new Map(profiles.map(profile=>[profile.mapId,profile]));
-      Object.entries(worldRenderers).forEach(([mapId,renderer])=>{const cameraProfile=latestCameraProfiles.get(mapId as MapId);if(renderer&&cameraProfile)renderer.applyWorldCameraProfile(cameraProfile)});
+      Object.entries(worldRenderers).forEach(([mapId,renderer])=>{const cameraProfile=loadWorldCameraProfileDraft(mapId as MapId)??latestCameraProfiles.get(mapId as MapId);if(renderer&&cameraProfile)renderer.applyWorldCameraProfile(cameraProfile)});
     };
     const previewCameraProfile=(cameraProfile:WorldCameraProfile)=>{latestCameraProfiles.set(cameraProfile.mapId,cameraProfile);worldRenderers[cameraProfile.mapId]?.applyWorldCameraProfile(cameraProfile)};
     const resetCameraProfile=(mapId:MapId)=>{latestCameraProfiles.delete(mapId);worldRenderers[mapId]?.resetWorldCameraProfile()};
@@ -154,17 +170,22 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       if(activeMapId==='garden')return;
       const position=worldRenderers[activeMapId]?.placePortalAtPlayer(destination);
       if(!position)return;
+      let saveFailed=false;
+      pendingPortalSaveCount++;portalSyncGeneration++;
       void saveSharedWorldPortalPosition(position).then(result=>{
-        syncPortalPositions(latestPortalPositions.map(item=>item.mapId===position.mapId&&item.destination===position.destination?result.position??position:item));
+        if(cancelled)return;
+        const saved=result.position??position;
+        portalSyncGeneration++;
+        syncPortalPositions(upsertPortalPosition(latestPortalPositions,saved));
         gameEvents.emit('portal-position-save-result',result);
-        socket.emit('savePortalPosition',position,()=>undefined);
       }).catch(error=>{
+        if(cancelled)return;
         // Reconcile immediately with the WIZ source of truth when persistence
         // fails, instead of leaving an optimistic position that jumps back on
         // the next polling tick with no explanation.
-        void loadSharedWorldPortalState().then(({positions})=>{if(!cancelled&&positions.length)syncPortalPositions(positions)}).catch(()=>undefined);
+        saveFailed=true;portalSyncGeneration++;
         gameEvents.emit('portal-position-save-result',{ok:false,message:error instanceof Error?error.message:'포탈 위치를 저장하지 못했어요.'});
-      });
+      }).finally(()=>{pendingPortalSaveCount=Math.max(0,pendingPortalSaveCount-1);if(saveFailed)refreshSharedPortals()});
     };
     const recommendationProfile=()=>{
       const recommendation=buildExperienceRecommendationProfile(profile);
@@ -193,8 +214,10 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       void worldRenderers[mapId]?.ready.then(()=>{if(!cancelled)gameEvents.emit('world-camera-profile-ready',mapId)});
     };
     let sharedPortalTimer=0;
-    const refreshSharedPortals=()=>{void loadSharedWorldPortalState().then(({positions})=>{if(!cancelled&&positions.length)syncPortalPositions(positions)}).catch(()=>undefined)};
-    if(!previewOnly){socket.on('worldClock',syncWorldClock);socket.on('portalPositionsUpdated',syncPortalPositions);refreshSharedPortals();sharedPortalTimer=window.setInterval(refreshSharedPortals,2500)}
+    // WIZ is the canonical portal store. Socket.IO may run a different release
+    // or database, so applying its portal snapshot can roll a successful WIZ
+    // save back to an older position.
+    if(!previewOnly){socket.on('worldClock',syncWorldClock);refreshSharedPortals();sharedPortalTimer=window.setInterval(refreshSharedPortals,2500)}
     gameEvents.on('world-portal-place-at-player',placeWorldPortal);
     gameEvents.on('world-camera-profile-preview',previewCameraProfile);
     gameEvents.on('world-camera-profile-reset',resetCameraProfile);
@@ -217,7 +240,6 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       window.clearInterval(sharedPortalTimer);
       preloadIdleHandles.forEach(handle=>window.cancelIdleCallback(handle));
       socket.off('worldClock',syncWorldClock);
-      socket.off('portalPositionsUpdated',syncPortalPositions);
       gameEvents.off('world-portal-place-at-player',placeWorldPortal);
       gameEvents.off('world-camera-profile-preview',previewCameraProfile);
       gameEvents.off('world-camera-profile-reset',resetCameraProfile);
@@ -237,5 +259,5 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     };
   },[profile,entrySpawn,returnState,previewOnly,previewDragRotate,authenticated,WORLD_RENDERER_LAYOUT_TOKEN]);
   const loadingTasks=previewOnly?['입장 위치 확인',`${loadingCopy.place} GLB 불러오기`,'맵 둘러보기 카메라 준비']:loadingCopy.tasks;
-  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span>{previewOnly?'🗺️':'🧑🏻‍🌾'}</span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><GreenhouseExperience userKey={profile.nickname}/><PersonalFarmProgressExperience authenticated={authenticated} userKey={profile.nickname} mapId={loadingMapId}/></>}</>;
+  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span><img className="sejong-brand-logo" src="/assets/brand/sejong-hanbakwi.png" alt="" aria-hidden="true"/></span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><GreenhouseExperience userKey={profile.nickname}/><PersonalFarmProgressExperience authenticated={authenticated} userKey={profile.nickname} mapId={loadingMapId}/></>}</>;
 });

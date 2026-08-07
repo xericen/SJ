@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { greenhousePlants,GREENHOUSE_PLANT_TOTAL } from '../src/data/greenhouse-plants';
-import { analyzeGreenhouseDiscoveries,analyzeNatureTaste,buildMemoryLetterProfile,compareGreenhouseRecords,createFallbackGreenhouseAnalysis,createFallbackMemoryLetter,createGreenhouseCompletionStory,dominantEmotion,GreenhouseProgressService,greenhouseCompletion,greenhouseInputLocked,memoryLeafNeedsGrowth,natureCuratorMessage,nextGreenhouseAnalysisStage,normalizeMemoryText,parseGreenhouseProgress,recommendRepresentativePlant,representativePlantExplanation,type GreenhouseProgress,type MemoryLeaf } from '../src/services/greenhouseProgress';
+import { analyzeGreenhouseDiscoveries,analyzeNatureTaste,buildMemoryLetterProfile,compareGreenhouseRecords,createFallbackGreenhouseAnalysis,createFallbackMemoryLetter,createGreenhouseCompletionStory,dominantEmotion,GreenhouseProgressService,greenhouseCompletion,greenhouseInputLocked,memoryLeafNeedsGrowth,natureCuratorMessage,nextGreenhouseAnalysisStage,normalizeMemoryText,parseGreenhouseProgress,rankGreenhouseProfilePlants,recommendRepresentativePlant,representativePlantExplanation,type GreenhouseProgress,type MemoryLeaf } from '../src/services/greenhouseProgress';
 import { fallbackPlantReflection,greenhouseReflectionQuestion } from '../src/services/greenhouseReflection';
 import { hasUsablePlantImage,plantGallery } from '../src/services/plantImages';
 import { clearAllAccountData } from '../src/services/accountData';
@@ -25,7 +25,7 @@ assert.equal(progress.collected.length,1,'같은 식물은 중복 수집되지 �
 assert.equal(progress.collected[0].selectedEmotion,'평온함','감정을 수정할 수 있어야 한다');
 assert.equal(progress.collected[0].collectedAt,firstDate,'감정 수정 시 최초 수집일을 유지해야 한다');
 
-let reflectionProgress:GreenhouseProgress={collected:[],memoryLeaves:[],introSeen:true,recordVisibility:'private'};
+let reflectionProgress:GreenhouseProgress={collected:[],plantSignals:{},memoryLeaves:[],introSeen:true,recordVisibility:'private'};
 const peach=greenhousePlants.find(item=>item.id==='peach-tree')!;
 const peachAnswer='햇빛을 받아 따뜻하고 새로운 일이 시작될 것 같아요.';
 const peachReflection=fallbackPlantReflection(peach,peachAnswer);
@@ -134,7 +134,7 @@ const discoveredAgain=service.collectDiscovery(discoveredOnly,'flower-05','관�
 assert.equal(discoveredAgain.collected.find(item=>item.plantId==='flower-05')?.discoveryCount,2,'같은 식물을 반복 발견하면 풍성도가 누적된다');
 assert.equal(discoveredAgain.collected.find(item=>item.plantId==='flower-05')?.totalViewMs,2400,'식물을 살펴본 시간을 탐험 데이터로 누적한다');
 
-let unlockProgress:GreenhouseProgress={collected:[],memoryLeaves:[],introSeen:true,recordVisibility:'private'};
+let unlockProgress:GreenhouseProgress={collected:[],plantSignals:{},memoryLeaves:[],introSeen:true,recordVisibility:'private'};
 greenhousePlants.slice(0,4).forEach(plant=>{unlockProgress=service.collect(unlockProgress,plant.id,'희망','테스트')});
 assert.equal(greenhouseCompletion(unlockProgress).analysisUnlocked,false,'4종에서는 자연 취향 분석이 잠겨야 한다');
 unlockProgress=service.collect(unlockProgress,greenhousePlants[4].id,'희망','테스트');
@@ -150,6 +150,15 @@ greenhousePlants.slice(10).forEach(plant=>{unlockProgress=service.collect(unlock
 assert.equal(greenhouseCompletion(unlockProgress).count,GREENHOUSE_PLANT_TOTAL);
 assert.equal(greenhouseCompletion(unlockProgress).complete,true,'14개에서는 완전 탐험 보상이 열려야 한다');
 assert.equal(greenhouseCompletion(unlockProgress).representativeUnlocked,true,'14종에서는 대표 식물 선정이 열려야 한다');
+unlockProgress=service.recordPlantInfoOpen(unlockProgress,'flower-02');
+unlockProgress=service.recordPlantInfoOpen(unlockProgress,'flower-02');
+unlockProgress=service.recordPlantInfoDuration(unlockProgress,'flower-02',10_000);
+unlockProgress=service.recordPlantNearby(unlockProgress,'flower-02',5_000);
+unlockProgress=service.collectDiscovery(unlockProgress,'flower-02','다시 채집');
+const rankedPlants=rankGreenhouseProfilePlants(unlockProgress,5);
+assert.equal(rankedPlants.length,5,'완전 채집 후 프로필 식물은 상위 5개만 선정한다');
+assert.equal(rankedPlants[0].plantId,'flower-02','정보 열람·머문 시간·근처 체류·재방문을 가중치로 합산한다');
+assert.equal(rankedPlants[0].score,15,'정의된 관심 가중치를 정확히 적용한다');
 unlockProgress=service.setAiAnalysis(unlockProgress,{stage:14,source:'fallback',generatedAt:new Date().toISOString(),analysis:createFallbackGreenhouseAnalysis(unlockProgress,14)});
 const completionStory=createGreenhouseCompletionStory(unlockProgress);
 assert.deepEqual(completionStory.stages.map(stage=>stage.count),[5,10,14],'완주 결과에서 5종·10종·14종의 마음 변화를 보여준다');
@@ -166,7 +175,7 @@ assert.match(fallback,/끝까지 해내고 싶다/);
 assert.ok(fallback.length>30,'AI 실패 fallback 편지가 생성되어야 한다');
 assert.equal(normalizeMemoryText('민주야내일도화이팅'),'민주야, 내일도화이팅.','붙여 쓴 호칭과 문장부호를 의미 변경 없이 정리한다');
 assert.ok(!createFallbackMemoryLetter('내일도 화이팅',unlockProgress.collected.slice(0,2)).includes(greenhousePlants[4].displayName),'편지에 수집하지 않은 식물을 만들지 않는다');
-assert.deepEqual(parseGreenhouseProgress('{broken json'),{collected:[],memoryLeaves:[],introSeen:false,recordVisibility:'private'},'깨진 저장 데이터는 안전하게 초기화해야 한다');
+assert.deepEqual(parseGreenhouseProgress('{broken json'),{collected:[],plantSignals:{},memoryLeaves:[],introSeen:false,recordVisibility:'private'},'깨진 저장 데이터는 안전하게 초기화해야 한다');
 assert.equal(greenhouseInputLocked('plant'),true,'모달 중 이동 입력을 잠가야 한다');
 assert.equal(greenhouseInputLocked(null),false,'모달 종료 후 이동 입력을 복구해야 한다');
 assert.equal(greenhousePlants.length,14,'수집 대상은 14개여야 한다');

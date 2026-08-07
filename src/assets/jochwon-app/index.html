@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="referrer" content="strict-origin-when-cross-origin"/>
-  <link rel="icon" href="data:,"/>
+  <link rel="icon" type="image/png" href="/assets/brand/sejong-hanbakwi.png"/>
   <title>세종한바퀴</title>
   <script>
     (() => {
@@ -77,9 +77,12 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260806-my-home-actions-row-v158';
+      const buildId = '20260807-home-top-spacing-v191';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
+      // The HTML itself is always served with no-cache and every asset has a
+      // content hash. Normalize stale callback URLs without navigating again;
+      // a second navigation can execute the entry from both page lifecycles.
       if ('caches' in window) {
         void caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key))));
       }
@@ -87,22 +90,34 @@
         void navigator.serviceWorker.getRegistrations().then(registrations => Promise.all(registrations.map(registration => registration.unregister())));
       }
       url.searchParams.set('_build', buildId);
-      window.location.replace(url.toString());
+      url.searchParams.delete('_entry_retry');
+      window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
     })();
   </script>
   <script>
   (() => {
-    const runtimeBuildId="20260806-my-home-actions-row-v158";
-    const runtimeEntryPath="/auth/jochwon-assets/assets/index-CVAV6cRg.js";
+    const runtimeBuildId="20260807-home-top-spacing-v191";
+    const runtimeEntryPath="/auth/jochwon-assets/assets/index-CjHPg0tp.js";
     const pageUrl=new URL(window.location.href);
     const entryRetry=pageUrl.searchParams.get('_entry_retry');
+    const currentRetry=entryRetry?.startsWith(`${runtimeBuildId}:`)??false;
     let recoveryStarted=false;
+    const showFailure=()=>{
+      const root=document.getElementById('root');
+      if(!root)return;
+      root.innerHTML='<main style="min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#f4f7f5;font-family:SUIT,\"Noto Sans KR\",sans-serif;color:#183a32"><section style="width:min(440px,100%);padding:36px;border:1px solid #c9ded7;border-radius:24px;background:#fff;text-align:center;box-shadow:0 18px 48px rgba(25,73,61,.12)"><strong style="display:block;font-size:24px;margin-bottom:10px">화면을 다시 준비해 주세요</strong><p style="margin:0 0 22px;color:#657b75;line-height:1.6">최신 화면을 불러오는 중 문제가 발생했습니다.</p><button type="button" onclick="window.__retryJochwonRuntime()" style="border:0;border-radius:12px;padding:13px 22px;background:#087a62;color:#fff;font:inherit;font-weight:800;cursor:pointer">다시 불러오기</button></section></main>';
+    };
+    window.__retryJochwonRuntime=()=>{
+      pageUrl.searchParams.set('_build',runtimeBuildId);
+      pageUrl.searchParams.delete('_entry_retry');
+      window.location.replace(pageUrl.toString());
+    };
     const recover=async()=>{
       if(recoveryStarted)return;
       recoveryStarted=true;
-      if(entryRetry){
-        const root=document.getElementById('root');
-        if(root)root.textContent='새 버전을 불러오지 못했습니다. 페이지를 새로고침해 주세요.';
+      if(currentRetry){
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showFailure,{once:true});
+        else showFailure();
         return;
       }
       const cacheReset='caches' in window
@@ -113,7 +128,7 @@
         :Promise.resolve();
       await Promise.all([cacheReset,workerReset]);
       pageUrl.searchParams.set('_build',runtimeBuildId);
-      pageUrl.searchParams.set('_entry_retry',String(Date.now()));
+      pageUrl.searchParams.set('_entry_retry',`${runtimeBuildId}:${Date.now()}`);
       window.location.replace(pageUrl.toString());
     };
     window.__recoverJochwonRuntime=recover;
@@ -123,8 +138,8 @@
     });
   })();
 </script>
-<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-W2imJRT2.css" onerror="void window.__recoverJochwonRuntime?.()">
-<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-CVAV6cRg.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
+<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-C6Jq8zHc.css" onerror="void window.__recoverJochwonRuntime?.()">
+<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-CjHPg0tp.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
   <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-m-EpYe9t.js">
 
 </head>

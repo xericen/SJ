@@ -56,3 +56,24 @@
   line-height: 1.45;
   text-align: left;
 }
+
+/* Keep the complete login flow reachable in short and narrow viewports. */
+.login-design-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: start;
+  overflow: visible;
+}
+
+.login-design-card {
+  height: auto;
+  min-height: calc(100vh - 48px);
+  min-height: calc(100dvh - 48px);
+}
+
+@media (max-width: 850px) {
+  .login-design-card {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}

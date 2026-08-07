@@ -39,6 +39,22 @@ export interface CollectedPlant{
   aiMessage:string;
   userMemo?:string;
 }
+export interface GreenhousePlantSignal{
+  infoViewCount:number;
+  totalInfoViewMs:number;
+  nearbyVisitCount:number;
+  totalNearbyMs:number;
+  lastInteractedAt?:string;
+}
+export interface RankedGreenhousePlant{
+  plantId:string;
+  score:number;
+  infoViewCount:number;
+  infoViewSeconds:number;
+  nearbyVisitCount:number;
+  nearbySeconds:number;
+  revisitCount:number;
+}
 export interface MemoryLeaf{
   id:string;
   createdAt:string;
@@ -58,6 +74,7 @@ export interface RepresentativePlant{
 }
 export interface GreenhouseProgress{
   collected:CollectedPlant[];
+  plantSignals:Record<string,GreenhousePlantSignal>;
   memoryLeaves:MemoryLeaf[];
   introSeen:boolean;
   representativePlant?:RepresentativePlant;
@@ -66,7 +83,8 @@ export interface GreenhouseProgress{
 }
 
 const VERSION=1;
-const emptyProgress=():GreenhouseProgress=>({collected:[],memoryLeaves:[],introSeen:false,recordVisibility:'private'});
+const emptyProgress=():GreenhouseProgress=>({collected:[],plantSignals:{},memoryLeaves:[],introSeen:false,recordVisibility:'private'});
+const emptySignal=():GreenhousePlantSignal=>({infoViewCount:0,totalInfoViewMs:0,nearbyVisitCount:0,totalNearbyMs:0});
 const safeEmotion=(value:unknown):value is GreenhouseEmotion=>GREENHOUSE_EMOTIONS.some(item=>item.id===value);
 const normalizeEmotion=(value:unknown):GreenhouseEmotion|undefined=>value==='평온'?'평온함':safeEmotion(value)?value:undefined;
 const safeReasonCategory=(value:unknown):value is EmotionReasonCategory=>['scene','change','relationship','memory'].includes(String(value));
@@ -154,6 +172,18 @@ export function parseGreenhouseProgress(raw:string|null):GreenhouseProgress{
       const analysisStage:GreenhouseAnalysisStage=legacyStage===14?14:legacyStage===10||legacyStage===7?10:5;
       return {...item,analysisStage};
     }):[];
+    const rawSignals=source?.plantSignals&&typeof source.plantSignals==='object'?source.plantSignals:{};
+    const plantSignals=Object.fromEntries(Object.entries(rawSignals).flatMap(([plantId,value])=>{
+      if(!greenhousePlantById.has(plantId)||!value||typeof value!=='object')return [];
+      const signal=value as Partial<GreenhousePlantSignal>;
+      return [[plantId,{
+        infoViewCount:Math.max(0,Math.floor(Number(signal.infoViewCount)||0)),
+        totalInfoViewMs:Math.max(0,Math.floor(Number(signal.totalInfoViewMs)||0)),
+        nearbyVisitCount:Math.max(0,Math.floor(Number(signal.nearbyVisitCount)||0)),
+        totalNearbyMs:Math.max(0,Math.floor(Number(signal.totalNearbyMs)||0)),
+        lastInteractedAt:typeof signal.lastInteractedAt==='string'?signal.lastInteractedAt:undefined,
+      } satisfies GreenhousePlantSignal]];
+    }));
     const representativePlant=source?.representativePlant&&typeof source.representativePlant==='object'
       &&typeof source.representativePlant.plantId==='string'&&greenhousePlantById.has(source.representativePlant.plantId)
       &&unique.some(item=>item.plantId===source.representativePlant!.plantId)
@@ -163,6 +193,7 @@ export function parseGreenhouseProgress(raw:string|null):GreenhouseProgress{
     const aiAnalysis=parsedAnalysis&&unique.length>=parsedAnalysis.stage?parsedAnalysis:undefined;
     return {
       collected:unique,
+      plantSignals,
       memoryLeaves,
       introSeen:source?.introSeen===true,
       representativePlant,
@@ -228,7 +259,7 @@ export class GreenhouseProgressService{
       plantId,
       collectedAt:existing?.collectedAt??now,
       updatedAt:now,
-      discoveryCount:(existing?.discoveryCount??0)+1,
+      discoveryCount:(existing?.discoveryCount??(existing?1:0))+1,
       totalViewMs:(existing?.totalViewMs??0)+Math.max(0,Math.floor(viewMs)),
       lastViewedAt:now,
       selectedEmotion:existing?.selectedEmotion??signal.emotion,
@@ -243,6 +274,21 @@ export class GreenhouseProgressService{
       includeInAnalysis:true,
     };
     return this.save({...progress,collected:[...progress.collected.filter(item=>item.plantId!==plantId),next]});
+  }
+  recordPlantInfoOpen(progress:GreenhouseProgress,plantId:string){
+    if(!greenhousePlantById.has(plantId))return progress;
+    const current=progress.plantSignals[plantId]??emptySignal(),now=new Date().toISOString();
+    return this.save({...progress,plantSignals:{...progress.plantSignals,[plantId]:{...current,infoViewCount:current.infoViewCount+1,lastInteractedAt:now}}});
+  }
+  recordPlantInfoDuration(progress:GreenhouseProgress,plantId:string,durationMs:number){
+    if(!greenhousePlantById.has(plantId))return progress;
+    const current=progress.plantSignals[plantId]??emptySignal(),now=new Date().toISOString();
+    return this.save({...progress,plantSignals:{...progress.plantSignals,[plantId]:{...current,totalInfoViewMs:current.totalInfoViewMs+Math.max(0,Math.floor(durationMs)),lastInteractedAt:now}}});
+  }
+  recordPlantNearby(progress:GreenhouseProgress,plantId:string,durationMs:number){
+    if(!greenhousePlantById.has(plantId))return progress;
+    const current=progress.plantSignals[plantId]??emptySignal(),now=new Date().toISOString();
+    return this.save({...progress,plantSignals:{...progress.plantSignals,[plantId]:{...current,nearbyVisitCount:current.nearbyVisitCount+1,totalNearbyMs:current.totalNearbyMs+Math.max(0,Math.floor(durationMs)),lastInteractedAt:now}}});
   }
   clearPlantReflection(progress:GreenhouseProgress,plantId:string){
     const existing=progress.collected.find(item=>item.plantId===plantId);
@@ -293,6 +339,18 @@ export const greenhouseCompletion=(progress:GreenhouseProgress)=>({
   complete:progress.collected.length>=GREENHOUSE_PLANT_TOTAL,
   ratio:Math.min(1,progress.collected.length/GREENHOUSE_PLANT_TOTAL),
 });
+export function rankGreenhouseProfilePlants(progress:GreenhouseProgress,limit=5):RankedGreenhousePlant[]{
+  return progress.collected.map((entry,index)=>{
+    const signal=progress.plantSignals[entry.plantId];
+    const infoViewCount=signal?.infoViewCount??Math.max(1,entry.discoveryCount??1);
+    const infoViewSeconds=(signal?.totalInfoViewMs??entry.totalViewMs??0)/1000;
+    const nearbyVisitCount=signal?.nearbyVisitCount??0;
+    const nearbySeconds=(signal?.totalNearbyMs??0)/1000;
+    const revisitCount=Math.max(0,(entry.discoveryCount??1)-1);
+    const score=infoViewCount*3+infoViewSeconds*.5+nearbyVisitCount+nearbySeconds*.2+revisitCount*2;
+    return {plantId:entry.plantId,score:Math.round(score*10)/10,infoViewCount,infoViewSeconds:Math.round(infoViewSeconds),nearbyVisitCount,nearbySeconds:Math.round(nearbySeconds),revisitCount,index};
+  }).sort((a,b)=>b.score-a.score||a.index-b.index||a.plantId.localeCompare(b.plantId)).slice(0,Math.max(0,limit)).map(({index:_,...item})=>item);
+}
 export const memoryLeafNeedsGrowth=(progress:GreenhouseProgress)=>{
   const latest=progress.memoryLeaves[0];
   return Boolean(latest&&progress.aiAnalysis&&(latest.analysisStage??5)<progress.aiAnalysis.stage);
@@ -687,7 +745,7 @@ export interface MemoryLetterContext{
 
 export function createFallbackMemoryLetter(userText:string,collected:CollectedPlant[],context?:MemoryLetterContext){
   const profile=context?.profile??buildMemoryLetterProfile({
-    collected,memoryLeaves:[],introSeen:true,recordVisibility:'private',
+    collected,plantSignals:{},memoryLeaves:[],introSeen:true,recordVisibility:'private',
   });
   const names=collected.slice(0,2).map(item=>greenhousePlantById.get(item.plantId)?.displayName).filter(Boolean).join('와 ');
   const text=normalizeMemoryText(userText.replace(/^[^:]{1,40}:\s*/,''));

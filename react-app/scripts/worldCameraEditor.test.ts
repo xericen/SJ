@@ -35,7 +35,19 @@ test('권한 사용자 편집 바는 모든 값을 실시간 미리보기하고 
   assert.match(editor,/saveSharedWorldCameraProfile/);
   assert.match(editor,/resetSharedWorldCameraProfile/);
   assert.match(page,/WorldCameraEditor mapId=\{currentMapId\} canEdit=\{canEditPortals\}/);
+  assert.match(page,/currentMapId==='sejong-smart-city'&&canEditPortals/);
+  assert.match(page,/currentMapId==='government-central-plaza'&&canEditPortals/);
+  assert.equal((page.match(/운영자 포탈 편집/g)??[]).length,2);
   assert.match(editorCss,/position:fixed[^}]*top:14px/);
+});
+
+test('저장 전 조절값도 맵을 이동했다 돌아오면 세션에서 복원한다',()=>{
+  assert.match(editor,/loadWorldCameraProfileDraft\(mapId\)/);
+  assert.match(editor,/saveWorldCameraProfileDraft\(next\)/);
+  assert.match(editor,/clearWorldCameraProfileDraft\(mapId\)/);
+  assert.match(editor,/이동 전 조절값 유지 중/);
+  assert.match(canvas,/loadWorldCameraProfileDraft\(mapId\)\?\?latestCameraProfiles\.get\(mapId\)/);
+  assert.match(canvas,/loadWorldCameraProfileDraft\(mapId as MapId\)\?\?latestCameraProfiles\.get\(mapId as MapId\)/);
 });
 
 test('렌더러와 게임 캔버스는 저장값을 현재 맵에 즉시 반영한다',()=>{
@@ -44,6 +56,7 @@ test('렌더러와 게임 캔버스는 저장값을 현재 맵에 즉시 반영�
   assert.match(renderer,/this\.cameraProfileOverride\?\.cameraDistance/);
   assert.match(renderer,/this\.cameraProfileOverride\?\.cameraElevationDeg/);
   assert.match(renderer,/this\.cameraProfileOverride\?\.cameraAzimuthDeg/);
+  assert.match(renderer,/orthographicZoomForCameraDistance\(zoom,this\.authoredCameraProfile\.cameraDistance,this\.cameraProfileOverride\.cameraDistance\)/);
   assert.match(canvas,/loadSharedWorldCameraProfiles/);
   assert.match(canvas,/world-camera-profile-request/);
   assert.match(canvas,/world-camera-profile-reset/);

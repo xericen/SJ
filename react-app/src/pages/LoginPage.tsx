@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import { useEffect, type MouseEvent } from 'react';
 
 import {
   ArrowLeft,
@@ -51,6 +51,12 @@ export function LoginPage({
   onBack,
   errorMessage,
 }: LoginPageProps) {
+  useEffect(() => {
+    // The landing page can be scrolled before opening login. Reusing that
+    // offset makes a responsive login page appear clipped on mount.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
+
   const continueInCurrentWindow = (
     event: MouseEvent<HTMLAnchorElement>,
   ) => {

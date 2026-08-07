@@ -8,6 +8,7 @@ import {CAMPUS_FEATURE_PORTALS} from '../src/game/campusFeaturePortals';
 import {WORLD_GUIDE_PORTAL_POSITIONS} from '../src/game/worldGuideEntryPoints';
 import {CAMPUS_TO_PROJECT_ROOM_ARRIVAL,worldPortalArrivalOverride} from '../src/game/worldPortalArrivals';
 import {isPortalChargePositionHeld,PortalTravelGate} from '../src/game/portalTravelGate';
+import {CAMPUS_PORTAL_VISUAL_SCALE,portalVisualScaleForMap} from '../src/game/campusPortalVisual';
 
 const root=resolve(import.meta.dirname,'..');
 const read=(path:string)=>readFileSync(resolve(root,path),'utf8');
@@ -55,6 +56,26 @@ test('공동캠퍼스 건물 포탈 4개는 범위 안에서 3초를 유지해�
 test('공동캠퍼스의 clubs 포탈 명칭은 동아리 거리제다',()=>{
   assert.equal(CAMPUS_FEATURE_PORTALS.find(portal=>portal.id==='clubs')?.label,'동아리 거리제');
   assert.doesNotMatch(read('src/game/campusFeaturePortals.ts'),/동아리관/);
+});
+
+test('공동캠퍼스 포탈 6개와 이름표는 이동 범위를 유지한 채 2/3 크기로 표시한다',()=>{
+  assert.equal(CAMPUS_PORTAL_VISUAL_SCALE,2/3);
+  assert.equal(portalVisualScaleForMap('공동캠퍼스'),2/3);
+  assert.equal(portalVisualScaleForMap('모집센터'),1);
+  assert.equal(WORLD_PORTAL_DEFAULTS.filter(position=>position.mapId==='campus').length,6);
+
+  const renderer=read('src/game/renderers/VillageMapRenderer.ts');
+  assert.match(renderer,/const visualScale=portalVisualScaleForMap\(this\.options\.mapName\)/);
+  assert.match(renderer,/root\.userData\.visualScale=visualScale/);
+  assert.match(renderer,/root\.scale\.setScalar\(visualScale\*\(1\+Math\.sin/);
+  assert.match(renderer,/root\.add\(label\);root\.userData\.label=label/);
+  CAMPUS_FEATURE_PORTALS.forEach(portal=>assert.equal(portal.activationRadius,140));
+});
+
+test('학생회관 AI 추천 트리는 원형 소파 앞에서도 E 안내를 노출한다',()=>{
+  const renderer=read('src/game/renderers/VillageMapRenderer.ts');
+  assert.match(renderer,/const STUDENT_HALL_AI_TREE_OPEN_DISTANCE=190;/);
+  assert.match(renderer,/id:'people'[\s\S]{0,160}radius:STUDENT_HALL_AI_TREE_OPEN_DISTANCE[\s\S]{0,120}label:'AI 추천 트리'/);
 });
 
 test('기존 공동캠퍼스 포탈 5개는 브라우저별 좌표와 위치 이동 UI를 사용하지 않는다',()=>{
@@ -151,13 +172,19 @@ test('모집센터 공동캠퍼스 귀환 포탈은 요청자 좌표로 고정�
   assert.match(wizApi,/\("recruitment-center", "campus"\),/);
 });
 
-test('프로젝트실 전광판 모델은 회전하지 않고 HTML만 가로 비율로 표시한다',()=>{
+test('프로젝트실 전광판 HTML은 실제 보드의 긴 축을 가로로 유지하고 카메라 확대로 표시된다',()=>{
   const renderer=read('src/game/renderers/VillageMapRenderer.ts');
   const board=read('src/components/ProjectLobbyBoard.tsx');
+  const zoomCss=read('src/components/ProjectLobbyBoardZoom.css');
   assert.doesNotMatch(renderer,/Project_Lobby_Board_Upright/);
-  assert.doesNotMatch(board,/perspectiveMatrix|matrix3d/);
-  assert.match(board,/const aspect=BOARD_WIDTH\/BOARD_HEIGHT/);
-  assert.match(board,/height=width\/aspect/);
+  assert.match(board,/BOARD_SURFACE_WIDTH=1541,BOARD_SURFACE_HEIGHT=1000/);
+  assert.match(board,/perspectiveMatrix/);
+  assert.match(board,/matrix3d/);
+  assert.match(renderer,/projectedMeshScreenQuad\(this\.projectLobbyBoardScreen,true\)/);
+  assert.match(renderer,/preserveLandscapeAxis&&thinAxis==='x'/);
+  assert.match(board,/style=\{projectedBoardStyle\(rect\)\}/);
+  assert.match(zoomCss,/background: transparent/);
+  assert.doesNotMatch(zoomCss,/92vw|92vh|rgba\(3, 10, 9, 0\.88\)/);
 });
 
 test('공동캠퍼스에서 프로젝트실로 들어오면 안전한 로비 좌표에 도착한다',()=>{
@@ -175,6 +202,10 @@ test('프로젝트실 공동캠퍼스 포탈은 요청자 좌표로 고정되고
     fixed,
   );
   assert.deepEqual(WORLD_GUIDE_PORTAL_POSITIONS['project-room'],{x:fixed.x,z:fixed.z});
+  const renderer=read('src/game/renderers/VillageMapRenderer.ts');
+  const projectRoom=renderer.slice(renderer.indexOf('export const PROJECT_ROOM_RENDERER_OPTIONS'),renderer.indexOf('export const GOVERNMENT_RENDERER_OPTIONS'));
+  assert.match(projectRoom,/destination:'campus'[\s\S]*chargeSeconds:3[\s\S]*activationRadius:140/);
+  assert.match(projectRoom,/label:'공동캠퍼스로 돌아가기'/);
 
   const store=new RoomStore();
   assert.equal(store.setPortalPosition({...fixed,x:1500,z:1800}),false);
@@ -184,7 +215,6 @@ test('프로젝트실 공동캠퍼스 포탈은 요청자 좌표로 고정되고
   );
 
   const page=read('src/pages/GamePage.tsx');
-  const renderer=read('src/game/renderers/VillageMapRenderer.ts');
   const socketHandlers=read('server/src/socket/registerSocketHandlers.ts');
   const serverModel=read('server/src/models/WorldPortalPosition.ts');
   const wizApi=read('../src/app/page.home/api.py');

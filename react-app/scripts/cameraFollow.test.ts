@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE} from '../src/game/cameraFollow';
+import {clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,orthographicZoomForCameraDistance,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE} from '../src/game/cameraFollow';
 
 test('예술의전당 카메라는 스크린샷 기준 앞에서 자유롭게 왕복한다',()=>{
   const screenshotCameraZ=780;
@@ -15,4 +15,11 @@ test('호수공원 카메라는 각도를 유지하며 조금 더 넓어진 거�
   assert.equal(LAKE_PARK_FOLLOW_CAMERA_DISTANCE,1080);
   assert.equal(LAKE_PARK_CAMERA_ZOOM,1.35);
   assert.equal(LAKE_PARK_CAMERA_ELEVATION_DEG,33);
+});
+
+test('직교 카메라 거리 조절은 화면 줌으로 환산된다',()=>{
+  assert.equal(orthographicZoomForCameraDistance(1.15,1180,1180),1.15);
+  assert.ok(orthographicZoomForCameraDistance(1.15,1180,1600)<1.15);
+  assert.ok(orthographicZoomForCameraDistance(1.15,1180,800)>1.15);
+  assert.equal(orthographicZoomForCameraDistance(1.15,1180,0),1.15);
 });

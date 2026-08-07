@@ -1258,16 +1258,32 @@ def _kakao_callback():
     )
 
 
-PERSONAL_FARM_FLOWERS = ("tulip", "sunflower", "hydrangea", "camellia", "iris")
+PERSONAL_FARM_FLOWERS = (
+    "magnolia", "adonis", "azalea", "hydrangea", "tulip", "iris", "lily",
+    "camellia", "sunflower", "gujeolcho", "hibiscus", "bird-of-paradise",
+    "peach-tree", "maple-tree",
+)
+PERSONAL_FARM_REQUIRED_FLOWERS = (
+    "hydrangea", "tulip", "iris", "camellia", "sunflower"
+)
+PERSONAL_FARM_FLOWER_BED_LIMIT = 5
 PERSONAL_FARM_FEEDS = ("apple", "carrot", "acorn")
 PERSONAL_FARM_FEED_SPOTS = tuple(
     f"BEAR_FEED_SPOT_0{index}" for index in range(1, 6)
 )
+PERSONAL_FARM_FEED_BY_SPOT = {
+    "BEAR_FEED_SPOT_01": "apple",
+    "BEAR_FEED_SPOT_02": "carrot",
+    "BEAR_FEED_SPOT_03": "acorn",
+    "BEAR_FEED_SPOT_04": "apple",
+    "BEAR_FEED_SPOT_05": "carrot",
+}
 PERSONAL_FARM_REWARDS = (
     "flower-garden",
     "bear-statue",
     "nature-complete-emblem",
     "real-visit-missions-unlocked",
+    "nature-chapter-complete",
 )
 
 
@@ -1278,6 +1294,7 @@ def _personal_farm_default(now=None):
         "submittedAt": None,
         "reviewedAt": None,
         "metadata": {},
+        "file": None,
     }
     return {
         "gardenMission": {
@@ -1285,10 +1302,15 @@ def _personal_farm_default(now=None):
             "plantedFlowerIds": [],
             "completed": False,
             "completedAt": None,
+            "completedFlowerIds": [],
+            "requiredFlowerCount": PERSONAL_FARM_FLOWER_BED_LIMIT,
+            "interestCompleted": False,
+            "interestCompletedAt": None,
         },
         "bearMission": {
             "collectedFeedIds": [],
             "completedFeedSpotIds": [],
+            "fedFeedSpotIds": [],
             "bearFed": False,
             "bearFedAt": None,
             "completed": False,
@@ -1299,6 +1321,13 @@ def _personal_farm_default(now=None):
             "unlockedRewardIds": [],
             "activeRewardIds": [],
             "bearGrowthStage": "locked",
+        },
+        "natureChapter": {
+            "gardenCompleted": False,
+            "bearTreeCompleted": False,
+            "completed": False,
+            "completedAt": None,
+            "noticeShown": False,
         },
         "realVisit": {"garden": dict(visit), "bearTree": dict(visit)},
         "layoutVersion": 1,
@@ -1321,21 +1350,33 @@ def _normalize_personal_farm(value):
     bear = value.get("bearMission") or {}
     farm = value.get("farm") or {}
     visits = value.get("realVisit") or {}
+    nature = value.get("natureChapter") or {}
     result["gardenMission"]["collectedFlowerIds"] = _personal_farm_allowed_list(
         garden.get("collectedFlowerIds"), PERSONAL_FARM_FLOWERS
     )
     result["gardenMission"]["plantedFlowerIds"] = _personal_farm_allowed_list(
         garden.get("plantedFlowerIds"), PERSONAL_FARM_FLOWERS
-    )
+    )[:PERSONAL_FARM_FLOWER_BED_LIMIT]
     result["bearMission"]["collectedFeedIds"] = _personal_farm_allowed_list(
         bear.get("collectedFeedIds"), PERSONAL_FARM_FEEDS
     )
     result["bearMission"]["completedFeedSpotIds"] = _personal_farm_allowed_list(
         bear.get("completedFeedSpotIds"), PERSONAL_FARM_FEED_SPOTS
     )
+    fed_feed_spot_ids = _personal_farm_allowed_list(
+        bear.get("fedFeedSpotIds"), PERSONAL_FARM_FEED_SPOTS
+    )
+    if bear.get("bearFed") is True and not fed_feed_spot_ids:
+        fed_feed_spot_ids = list(result["bearMission"]["completedFeedSpotIds"])
+    result["bearMission"]["fedFeedSpotIds"] = [
+        item for item in fed_feed_spot_ids
+        if item in result["bearMission"]["completedFeedSpotIds"]
+    ]
     result["bearMission"]["bearFed"] = bear.get("bearFed") is True
     if isinstance(bear.get("bearFedAt"), str):
         result["bearMission"]["bearFedAt"] = bear["bearFedAt"]
+    if isinstance(garden.get("interestCompletedAt"), str):
+        result["gardenMission"]["interestCompletedAt"] = garden["interestCompletedAt"]
     result["farm"]["activeRewardIds"] = _personal_farm_allowed_list(
         farm.get("activeRewardIds"), PERSONAL_FARM_REWARDS
     )
@@ -1359,6 +1400,21 @@ def _normalize_personal_farm(value):
                 str(key)[:40]: str(item)[:300]
                 for key, item in list(metadata.items())[:20]
             }
+        file_data = source.get("file")
+        if isinstance(file_data, dict):
+            original_name = file_data.get("originalName")
+            mime_type = file_data.get("mimeType")
+            size = file_data.get("size")
+            if isinstance(original_name, str) and isinstance(mime_type, str) and isinstance(size, int):
+                result["realVisit"][mission]["file"] = {
+                    "originalName": original_name[:200],
+                    "mimeType": mime_type[:100],
+                    "size": max(0, size),
+                }
+    if isinstance(nature, dict):
+        if isinstance(nature.get("completedAt"), str):
+            result["natureChapter"]["completedAt"] = nature["completedAt"]
+        result["natureChapter"]["noticeShown"] = nature.get("noticeShown") is True
     created_at = value.get("createdAt")
     if isinstance(created_at, str):
         result["createdAt"] = created_at
@@ -1370,22 +1426,29 @@ def _apply_personal_farm_rules(progress, now=None):
     garden = progress["gardenMission"]
     bear = progress["bearMission"]
     garden_complete = all(
-        item in garden["collectedFlowerIds"] and item in garden["plantedFlowerIds"]
-        for item in PERSONAL_FARM_FLOWERS
-    )
-    if bear.get("bearFed") and not all(
-        item in bear["completedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS
-    ):
-        bear["bearFed"] = False
-        bear["bearFedAt"] = None
+        item in garden["collectedFlowerIds"]
+        for item in PERSONAL_FARM_REQUIRED_FLOWERS
+    ) and len(garden["plantedFlowerIds"]) == PERSONAL_FARM_FLOWER_BED_LIMIT
+    bear["fedFeedSpotIds"] = list(dict.fromkeys(
+        item for item in bear.get("fedFeedSpotIds", [])
+        if item in bear["completedFeedSpotIds"] and item in PERSONAL_FARM_FEED_SPOTS
+    ))
     bear_complete = all(
-        item in bear["completedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS
-    ) and bear.get("bearFed") is True
+        item in bear["fedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS
+    )
+    bear["bearFed"] = bear_complete
+    if not bear_complete:
+        bear["bearFedAt"] = None
     if garden_complete and not garden.get("completedAt"):
         garden["completedAt"] = timestamp
     if bear_complete and not bear.get("completedAt"):
         bear["completedAt"] = timestamp
     garden["completed"] = garden_complete
+    garden["completedFlowerIds"] = list(garden["collectedFlowerIds"])
+    garden["requiredFlowerCount"] = PERSONAL_FARM_FLOWER_BED_LIMIT
+    garden["interestCompleted"] = garden_complete
+    if garden_complete and not garden.get("interestCompletedAt"):
+        garden["interestCompletedAt"] = timestamp
     bear["completed"] = bear_complete
     rewards = []
     if garden_complete:
@@ -1393,12 +1456,22 @@ def _apply_personal_farm_rules(progress, now=None):
     if bear_complete:
         rewards.append("bear-statue")
     if garden_complete and bear_complete:
-        rewards.extend(("nature-complete-emblem", "real-visit-missions-unlocked"))
+        rewards.extend((
+            "nature-complete-emblem",
+            "real-visit-missions-unlocked",
+            "nature-chapter-complete",
+        ))
     farm = progress["farm"]
     farm["unlocked"] = garden_complete and bear_complete
     farm["unlockedRewardIds"] = rewards
     farm["activeRewardIds"] = [item for item in farm["activeRewardIds"] if item in rewards]
     farm["bearGrowthStage"] = "locked"
+    nature = progress["natureChapter"]
+    nature["gardenCompleted"] = garden_complete
+    nature["bearTreeCompleted"] = bear_complete
+    nature["completed"] = garden_complete and bear_complete
+    if nature["completed"] and not nature.get("completedAt"):
+        nature["completedAt"] = timestamp
     for mission in ("garden", "bearTree"):
         record = progress["realVisit"][mission]
         if not farm["unlocked"]:
@@ -1460,7 +1533,7 @@ def personal_farm_progress():
 
     garden = progress["gardenMission"]
     bear = progress["bearMission"]
-    if action in ("collectFlower", "plantFlower"):
+    if action in ("collectFlower", "plantFlower", "removeFlower"):
         flower_id = wiz.request.query("flowerId", "").strip()
         if flower_id not in PERSONAL_FARM_FLOWERS:
             return _personal_farm_error(400, "INVALID_FLOWER_ID", "지원하지 않는 꽃입니다.")
@@ -1468,12 +1541,20 @@ def personal_farm_progress():
             if flower_id in garden["collectedFlowerIds"]:
                 return _personal_farm_error(409, "FLOWER_ALREADY_COLLECTED", "이미 수집한 꽃입니다.")
             garden["collectedFlowerIds"].append(flower_id)
-        else:
+        elif action == "plantFlower":
             if flower_id not in garden["collectedFlowerIds"]:
                 return _personal_farm_error(409, "FLOWER_NOT_COLLECTED", "꽃을 먼저 수집해 주세요.")
             if flower_id in garden["plantedFlowerIds"]:
                 return _personal_farm_error(409, "FLOWER_ALREADY_PLANTED", "이미 심은 꽃입니다.")
+            if len(garden["plantedFlowerIds"]) >= PERSONAL_FARM_FLOWER_BED_LIMIT:
+                return _personal_farm_error(409, "FLOWER_BED_FULL", "화단에는 꽃을 5개까지 심을 수 있습니다.")
             garden["plantedFlowerIds"].append(flower_id)
+        else:
+            if flower_id not in garden["plantedFlowerIds"]:
+                return _personal_farm_error(409, "FLOWER_NOT_PLANTED", "화단에 심지 않은 꽃입니다.")
+            garden["plantedFlowerIds"] = [
+                item for item in garden["plantedFlowerIds"] if item != flower_id
+            ]
     elif action == "collectFeed":
         feed_id = wiz.request.query("feedId", "").strip()
         if feed_id not in PERSONAL_FARM_FEEDS:
@@ -1485,33 +1566,38 @@ def personal_farm_progress():
         spot_id = wiz.request.query("spotId", "").strip()
         if spot_id not in PERSONAL_FARM_FEED_SPOTS:
             return _personal_farm_error(400, "INVALID_FEED_SPOT_ID", "지원하지 않는 먹이 지점입니다.")
-        if not bear["collectedFeedIds"]:
-            return _personal_farm_error(409, "FEED_NOT_COLLECTED", "먹이를 먼저 수집해 주세요.")
         if spot_id in bear["completedFeedSpotIds"]:
-            return _personal_farm_error(409, "FEED_SPOT_ALREADY_COMPLETED", "이미 완료한 먹이 지점입니다.")
+            return _personal_farm_error(409, "FEED_SPOT_ALREADY_COMPLETED", "이미 주운 먹이입니다.")
+        if len(bear["completedFeedSpotIds"]) > len(bear["fedFeedSpotIds"]):
+            return _personal_farm_error(
+                409, "FEED_PENDING_DELIVERY", "먼저 들고 있는 먹이를 곰에게 주세요."
+            )
+        feed_id = PERSONAL_FARM_FEED_BY_SPOT[spot_id]
+        if feed_id not in bear["collectedFeedIds"]:
+            bear["collectedFeedIds"].append(feed_id)
         bear["completedFeedSpotIds"].append(spot_id)
     elif action == "feedBear":
-        if not all(
-            item in bear["completedFeedSpotIds"]
-            for item in PERSONAL_FARM_FEED_SPOTS
-        ):
-            return _personal_farm_error(
-                409,
-                "FEED_SPOTS_INCOMPLETE",
-                "다섯 곳의 먹이 지점을 먼저 완료해 주세요.",
-            )
         if bear.get("bearFed"):
             return _personal_farm_error(
                 409, "BEAR_ALREADY_FED", "이미 곰 급여 체험을 완료했습니다."
             )
-        bear["bearFed"] = True
-        bear["bearFedAt"] = datetime.datetime.now().isoformat()
+        pending_spot_id = next((
+            item for item in bear["completedFeedSpotIds"]
+            if item not in bear["fedFeedSpotIds"]
+        ), None)
+        if pending_spot_id is None:
+            return _personal_farm_error(
+                409, "FEED_NOT_COLLECTED", "먹이를 하나 주운 뒤 곰에게 주세요."
+            )
+        bear["fedFeedSpotIds"].append(pending_spot_id)
+        if all(item in bear["fedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS):
+            bear["bearFedAt"] = datetime.datetime.now().isoformat()
     elif action == "activeRewards":
         try:
             reward_ids = json.loads(wiz.request.query("rewardIds", "[]"))
         except (TypeError, ValueError, json.JSONDecodeError):
             reward_ids = None
-        if not isinstance(reward_ids, list) or len(reward_ids) > 4 or any(
+        if not isinstance(reward_ids, list) or len(reward_ids) > 5 or any(
             item not in progress["farm"]["unlockedRewardIds"] for item in reward_ids
         ):
             return _personal_farm_error(409, "REWARD_NOT_UNLOCKED", "잠금 해제된 보상만 배치할 수 있습니다.")
@@ -1538,6 +1624,179 @@ def personal_farm_progress():
 
     progress = _save_personal_farm(db, user_id, progress, record)
     return wiz.response.status(200, progress=progress)
+
+
+PROJECT_ROOM_STATUSES = ("recruiting", "planning", "active", "completed")
+PROJECT_ROOM_SEEDS = (
+    {
+        "id": "garden-photo", "title": "수목원 사진 기록 프로젝트",
+        "summary": "계절별 식물과 풍경을 사진으로 기록해요.",
+        "description": "국립세종수목원을 함께 걸으며 대표 식물과 계절의 변화를 촬영하고 작은 온라인 도감을 완성합니다.",
+        "placeIds": ["국립세종수목원"], "activityTypes": ["사진", "자연", "조사"],
+        "tags": ["사진", "자연", "수목원", "기록"], "leaderId": "초록산책",
+        "memberIds": ["초록산책", "하늘여우"], "applicantIds": [], "maxMembers": 5,
+        "startDate": "2026-08-08", "deadline": "2026-08-05",
+        "preferredTraits": ["사진 기록형", "여유형", "대화 중심"],
+        "status": "recruiting", "visibility": "public", "thumbnail": "🌸",
+        "createdAt": "2026-07-20T09:00:00.000Z",
+    },
+    {
+        "id": "night-festival", "title": "세종 야간축제 탐방 프로젝트",
+        "summary": "공연과 야경을 함께 탐방하고 축제 지도를 만들어요.",
+        "description": "호수공원 야간축제의 공연, 먹거리, 포토존을 나누어 조사한 뒤 방문자용 추천 지도를 제작합니다.",
+        "placeIds": ["세종호수공원"], "activityTypes": ["축제", "탐방", "사진"],
+        "tags": ["야간축제", "공연", "사진", "호수공원"], "leaderId": "별빛여행",
+        "memberIds": ["별빛여행", "밤산책"], "applicantIds": [], "maxMembers": 6,
+        "startDate": "2026-08-15", "deadline": "2026-08-10",
+        "preferredTraits": ["탐색형", "자유형", "실행 중심"],
+        "status": "recruiting", "visibility": "public", "thumbnail": "🎆",
+        "createdAt": "2026-07-22T09:00:00.000Z",
+    },
+    {
+        "id": "market-culture", "title": "전통시장 문화 기록 프로젝트",
+        "summary": "상인 인터뷰와 로컬 먹거리를 기록해요.",
+        "description": "전통시장의 오래된 가게와 새로운 청년 상점을 찾아 인터뷰하고 세종의 생활문화를 카드뉴스로 남깁니다.",
+        "placeIds": ["전통시장"], "activityTypes": ["문화", "인터뷰", "조사"],
+        "tags": ["전통시장", "문화", "인터뷰", "먹거리"], "leaderId": "시장탐험가",
+        "memberIds": ["시장탐험가", "복숭아소다", "기록자"], "applicantIds": [], "maxMembers": 5,
+        "startDate": "2026-08-22", "deadline": "2026-08-16",
+        "preferredTraits": ["계획형", "대화 중심", "실행 중심"],
+        "status": "recruiting", "visibility": "public", "thumbnail": "🏮",
+        "createdAt": "2026-07-24T09:00:00.000Z",
+    },
+)
+
+
+def _project_room_text(value, maximum, allow_empty=False):
+    if not isinstance(value, str):
+        return "" if allow_empty else None
+    value = value.strip()
+    if (not value and not allow_empty) or len(value) > maximum:
+        return None
+    return value
+
+
+def _project_room_list(value, maximum=30):
+    if not isinstance(value, list) or len(value) > maximum:
+        return None
+    result = []
+    for item in value:
+        item = _project_room_text(item, 80)
+        if item is None:
+            return None
+        if item not in result:
+            result.append(item)
+    return result
+
+
+def _normalize_project_room_project(value):
+    if not isinstance(value, dict):
+        return None
+    project_id = _project_room_text(value.get("id"), 80)
+    title = _project_room_text(value.get("title"), 80)
+    summary = _project_room_text(value.get("summary"), 300, allow_empty=True)
+    description = _project_room_text(value.get("description"), 2000, allow_empty=True)
+    leader_id = _project_room_text(value.get("leaderId") or value.get("leaderNickname"), 80)
+    status = value.get("status", "recruiting")
+    visibility = value.get("visibility", "public")
+    try:
+        max_members = int(value.get("maxMembers", 5))
+    except (TypeError, ValueError):
+        max_members = 0
+    list_values = {
+        "placeIds": value.get("placeIds", []),
+        "activityTypes": value.get("activityTypes", []),
+        "tags": value.get("tags", []),
+        "memberIds": value.get("memberIds", value.get("memberNicknames", [])),
+        "applicantIds": value.get("applicantIds", value.get("applicantNicknames", [])),
+        "preferredTraits": value.get("preferredTraits", []),
+    }
+    lists = {key: _project_room_list(item) for key, item in list_values.items()}
+    if (
+        project_id is None or title is None or summary is None or description is None
+        or leader_id is None or status not in PROJECT_ROOM_STATUSES
+        or visibility not in ("public", "private") or not 2 <= max_members <= 100
+        or any(item is None for item in lists.values())
+    ):
+        return None
+    project = {
+        "id": project_id, "title": title, "summary": summary,
+        "description": description, "leaderId": leader_id,
+        "maxMembers": max_members, "status": status, "visibility": visibility,
+        **lists,
+    }
+    if leader_id not in project["memberIds"]:
+        project["memberIds"].insert(0, leader_id)
+    for key, maximum in (("startDate", 40), ("deadline", 40), ("thumbnail", 20), ("createdAt", 50)):
+        item = _project_room_text(value.get(key, ""), maximum, allow_empty=True)
+        if item:
+            project[key] = item
+    if "createdAt" not in project:
+        project["createdAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    return project
+
+
+def _project_room_db():
+    db = struct.db("project_room_project")
+    db.orm.create_table(safe=True)
+    return db
+
+
+def _seed_project_room(db):
+    now = datetime.datetime.now()
+    for seed in PROJECT_ROOM_SEEDS:
+        if db.get(id=seed["id"]) is not None:
+            continue
+        db.insert({
+            "id": seed["id"], "leader_user_id": "seed:" + seed["id"],
+            "status": seed["status"], "visibility": seed["visibility"],
+            "payload": json.dumps(seed, ensure_ascii=False, separators=(",", ":")),
+            "created": now, "updated": now,
+        })
+
+
+def _project_room_projects(user_id):
+    db = _project_room_db()
+    _seed_project_room(db)
+    payload_raw = wiz.request.query("payload", "")
+    if not payload_raw:
+        projects = []
+        for row in db.rows(orderby="created", order="DESC", dump=100):
+            if row.get("visibility") == "private" and row.get("leader_user_id") != user_id:
+                continue
+            try:
+                project = _normalize_project_room_project(json.loads(row.get("payload") or "{}"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                project = None
+            if project is not None:
+                projects.append(project)
+        return wiz.response.status(200, projects=projects)
+
+    if not user_id:
+        return wiz.response.status(401, message="로그인이 필요합니다.")
+    if not isinstance(payload_raw, str) or len(payload_raw.encode("utf-8")) > 20000:
+        return wiz.response.status(413, message="프로젝트 데이터가 너무 큽니다.")
+    try:
+        project = _normalize_project_room_project(json.loads(payload_raw))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        project = None
+    if project is None:
+        return wiz.response.status(400, message="프로젝트 형식이 올바르지 않습니다.")
+    current = db.get(id=project["id"])
+    if current is not None and current.get("leader_user_id") != user_id:
+        return wiz.response.status(403, message="다른 사용자의 프로젝트는 수정할 수 없습니다.")
+    now = datetime.datetime.now()
+    values = {
+        "leader_user_id": user_id, "status": project["status"],
+        "visibility": project["visibility"],
+        "payload": json.dumps(project, ensure_ascii=False, separators=(",", ":")),
+        "updated": now,
+    }
+    if current is None:
+        db.insert({"id": project["id"], "created": now, **values})
+    else:
+        db.update(values, id=project["id"])
+    return wiz.response.status(200, project=project)
 
 
 # Map AI behavior persistence is intentionally handled by the WIZ runtime.
@@ -1576,7 +1835,10 @@ def _behavior_state_db():
 
 
 def behavior_state():
-    user_id = session.get("id")
+    user_id = session.get("id") or ""
+    if wiz.request.query("resource", "").strip() == "projectRoomProjects":
+        return _project_room_projects(user_id)
+
     if not user_id:
         return wiz.response.status(
             401,

@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="referrer" content="strict-origin-when-cross-origin"/>
-  <link rel="icon" href="data:,"/>
+  <link rel="icon" type="image/png" href="/assets/brand/sejong-hanbakwi.png"/>
   <title>세종한바퀴</title>
   <script>
     (() => {
@@ -80,6 +80,9 @@
       const buildId = '__JOCHWON_BUILD_ID__';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
+      // The HTML itself is always served with no-cache and every asset has a
+      // content hash. Normalize stale callback URLs without navigating again;
+      // a second navigation can execute the entry from both page lifecycles.
       if ('caches' in window) {
         void caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key))));
       }
@@ -87,7 +90,8 @@
         void navigator.serviceWorker.getRegistrations().then(registrations => Promise.all(registrations.map(registration => registration.unregister())));
       }
       url.searchParams.set('_build', buildId);
-      window.location.replace(url.toString());
+      url.searchParams.delete('_entry_retry');
+      window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
     })();
   </script>
 </head>

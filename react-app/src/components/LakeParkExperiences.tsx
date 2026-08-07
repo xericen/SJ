@@ -34,7 +34,6 @@ type FestivalVisitInfo={dayNight:string;programs:string[];recommendation:string;
 const LAKE_INTEREST_KEY='sejong-lake-interest-profile-v1';
 const LAKE_JOURNEY_STEP_KEY='sejong-lake-journey-step-v1';
 const LAKE_BOOTH_COMPLETION_KEY='sejong-lake-booth-completion-v1';
-const LAKE_COMPLETION_DISMISSED_KEY='sejong-lake-taste-completion-dismissed-v1';
 const FESTIVAL_TENT_RECORD_KEY='sejong-festival-tent-engagement-v1';
 const FESTIVAL_STAGE_VIDEO_RECORD_KEY='sejong-festival-stage-video-v1';
 const FESTIVAL_STAMP_PROGRESS_KEY='sejong-festival-stamp-progress-v2';
@@ -205,9 +204,6 @@ export function LakeParkExperiences(){
   const [completedBooths,setCompletedBooths]=useState<BoothCompletion>(()=>readBoothCompletion(profile));
   const [festivalStamps,setFestivalStamps]=useState<FestivalStampProgress>(readFestivalStampProgress);
   const [showFestivalComplete,setShowFestivalComplete]=useState(false);
-  const [showJourneyComplete,setShowJourneyComplete]=useState(false);
-  const [journeyCompleteDismissed,setJourneyCompleteDismissed]=useState(()=>localStorage.getItem(LAKE_COMPLETION_DISMISSED_KEY)==='true');
-  const [journeyNotice,setJourneyNotice]=useState('');
   const [coach,setCoach]=useState<{domain:LakeTasteDomain;step:number}|null>(null);
   const [festivalCultureSelections,setFestivalCultureSelections]=useState<string[]>([]);
   const [festivalArtSelections,setFestivalArtSelections]=useState<string[]>([]);
@@ -357,7 +353,6 @@ export function LakeParkExperiences(){
     const timeoutId=window.setTimeout(()=>setShowFestivalComplete(false),3000);
     return()=>window.clearTimeout(timeoutId);
   },[isFestivalExperience,allBoothsCompleted]);
-  useEffect(()=>{if(allBoothsCompleted&&!journeyCompleteDismissed&&!isFestivalExperience)setShowJourneyComplete(true)},[allBoothsCompleted,journeyCompleteDismissed,isFestivalExperience]);
   useEffect(()=>{
     const controller=new AbortController();
     fetch(`${API_BASE_URL}/festivals`,{signal:controller.signal}).then(response=>{
@@ -376,12 +371,11 @@ export function LakeParkExperiences(){
     return()=>controller.abort();
   },[]);
   useEffect(()=>{
-    if(!active&&!showJourneyComplete)return;
+    if(!active)return;
     gameEvents.emit('game-input-lock',true);
     const closeWithEscape=(event:KeyboardEvent)=>{
       if(event.key!=='Escape')return;
       if(coach){setCoach(null);return}
-      if(showJourneyComplete){setShowJourneyComplete(false);return}
       setSelectedFestival(null);
       setSelectedCourse(null);
       setSelectedFoodShop(null);
@@ -393,7 +387,7 @@ export function LakeParkExperiences(){
       gameEvents.emit('game-input-lock',false);
       (document.activeElement as HTMLElement|null)?.blur?.();
     };
-  },[active,showJourneyComplete,coach]);
+  },[active,coach]);
 
   const openExperience=(id:LakeExperienceId)=>{
     if(isFestivalExperience){
@@ -560,13 +554,6 @@ export function LakeParkExperiences(){
       </aside>
       {showFestivalComplete&&<aside className="festival-experience-complete" role="status" aria-live="polite"><span>🎉</span><div><b>축제 스탬프 3개 완료!</b><small>모든 부스를 둘러봤어요.</small></div></aside>}
     </>}
-    {!isFestivalExperience&&<aside className={`lake-journey-guide ${allBoothsCompleted?'step-3':''}`}>
-      <header><span>🧭</span><div><small>호수공원 취향 여정</small><b>{allBoothsCompleted?'호수공원 체험 완료!':`자유 체험 ${completedCount} / 3`}</b></div></header>
-      <div className="lake-journey-steps">{([['공연',completedBooths.activity],['먹거리',completedBooths.food],['축제',completedBooths.festival]] as const).map(([label,done],index)=><div key={label} className={done?'done':'current'}><i>{done?<Check size={11}/>:index+1}</i><span>{label}</span></div>)}</div>
-      <p>{allBoothsCompleted?'충녕이가 세 가지 취향 분석을 마쳤어요. 다음 공간의 안내가 내 취향에 맞게 달라집니다.':'부스에서 선택하고 충녕이의 짧은 질문에 답해 보세요.'}</p>
-      {allBoothsCompleted&&<button type="button" onClick={()=>setShowJourneyComplete(true)}>내 취향 결과 보기 →</button>}
-    </aside>}
-    {!isFestivalExperience&&journeyNotice&&<div className="lake-journey-notice" role="status">{journeyNotice}</div>}
     {!isFestivalExperience&&foodSavedNotice&&<aside className="food-saved-map-notice" role="status"><span><Check size={22}/></span><div><b>내 세종 맛 {selectedFoodShops.length}개 저장 완료!</b><p>선택한 취향이 맞춤 코스에 반영됩니다.</p></div><button type="button" onClick={()=>setFoodSavedNotice(false)} aria-label="저장 알림 닫기"><X size={16}/></button></aside>}
     {!isFestivalExperience&&completionNotice&&<aside className="food-saved-map-notice" role="status"><span><Check size={22}/></span><div><b>{completionNotice}</b><p>선택한 취향이 맞춤 코스에 반영됩니다.</p></div><button type="button" onClick={()=>setCompletionNotice('')} aria-label="저장 알림 닫기"><X size={16}/></button></aside>}
 
@@ -623,22 +610,6 @@ export function LakeParkExperiences(){
         <div className="chungnyeong-question-progress">{lakeTasteQuestions[coach.domain].map((_,index)=><i className={index<=coach.step?'active':''} key={index}/>)}</div>
         <em>정답은 없어요. 지금 더 끌리는 쪽을 골라주세요.</em>
       </section>}
-    </div>}
-
-    {!isFestivalExperience&&showJourneyComplete&&allBoothsCompleted&&<div className="lake-experience-overlay lake-completion-overlay" role="dialog" aria-modal="true" aria-labelledby="lake-completion-title">
-      <section className="lake-completion-panel">
-        <button type="button" className="lake-experience-close" onClick={()=>setShowJourneyComplete(false)} aria-label="완료 결과 닫기"><X size={18}/></button>
-        <span className="lake-completion-icon">🌸</span><small>충녕이의 취향 분석</small><h2 id="lake-completion-title">나의 취향을 분석했어요</h2>
-        <p>선택과 답변에서 발견한 나의 여행 취향이에요.</p>
-        <dl className="lake-taste-report">
-          <div><dt>🎤 공연</dt><dd><b>{profile.tasteInsights.performance?.label}</b><span>{'⭐'.repeat(profile.tasteInsights.performance?.stars??0)}</span><small>{profile.tasteInsights.performance?.detail}</small></dd></div>
-          <div><dt>🍑 음식</dt><dd><b>{profile.tasteInsights.food?.label}</b><span>{'⭐'.repeat(profile.tasteInsights.food?.stars??0)}</span><small>{profile.tasteInsights.food?.detail}</small></dd></div>
-          <div><dt>🎪 축제</dt><dd><b>{profile.tasteInsights.festival?.label}</b><span>{'⭐'.repeat(profile.tasteInsights.festival?.stars??0)}</span><small>{profile.tasteInsights.festival?.detail}</small></dd></div>
-        </dl>
-        <em>이 취향을 기억하고 수목원의 관찰 안내와 이후 세종 맞춤 코스에 반영할게요.</em>
-        <p className="lake-completion-portal-guide">맵으로 돌아가 캐릭터를 직접 움직인 뒤 베어트리파크 포털에 들어가세요.</p>
-        <div className="lake-completion-actions"><button type="button" className="lake-completion-dismiss" onClick={()=>{localStorage.setItem(LAKE_COMPLETION_DISMISSED_KEY,'true');setJourneyCompleteDismissed(true);setShowJourneyComplete(false)}}>다시 안 보기</button><button type="button" className="lake-completion-travel" onClick={()=>{setShowJourneyComplete(false);setJourneyNotice('빛나는 베어트리파크 포털을 찾아 직접 이동하세요!');window.setTimeout(()=>setJourneyNotice(''),4000)}}>맵으로 돌아가 포털 찾기</button></div>
-      </section>
     </div>}
 
     {active==='wind-hill'&&<div className="lake-experience-overlay lake-picnic-overlay" role="dialog" aria-modal="true" aria-labelledby="course-board-title">

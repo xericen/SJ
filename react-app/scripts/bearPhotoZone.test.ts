@@ -19,11 +19,12 @@ test('베어트리파크 포토존 위치 변경 UI와 로컬 저장을 제거�
   assert.match(renderer,/bearPhotoPortalPosition:\{x:number;z:number\}=\{\.\.\.DEFAULT_BEAR_PHOTO_PORTAL_POSITION\}/);
 });
 
-test('베어트리파크의 별도 곰 형상은 제거하고 AI 연구소 곰은 유지한다',()=>{
+test('베어트리파크 곰은 제거하고 곰 체험소는 업로드한 곰 두 마리를 사용한다',()=>{
   const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
   const bearTree=renderer.slice(renderer.indexOf('export const BEAR_TREE_PARK_RENDERER_OPTIONS'),renderer.indexOf('export const BEAR_PLAY_ZONE_RENDERER_OPTIONS'));
   const bearLab=renderer.slice(renderer.indexOf('export const BEAR_PLAY_ZONE_RENDERER_OPTIONS'),renderer.indexOf('const PERSONAL_FARM_COLLIDER_PREFIXES'));
   assert.doesNotMatch(bearTree,/resident:|residentDecor:/);
-  assert.match(bearLab,/resident:/);
-  assert.match(bearLab,/residentDecor:/);
+  assert.match(bearLab,/resident:\{modelUrl:bearModelUrl/);
+  assert.match(bearLab,/residentDecor:\[\{modelUrl:bearModelUrl/);
+  assert.doesNotMatch(bearLab,/bearCubModelUrl|grizzlyBearModelUrl/);
 });

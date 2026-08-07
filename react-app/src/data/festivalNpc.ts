@@ -24,4 +24,16 @@ export const FESTIVAL_NPC_HYUNWOO = {
   } satisfies CharacterParts,
 } as const;
 
-export const FESTIVAL_NPCS = [FESTIVAL_NPC_JUNHO, FESTIVAL_NPC_HYUNWOO] as const;
+export const FESTIVAL_GUIDE_CHUNGNYEONG = {
+  id: 'festival-guide-chungnyeong', nickname: '충녕이',
+  status: '축제부스 입구 포탈 옆에서 방문객을 맞이하는 중',
+  x: 1090, z: 520, yaw: Math.PI,
+  model: 'chungnyeong',
+  appearance: {hair:'',face:'',top:'',bottom:'',shoes:''} satisfies CharacterParts,
+  height: 150,
+  staticPose: true,
+  collisionRadius: 52,
+  interactionRadius: 220,
+} as const;
+
+export const FESTIVAL_NPCS = [FESTIVAL_NPC_JUNHO, FESTIVAL_NPC_HYUNWOO, FESTIVAL_GUIDE_CHUNGNYEONG] as const;

@@ -2,7 +2,7 @@ import { useEffect,useMemo,useState,type CSSProperties } from 'react';
 import { Bot,Clock3,Flame,FolderPlus,Megaphone,Radio,TrendingUp,Users } from 'lucide-react';
 import type { UserProfile } from '../types';
 import { gameEvents } from '../game/events';
-import { loadProjectApplications,loadProjectRoomProjects,type Project } from '../services/projectRoomProjects';
+import { loadProjectApplications,loadProjectRoomProjects,refreshProjectRoomProjects,type Project } from '../services/projectRoomProjects';
 import gardenPreview from '../assets/maps/government-central-plaza-top-preview.png';
 import festivalPreview from '../assets/maps/club-street-festival-map-preview.png';
 import smartCityPreview from '../assets/maps/sejong-smartcity-exhibition-preview.png';
@@ -11,21 +11,33 @@ import './ProjectLobbyBoardZoom.css';
 
 type ScreenPoint={x:number;y:number};
 type ScreenRect={left:number;top:number;width:number;height:number;quad?:readonly [ScreenPoint,ScreenPoint,ScreenPoint,ScreenPoint]};
-// Keep the HTML surface in the same aspect ratio as Lobby_AI_Board_Surface
-// (6.75 x 3.5). A mismatched ratio makes the projected UI look stretched.
-const BOARD_WIDTH=1920,BOARD_HEIGHT=996;
+// Lobby_AI_Board_Surface is 4.90 x 3.18 in the authored GLB. Render the HTML
+// in the same coordinate ratio so its four corners stay attached to the
+// physical screen without rotating or resizing the 3D board itself.
+const BOARD_SURFACE_WIDTH=1541,BOARD_SURFACE_HEIGHT=1000;
 const images=[gardenPreview,festivalPreview,smartCityPreview];
 
-const boardStyle=(rect:ScreenRect):CSSProperties=>{
-  const aspect=BOARD_WIDTH/BOARD_HEIGHT;
-  let width=Math.max(1,rect.width),height=width/aspect;
-  if(height>rect.height){height=Math.max(1,rect.height);width=height*aspect}
-  return {
-    left:rect.left+(rect.width-width)/2,
-    top:rect.top+(rect.height-height)/2,
-    width,
-    height,
-  };
+const perspectiveMatrix=(quad:ScreenRect['quad'])=>{
+  if(!quad)return undefined;
+  const [topLeft,topRight,bottomRight,bottomLeft]=quad;
+  const dx1=topRight.x-bottomRight.x,dx2=bottomLeft.x-bottomRight.x,dx3=topLeft.x-topRight.x+bottomRight.x-bottomLeft.x;
+  const dy1=topRight.y-bottomRight.y,dy2=bottomLeft.y-bottomRight.y,dy3=topLeft.y-topRight.y+bottomRight.y-bottomLeft.y;
+  const denominator=dx1*dy2-dx2*dy1;
+  let perspectiveX=0,perspectiveY=0;
+  if(Math.abs(denominator)>1e-6){perspectiveX=(dx3*dy2-dx2*dy3)/denominator;perspectiveY=(dx1*dy3-dx3*dy1)/denominator}
+  const scaleX=topRight.x-topLeft.x+perspectiveX*topRight.x,skewX=bottomLeft.x-topLeft.x+perspectiveY*bottomLeft.x;
+  const scaleY=topRight.y-topLeft.y+perspectiveX*topRight.y,skewY=bottomLeft.y-topLeft.y+perspectiveY*bottomLeft.y;
+  const values=[
+    scaleX/BOARD_SURFACE_WIDTH,scaleY/BOARD_SURFACE_WIDTH,0,perspectiveX/BOARD_SURFACE_WIDTH,
+    skewX/BOARD_SURFACE_HEIGHT,skewY/BOARD_SURFACE_HEIGHT,0,perspectiveY/BOARD_SURFACE_HEIGHT,
+    0,0,1,0,topLeft.x,topLeft.y,0,1,
+  ];
+  return `matrix3d(${values.map(value=>Math.abs(value)<1e-10?0:value).join(',')})`;
+};
+const projectedBoardStyle=(rect:ScreenRect):CSSProperties=>{
+  const transform=perspectiveMatrix(rect.quad);
+  if(!transform)return {left:rect.left,top:rect.top,width:rect.width,height:rect.height};
+  return {left:0,top:0,width:BOARD_SURFACE_WIDTH,height:BOARD_SURFACE_HEIGHT,transform,transformOrigin:'0 0'};
 };
 const projectFill=(project:Project)=>Math.min(100,Math.round(project.memberIds.length/Math.max(1,project.maxMembers)*100));
 const relativeTime=(value:string,now:number)=>{
@@ -41,6 +53,7 @@ export function ProjectLobbyBoard({active,profile}:{active:boolean;profile:UserP
   useEffect(()=>{const update=(value:boolean)=>setNearby(value);gameEvents.on('project-lobby-board-proximity-changed',update);return()=>{gameEvents.off('project-lobby-board-proximity-changed',update)}},[]);
   useEffect(()=>{const update=(value:boolean)=>setFocused(value);gameEvents.on('project-lobby-board-focus-mode-changed',update);return()=>{gameEvents.off('project-lobby-board-focus-mode-changed',update)}},[]);
   useEffect(()=>{const update=()=>setProjects(loadProjectRoomProjects());window.addEventListener('project-room-projects-updated',update);return()=>window.removeEventListener('project-room-projects-updated',update)},[]);
+  useEffect(()=>{if(active)void refreshProjectRoomProjects().then(setProjects).catch(()=>undefined)},[active]);
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),10000);return()=>window.clearInterval(timer)},[]);
   useEffect(()=>{if(!active){setRect(null);setNearby(false);setFocused(false)}},[active]);
   const data=useMemo(()=>{
@@ -63,7 +76,7 @@ export function ProjectLobbyBoard({active,profile}:{active:boolean;profile:UserP
   return <>{nearby&&!focused&&<button type="button" className="project-lobby-board-prompt" onClick={()=>gameEvents.emit('project-lobby-board-focus-open')}><span>📺</span><div><small>프로젝트실 전광판</small><b>가까이에서 전광판 보기</b></div><kbd>E</kbd><em>확대</em></button>}
   {focused&&<div className="project-lobby-board-focused-marker" aria-hidden="true"/>}
   {focused&&<div className="project-lobby-board-close-hint"><kbd>E</kbd><span>또는</span><kbd>ESC</kbd><b>돌아가기</b></div>}
-  <div className={`project-lobby-board-layer${focused?' is-zoomed':''}`} aria-hidden="true"><section className="project-lobby-board" style={boardStyle(rect)}>
+  <div className={`project-lobby-board-layer${focused?' is-zoomed':''}`} aria-hidden="true"><section className="project-lobby-board" style={projectedBoardStyle(rect)}>
     <div className="project-live-screen">
       <header className="project-live-header"><div><h1>프로젝트실 전광판 <em>(PROJECT LIVE)</em></h1><p>{profile.nickname||'체험 탐험가'}님, 프로젝트실의 실시간 현황과 주요 소식을 확인하세요.</p></div><span><Radio/> LIVE</span></header>
       <main className="project-live-grid">

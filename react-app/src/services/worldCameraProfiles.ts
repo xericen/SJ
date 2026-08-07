@@ -24,6 +24,7 @@ export const WORLD_CAMERA_PROFILE_LIMITS={
 } as const;
 
 const WORLD_CAMERA_API='/wiz/api/page.home/portal_positions';
+const WORLD_CAMERA_DRAFTS_KEY='sejong-world-camera-profile-drafts-v1';
 type CameraApiResponse={code?:number;data?:{profiles?:unknown[];profile?:unknown;canEdit?:boolean;message?:string}};
 
 export const isWorldCameraEditorMap=(mapId:MapId)=>editableMapIds.has(mapId);
@@ -36,6 +37,29 @@ export function isWorldCameraProfile(value:unknown):value is WorldCameraProfile{
     const number=profile[field],limit=WORLD_CAMERA_PROFILE_LIMITS[field];
     return typeof number==='number'&&Number.isFinite(number)&&number>=limit.min&&number<=limit.max;
   });
+}
+
+function readWorldCameraProfileDrafts(){
+  if(typeof window==='undefined')return {} as Partial<Record<MapId,WorldCameraProfile>>;
+  try{
+    const stored=JSON.parse(window.sessionStorage.getItem(WORLD_CAMERA_DRAFTS_KEY)??'{}') as Record<string,unknown>;
+    return Object.fromEntries(Object.entries(stored).filter(([,profile])=>isWorldCameraProfile(profile))) as Partial<Record<MapId,WorldCameraProfile>>;
+  }catch{return {} as Partial<Record<MapId,WorldCameraProfile>>}
+}
+
+export const loadWorldCameraProfileDraft=(mapId:MapId)=>readWorldCameraProfileDrafts()[mapId];
+
+export function saveWorldCameraProfileDraft(profile:WorldCameraProfile){
+  if(typeof window==='undefined')return;
+  try{window.sessionStorage.setItem(WORLD_CAMERA_DRAFTS_KEY,JSON.stringify({...readWorldCameraProfileDrafts(),[profile.mapId]:profile}))}catch{/* Restricted frames may block storage; the game renderer still keeps the in-memory preview. */}
+}
+
+export function clearWorldCameraProfileDraft(mapId:MapId){
+  if(typeof window==='undefined')return;
+  try{
+    const drafts=readWorldCameraProfileDrafts();delete drafts[mapId];
+    window.sessionStorage.setItem(WORLD_CAMERA_DRAFTS_KEY,JSON.stringify(drafts));
+  }catch{/* Ignore unavailable session storage. */}
 }
 
 async function callCameraApi(payload?:WorldCameraProfile|{mapId:MapId;reset:true}){

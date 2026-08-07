@@ -59,7 +59,7 @@ const guideWorldCatalog:WorldPlace[]=[
   {name:'축제 부스',description:'세종호수공원의 축제 부스에서 이어지는 야외 축제 공간으로, 공연 무대와 체험 부스, 휴게 공간을 둘러볼 수 있어요.',people:'축제 체험',emoji:'🎪',image:festivalExperiencePreview,modelUrl:festivalExperienceWorldUrl,modelSize:'4.0MB',accent:'#7c4b9d',mapId:'festival-experience',points:['조명과 악기가 설치된 야외 공연 무대','양쪽 체험 부스와 피크닉 테이블','세종호수공원 축제 부스로 돌아가는 포털']},
   {name:'먹거리 부스',description:'세종호수공원의 먹거리 부스에서 이어지는 야외 광장으로, 푸드트럭과 테이블 사이를 걸으며 공간을 둘러볼 수 있어요.',people:'먹거리 체험',emoji:'🍜',image:foodExperiencePreview,modelUrl:foodExperienceWorldUrl,modelSize:'3.3MB',accent:'#d47a32',mapId:'food-experience',points:['서로 다른 메뉴의 푸드트럭 세 대','파라솔 테이블과 수변 휴게 공간','세종호수공원 먹거리 부스로 돌아가는 포털']},
   {name:'베어트리파크',description:'숲길과 포토존을 둘러보고 행동 선택을 나만의 자연 여행 기록으로 남겨요.',people:'자연 탐험',emoji:'🐻',image:bearTreeMapPreview,modelUrl:bearTreeWorldUrl,modelSize:'13.9MB',accent:'#299467',mapId:'bear-tree-park',points:['숲길 자연 탐색','곰 가족 포토존 사진 촬영','수목원으로 이어지는 이동 포털']},
-  {name:'곰 체험소',description:'곰 체험소 공간과 곰 조형물을 자유롭게 둘러본 뒤 베어트리파크로 돌아갈 수 있는 월드예요.',people:'자유 관람',emoji:'🐻',image:bearLabMapPreview,modelUrl:bearLabWorldUrl,modelSize:'5.8MB',accent:'#bd7b35',mapId:'bear-play-zone',points:['곰 체험소 공간 자유 관람','불곰과 반달가슴곰 조형물','베어트리파크 귀환 포털']},
+  {name:'곰 체험소',description:'길가의 먹이 5개를 찾아 움직이는 곰에게 전달하고 특별한 보상 모션을 만나는 월드예요.',people:'먹이 찾기 체험',emoji:'🐻',image:bearLabMapPreview,modelUrl:bearLabWorldUrl,modelSize:'5.8MB',accent:'#bd7b35',mapId:'bear-play-zone',points:['길가의 사과·당근·도토리 찾기','움직이는 곰 급여와 특별 모션','완료 후 마이홈 곰 동상']},
   {name:'국립세종수목원',description:'온실 속 식물을 직접 찾아 촬영하고 식물도감과 대표 식물을 만드는 기록 월드예요.',people:'식물 기록',emoji:'🌱',image:gardenMapPreview,modelUrl:gardenWorldUrl,modelSize:'8.2MB',accent:'#36a168',mapId:'garden',points:['온실별 대표 식물 발견과 촬영','식물도감·사진·메모 기록','대표 식물 선택과 취향 분석']},
   {name:'공동캠퍼스',description:'현재 캠퍼스 맵을 걸으며 학생회관·동아리 거리제·모집센터를 방문하고 비슷한 이웃과 활동을 시작해요.',people:'이웃 연결',emoji:'🎓',image:campusMapPreview,modelUrl:campusWorldUrl,modelSize:'22.7MB',accent:'#dd7b25',mapId:'campus',points:['학생회관에서 추천 이웃 확인','동아리 거리제 가입과 단체 채팅','모집센터와 프로젝트실 입장']},
   {name:'학생회관',description:'공동캠퍼스에서 만난 이웃과 함께 머물며 대화하고 쉬어 갈 수 있는 단층 커뮤니티 로비예요.',people:'커뮤니티 로비',emoji:'🏛️',image:studentHallPreview,modelUrl:studentHallWorldUrl,modelSize:'2.3MB',accent:'#4b9279',mapId:'student-hall',points:['중앙 원형 소파와 휴게 공간','현재 활동 중인 캠퍼스 이웃 확인','공동캠퍼스로 바로 돌아가는 포털']},
@@ -122,7 +122,7 @@ export function LandingPage({profile,onStart,onLogin,onUserClick,actionLabel='�
     <section className={`welcome-card welcome-card-${view}`}>
       <header className="welcome-header">
         <button type="button" className="welcome-brand" aria-label="세종한바퀴 홈" onClick={showHome}>
-          <span className="welcome-brand-face">🧑🏻‍🌾</span>
+          <span className="welcome-brand-face"><img className="sejong-brand-logo" src="/assets/brand/sejong-hanbakwi.png" alt="" aria-hidden="true"/></span>
           <span><strong>세종한바퀴</strong><small>세종 지역 소통 공간</small></span>
         </button>
         <nav className="welcome-nav" aria-label="주요 메뉴">
@@ -153,8 +153,8 @@ export function LandingPage({profile,onStart,onLogin,onUserClick,actionLabel='�
         </section>
       </div>}
 
-      {view==='home'?<>
-      <div className="welcome-hero" id="welcome">
+      {view==='home'?<div className="welcome-home-dashboard">
+      <section className="welcome-hero" id="welcome">
         <div className="welcome-copy">
           <span className="welcome-kicker"><Radio size={17}/> 실시간으로 연결되는 세종 소셜 월드</span>
           <h1><span>아바타로 세종을 탐험하고,</span><em>이웃과 방문을 계획해요.</em></h1>
@@ -167,6 +167,16 @@ export function LandingPage({profile,onStart,onLogin,onUserClick,actionLabel='�
             <span><Users size={17}/><b>취향 기반</b><small>추천 이유가 보이는 만남</small></span>
             <span><Sparkles size={17}/><b>인공지능 코스</b><small>대화를 실제 방문 계획으로</small></span>
           </div>
+          <details className="welcome-flow-summary">
+            <summary><Route size={14}/><span>탐험</span><i>→</i><span>취향 기록</span><i>→</i><span>사람 연결</span><i>→</i><span>AI 코스 추천</span><ArrowRight size={13}/></summary>
+            <div>
+              <span><b>01</b> 축제와 자연에서 취향 발견</span>
+              <span><b>02</b> 선택과 탐험을 내 기록으로 저장</span>
+              <span><b>03</b> 비슷한 이웃과 관심사 연결</span>
+              <span><b>04</b> 장소와 시간을 함께 선택</span>
+              <span><b>05</b> 실제 방문 코스로 완성</span>
+            </div>
+          </details>
         </div>
 
         <div className="welcome-preview" aria-label="세종 메타버스 미리보기">
@@ -192,22 +202,6 @@ export function LandingPage({profile,onStart,onLogin,onUserClick,actionLabel='�
           <div className="welcome-chat chat-one"><span>🦊</span><p><small>하늘여우 · 가까운 이웃</small>수련과 카페 취향이 같아요!</p></div>
           <div className="welcome-chat chat-two"><span>👑</span><p><small>충녕이 · AI 가이드</small>함께 갈 포털을 선택해 보세요.</p></div>
         </div>
-      </div>
-
-      <div className="welcome-world-journey">
-      <section className="home-detail-section" aria-label="서비스 연결 방식">
-        <div className="home-detail-intro">
-          <span className="neighborhood-kicker">METAVERSE JOURNEY</span>
-          <h2>체험 기록이<br/><em>연결되는 여정</em></h2>
-          <p>발견부터 실제 방문까지 한눈에 확인해요.</p>
-        </div>
-        <div className="home-detail-flow">
-          <article><span className="journey-thumb">🎪</span><div><small>01 · 발견</small><strong>세종 취향 찾기</strong><p>축제와 자연을 체험해요.</p></div></article>
-          <article><span className="journey-thumb">🌿</span><div><small>02 · 기록</small><strong>나를 이해하기</strong><p>탐험 기록을 남겨요.</p></div></article>
-          <article><span className="journey-thumb">🧑🏻‍🤝‍🧑🏻</span><div><small>03 · 연결</small><strong>비슷한 이웃 만나기</strong><p>공통 관심사를 확인해요.</p></div></article>
-          <article><span className="journey-thumb">🗺️</span><div><small>04 · 선택</small><strong>함께 장소 고르기</strong><p>시간과 장소를 정해요.</p></div></article>
-          <article><span className="journey-thumb">✨</span><div><small>05 · 방문</small><strong>AI 코스로 출발</strong><p>실제 방문 계획을 완성해요.</p></div></article>
-        </div>
       </section>
 
       <section className="welcome-places" id="places">
@@ -217,8 +211,7 @@ export function LandingPage({profile,onStart,onLogin,onUserClick,actionLabel='�
           <span className="welcome-place-copy"><span><small>{place.people} · WORLD {String(index+1).padStart(2,'0')}</small><strong>{place.name}</strong><em>{place.description}</em><b>3D 모형 보기 <ArrowRight size={12}/></b></span></span>
         </button>)}</div>
       </section>
-      </div>
-      </>:view==='neighborhoods'?selectedChapter?<section className="neighborhood-page chapter-detail" aria-labelledby="chapter-title">
+      </div>:view==='neighborhoods'?selectedChapter?<section className="neighborhood-page chapter-detail" aria-labelledby="chapter-title">
         <button type="button" className="chapter-back" onClick={()=>setSelectedChapter(null)}><ArrowLeft size={16}/> 전체 공간 보기</button>
 
         <div className="chapter-hero">

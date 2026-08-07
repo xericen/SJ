@@ -9,8 +9,8 @@ const read=(path:string)=>readFileSync(new URL(path,import.meta.url),'utf8');
 const editableDestinations=['campus','government-central-plaza','government-observatory','sejong-smart-city'] as const;
 
 test('정부청사 캐릭터는 대형 맵 비율에 맞춘 축소 높이를 사용한다',()=>{
-  assert.deepEqual(GOVERNMENT_NAVIGATION_PROFILE,{characterHeight:94});
-  assert.equal(applyUnifiedWorldCamera({},'government').characterHeight,94);
+  assert.deepEqual(GOVERNMENT_NAVIGATION_PROFILE,{characterHeight:63});
+  assert.equal(applyUnifiedWorldCamera({},'government').characterHeight,63);
 });
 
 test('정부청사는 정책 체험관을 제외하고 포탈 4개를 편집한다',()=>{
@@ -43,6 +43,19 @@ test('정부청사 포탈 편집은 공동캠퍼스를 포함한 공용 포탈 4
   assert.doesNotMatch(page,/currentMapId==='government'&&destination==='campus'/);
   assert.doesNotMatch(api,/\("government", "government-policy-hall"/);
   assert.doesNotMatch(canonicalKeys,/\("government", "campus"\),/);
+});
+
+test('정부청사 포탈 라벨은 E 키 안내 대신 3초 체류 안내를 사용한다',()=>{
+  const renderer=read('../src/game/renderers/VillageMapRenderer.ts');
+  const options=renderer.slice(
+    renderer.indexOf('export const GOVERNMENT_RENDERER_OPTIONS'),
+    renderer.indexOf('export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS'),
+  );
+  ['government-central-plaza','government-observatory','sejong-smart-city'].forEach(destination=>{
+    assert.match(options,new RegExp(`destination:'${destination}'[\\s\\S]{0,180}chargeSeconds:3`));
+  });
+  assert.doesNotMatch(renderer,/E\s+포탈 들어가기|E 버튼으로 포탈|포탈 들어가기/);
+  assert.match(renderer,/\$\{chargeSeconds\}초 머무르면 이동/);
 });
 
 test('정부청사 이동 렌더링은 60fps와 단일 지면 샘플링을 사용한다',()=>{

@@ -6,7 +6,6 @@ import { socket } from './systems/socketClient';
 import type { UserProfile } from '../types';
 import { LakeParkExperiences } from '../components/LakeParkExperiences';
 import { GreenhouseExperience } from '../components/GreenhouseExperience';
-import { NatureDiscoveryGuide } from '../components/NatureDiscoveryGuide';
 import { BEAR_PLAY_ZONE_RENDERER_OPTIONS,BEAR_TREE_PARK_RENDERER_OPTIONS,CAMPUS_RENDERER_OPTIONS,CLUB_STREET_FESTIVAL_RENDERER_OPTIONS,FESTIVAL_EXPERIENCE_RENDERER_OPTIONS,FOOD_EXPERIENCE_RENDERER_OPTIONS,GARDEN_RENDERER_OPTIONS,GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS,GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS,GOVERNMENT_RENDERER_OPTIONS,LAKE_PARK_RENDERER_OPTIONS,LAKE_PARK_SPAWN,PERSONAL_FARM_RENDERER_OPTIONS,preloadBearPlayZoneDownload,preloadBearTreeParkDownload,PROJECT_ROOM_RENDERER_OPTIONS,RECRUITMENT_CENTER_RENDERER_OPTIONS,SEJONG_ARTS_CENTER_RENDERER_OPTIONS,SEJONG_SMART_CITY_RENDERER_OPTIONS,STUDENT_HALL_RENDERER_OPTIONS,VillageMapRenderer,WORLD_RENDERER_LAYOUT_TOKEN } from './renderers/VillageMapRenderer';
 import type { MapId,PortalPosition,PortalSaveResult,RespawnPosition } from '../../shared/socket-events';
 import { buildExperienceRecommendationProfile,recordMapExperience } from '../services/experienceRecommendationProfile';
@@ -18,6 +17,7 @@ import {PersonalFarmProgressExperience} from '../components/PersonalFarmProgress
 import {PERSONAL_FARM_PROGRESS_CHANGED,clearGuestPersonalFarmProgress,refreshPersonalFarmProgress,setPersonalFarmProgressMode,setPersonalFarmProgressUser} from '../services/personalFarmApi';
 import {applyUnifiedWorldCamera,usesUnifiedWorldNavigation} from './worldNavigationProfile';
 import {loadSharedWorldCameraProfiles,loadWorldCameraProfileDraft,type WorldCameraProfile} from '../services/worldCameraProfiles';
+import {fixedWorldCameraProfileFor,isFixedWorldCameraMap} from './fixedWorldCameraProfiles';
 import {resetGuestCampusProfileSignals,setCampusProfileSignalMode} from '../services/campusProfileSignals';
 import {resetGuestProjectRoomProfile,setProjectRoomProfileMode} from '../services/projectRoomProjects';
 import {guestUnifiedProfileSession} from '../services/guestUnifiedProfile';
@@ -92,6 +92,8 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     experienceHarness?.enter(initialMapId);
     const previewOptions={hideCharacters:true,previewNavigation:true,previewDragRotate,guide:false,resident:undefined,residentDecor:[],localNpcs:[]};
     const initialRenderer=initialOptions?new VillageMapRenderer(ref.current,profile,{...initialOptions,mapId:initialMapId,...(previewOnly?previewOptions:{}),spawn:entrySpawn}):undefined;
+    const initialCameraProfile=fixedWorldCameraProfileFor(initialMapId)??loadWorldCameraProfileDraft(initialMapId);
+    if(initialRenderer&&initialCameraProfile)initialRenderer.applyWorldCameraProfile(initialCameraProfile);
     const worldRenderers:Partial<Record<MapId,VillageMapRenderer>>=initialRenderer?{[initialMapId]:initialRenderer}:{};
     let latestPortalPositions:PortalPosition[]=[],activeMapId=initialMapId,latestCameraProfiles=new Map<MapId,WorldCameraProfile>();
     let portalSyncGeneration=0,pendingPortalSaveCount=0;
@@ -113,7 +115,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       const options=rendererOptionsFor(mapId);
       if(!options)return;
       const renderer=new VillageMapRenderer(ref.current!,profile,{...options,mapId,...(previewOnly?previewOptions:{})});renderer.setVisible(false);worldRenderers[mapId]=renderer;
-      const cameraProfile=loadWorldCameraProfileDraft(mapId)??latestCameraProfiles.get(mapId);if(cameraProfile)renderer.applyWorldCameraProfile(cameraProfile);
+      const cameraProfile=mapId==='garden'?loadWorldCameraProfileDraft(mapId):fixedWorldCameraProfileFor(mapId)??loadWorldCameraProfileDraft(mapId)??latestCameraProfiles.get(mapId);if(cameraProfile)renderer.applyWorldCameraProfile(cameraProfile);
       latestPortalPositions.filter(position=>position.mapId===mapId).forEach(position=>renderer.setPortalPosition(position));
       return renderer;
     };
@@ -161,10 +163,10 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     };
     const syncCameraProfiles=(profiles:WorldCameraProfile[])=>{
       latestCameraProfiles=new Map(profiles.map(profile=>[profile.mapId,profile]));
-      Object.entries(worldRenderers).forEach(([mapId,renderer])=>{const cameraProfile=loadWorldCameraProfileDraft(mapId as MapId)??latestCameraProfiles.get(mapId as MapId);if(renderer&&cameraProfile)renderer.applyWorldCameraProfile(cameraProfile)});
+      Object.entries(worldRenderers).forEach(([mapId,renderer])=>{const typedMapId=mapId as MapId,cameraProfile=typedMapId==='garden'?loadWorldCameraProfileDraft(typedMapId):fixedWorldCameraProfileFor(typedMapId)??loadWorldCameraProfileDraft(typedMapId)??latestCameraProfiles.get(typedMapId);if(renderer&&cameraProfile)renderer.applyWorldCameraProfile(cameraProfile)});
     };
-    const previewCameraProfile=(cameraProfile:WorldCameraProfile)=>{latestCameraProfiles.set(cameraProfile.mapId,cameraProfile);worldRenderers[cameraProfile.mapId]?.applyWorldCameraProfile(cameraProfile)};
-    const resetCameraProfile=(mapId:MapId)=>{latestCameraProfiles.delete(mapId);worldRenderers[mapId]?.resetWorldCameraProfile()};
+    const previewCameraProfile=(cameraProfile:WorldCameraProfile)=>{if(isFixedWorldCameraMap(cameraProfile.mapId))return;latestCameraProfiles.set(cameraProfile.mapId,cameraProfile);worldRenderers[cameraProfile.mapId]?.applyWorldCameraProfile(cameraProfile)};
+    const resetCameraProfile=(mapId:MapId)=>{if(isFixedWorldCameraMap(mapId))return;latestCameraProfiles.delete(mapId);worldRenderers[mapId]?.resetWorldCameraProfile()};
     const requestCameraProfile=(mapId:MapId,reply:(profile?:WorldCameraProfile)=>void)=>reply(worldRenderers[mapId]?.getWorldCameraProfile());
     const placeWorldPortal=(destination:MapId)=>{
       if(activeMapId==='garden')return;
@@ -259,5 +261,5 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     };
   },[profile,entrySpawn,returnState,previewOnly,previewDragRotate,authenticated,WORLD_RENDERER_LAYOUT_TOKEN]);
   const loadingTasks=previewOnly?['입장 위치 확인',`${loadingCopy.place} GLB 불러오기`,'맵 둘러보기 카메라 준비']:loadingCopy.tasks;
-  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span><img className="sejong-brand-logo" src="/assets/brand/sejong-hanbakwi.png" alt="" aria-hidden="true"/></span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><NatureDiscoveryGuide userKey={profile.nickname}/><GreenhouseExperience userKey={profile.nickname}/><PersonalFarmProgressExperience authenticated={authenticated} userKey={profile.nickname} mapId={loadingMapId}/></>}</>;
+  return <><div className="game-canvas" ref={ref}/>{loading&&<div className="game-loading" role="status" aria-live="polite"><div className="game-loading-brand"><span><img className="sejong-brand-logo" src="/assets/brand/sejong-hanbakwi.png" alt="" aria-hidden="true"/></span><div><b>세종한바퀴</b><small>{previewOnly?'비로그인 맵 둘러보기':'세종 소통형 체험 공간'}</small></div></div><div className="game-loading-center"><i/><span>{loadingCopy.place}</span><h1>{loadingCopy.title}</h1><p>{loadError||(previewOnly?'캐릭터 없이 월드 맵을 준비하고 있어요.':loadingCopy.description)}</p><div className="world-loading-tasks">{loadingTasks.map((task,index)=><span key={task}>{index===0?'✓':'●'} {task}</span>)}</div><div className="game-loading-progress"><em/></div></div></div>}{!previewOnly&&<><LakeParkExperiences/><GreenhouseExperience userKey={profile.nickname}/><PersonalFarmProgressExperience authenticated={authenticated} userKey={profile.nickname} mapId={loadingMapId}/></>}</>;
 });

@@ -59,11 +59,12 @@ test('T 상호작용 메뉴는 양방향 친구 요청·수락과 신고를 제�
   assert.match(renderer,/hiddenCharacterIds/);
 });
 
-test('체험 집중 맵은 친구 패널을 숨기고 활동 목록을 자동 접는다',()=>{
+test('체험 집중 맵은 친구 패널만 숨기고 활동 목록은 펼친 채 유지한다',()=>{
   const page=read('../src/pages/GamePage.tsx');
   const css=read('../src/pages/GamePage.css');
   assert.match(page,/FOCUSED_EXPERIENCE_MAPS/);
-  assert.match(page,/setOnlineCollapsed\(true\);setFriendsOpen\(false\)/);
+  assert.doesNotMatch(page,/setOnlineCollapsed\(true\);setFriendsOpen\(false\)/);
+  assert.match(page,/if\(focused\)setFriendsOpen\(false\)/);
   assert.match(css,/\.game-page\.is-focused-experience \.game-friend-dock\{display:none\}/);
   assert.match(css,/is-focused-experience:has\(\.quest-overlay,\.bear-coop-status/);
 });

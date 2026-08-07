@@ -51,10 +51,10 @@
       if (window.parent === window) return;
       let immediateParentOrigin = '';
       try {
-        immediateParentOrigin = window.parent.location.origin;
+        immediateParentOrigin = new URL(document.referrer).origin;
       } catch {
         try {
-          immediateParentOrigin = new URL(document.referrer).origin;
+          immediateParentOrigin = window.parent.location.origin;
         } catch {
           return;
         }
@@ -70,6 +70,7 @@
           sdkConfig = {
             ...(value && typeof value === 'object' ? value : {}),
             parentOrigin: immediateParentOrigin,
+            allowedOrigins: [immediateParentOrigin],
           };
         },
       });
@@ -77,7 +78,7 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260807-fixed-home-canvas-v193';
+      const buildId = '20260807-reviewops-origin-cache-bust-v210';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
       // The HTML itself is always served with no-cache and every asset has a
@@ -96,8 +97,8 @@
   </script>
   <script>
   (() => {
-    const runtimeBuildId="20260807-fixed-home-canvas-v193";
-    const runtimeEntryPath="/auth/jochwon-assets/assets/index-VWI8QaQO.js";
+    const runtimeBuildId="20260807-reviewops-origin-cache-bust-v210";
+    const runtimeEntryPath="/auth/jochwon-assets/assets/index-Brq-JAy6.js";
     const pageUrl=new URL(window.location.href);
     const entryRetry=pageUrl.searchParams.get('_entry_retry');
     const currentRetry=entryRetry?.startsWith(`${runtimeBuildId}:`)??false;
@@ -138,8 +139,8 @@
     });
   })();
 </script>
-<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-D04tASEm.css" onerror="void window.__recoverJochwonRuntime?.()">
-<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-VWI8QaQO.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
+<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-l1NlVt5g.css" onerror="void window.__recoverJochwonRuntime?.()">
+<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-Brq-JAy6.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
   <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-m-EpYe9t.js">
 
 </head>

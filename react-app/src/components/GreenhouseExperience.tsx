@@ -11,6 +11,7 @@ import { hasUsablePlantImage,plantGallery } from '../services/plantImages';
 import { loadPublicGreenhouseMemories,publishGreenhouseMemory,type PublicGreenhouseMemory } from '../services/publicGreenhouseMemories';
 import {flowerCatalogByPlantId} from '../services/flowerInterestProfile';
 import {collectGardenFlower,getCachedPersonalFarmProgress,PERSONAL_FARM_PROGRESS_CHANGED,personalFarmErrorMessage} from '../services/personalFarmApi';
+import {loadSavedExperienceInterests,recordExperienceAction} from '../services/experienceHarness';
 import './GreenhouseExperience.base.css';
 import './GreenhouseExperience.css';
 
@@ -29,6 +30,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
   const [progress,setProgress]=useState<GreenhouseProgress>(()=>service.load());
   const [farmProgress,setFarmProgress]=useState<PersonalFarmProgressDto|undefined>(()=>getCachedPersonalFarmProgress());
   const [collectionPending,setCollectionPending]=useState(false),[collectionNotice,setCollectionNotice]=useState('');
+  const [plantInterestSaved,setPlantInterestSaved]=useState(false);
   const [plantId,setPlantId]=useState<string|null>(null);
   const [skipIntro,setSkipIntro]=useState(false);
   const [message,setMessage]=useState(''),[loadingMessage,setLoadingMessage]=useState(false);
@@ -183,10 +185,19 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     window.addEventListener('keydown',trap);return()=>window.removeEventListener('keydown',trap);
   },[modalOpen]);
 
+  useEffect(()=>{
+    setPlantInterestSaved(Boolean(plantId&&loadSavedExperienceInterests(userKey).some(item=>item.domain==='plant'&&item.id===plantId)));
+  },[plantId,userKey]);
   if(!active)return null;
   const existing=plantId?progress.collected.find(item=>item.plantId===plantId):undefined;
   const flowerCatalogEntry=plantId?flowerCatalogByPlantId.get(plantId):undefined;
   const flowerCollected=Boolean(flowerCatalogEntry&&farmProgress?.gardenMission.collectedFlowerIds.includes(flowerCatalogEntry.flowerId));
+  const togglePlantInterest=()=>{
+    if(!plant)return;
+    const saved=!plantInterestSaved;
+    recordExperienceAction({type:saved?'plant-save':'plant-unsave',plantId:plant.id,plantName:plant.displayName,tags:plant.characteristics,saved});
+    setPlantInterestSaved(saved);
+  };
   const collectCurrentFlower=async()=>{
     if(!flowerCatalogEntry||collectionPending)return false;
     if(flowerCollected){setCollectionNotice('이미 마이홈 수집 기록에 담은 꽃입니다.');return true}
@@ -254,11 +265,12 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     }
   };
   return <div className="greenhouse-ui">
+    {active&&<aside className={`greenhouse-garden-pickup-status ${(farmProgress?.gardenMission.collectedFlowerIds.length??0)>=5?'is-complete':''}`} aria-live="polite"><span>{(farmProgress?.gardenMission.collectedFlowerIds.length??0)>=5?'🌳':'🏡'}</span><div><small>마이홈 식물 선택</small><b>꽃 {Math.min(5,farmProgress?.gardenMission.collectedFlowerIds.length??0)}/5</b></div><em>{(farmProgress?.gardenMission.collectedFlowerIds.length??0)>=5?'채집 완료! 마이홈에 식물을 심고 기억나무를 확인해 보세요.':'채집한 꽃은 마이홈 화단에 심을 수 있어요'}</em></aside>}
     {nearby&&!modalOpen&&<button className="greenhouse-observe-button" type="button" onClick={observeNearby}><span>{nearby.kind==='plant'?'🔎':'🌳'}</span><div><small>{nearby.kind==='plant'?'가까운 식물을 발견했어요':'중앙 기억나무'}</small><b>{nearby.kind==='plant'?'식물 관찰하기':'기억나무 살펴보기'}</b></div><kbd>E</kbd></button>}
     {view&&<section className="greenhouse-overlay" role="dialog" aria-modal="true" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}>
       <div ref={modalRef} className={`greenhouse-modal greenhouse-${view}`}>
         <button className="greenhouse-close" type="button" onClick={close} aria-label="닫기"><X size={18}/></button>
-        {view==='intro'&&<><div className="greenhouse-hero-icon">🌿</div><small>수목원 안을 탐험해요</small><h2>식물을 발견할수록 기억나무가 자라요</h2><p className="greenhouse-intro-lead">다양한 식물을 찾아 탐험 기록을 쌓고<br/>특징·꽃말·서식 정보를 하나씩 발견해 보세요.</p><div className="greenhouse-entry-guide greenhouse-entry-guide-simple"><span><b>5</b><i>🌱</i><strong>새싹 단계</strong><small>충녕 AI가 첫 자연 성향을 요약해요.</small></span><span><b>10</b><i>🌿</i><strong>성장 단계</strong><small>탐험 패턴을 분석해 프로필을 키워요.</small></span><span><b>14</b><i>🌳</i><strong>기억나무 완성</strong><small>대표 식물을 선정해 코스 추천에 연결해요.</small></span></div><div className="greenhouse-link-guide"><article><span>🏡</span><div><b>마이홈 정원</b><small>발견한 식물은 정원에 자동으로 기록되고, 반복 발견할수록 더 풍성하게 성장해요.</small></div></article><article><span>🤖</span><div><b>충녕 AI 큐레이터</b><small>질문을 반복하지 않고 기억나무가 성장하는 순간에만 탐험 데이터를 분석해요.</small></div></article></div><div className="greenhouse-intro-actions"><label className="greenhouse-intro-skip"><input type="checkbox" checked={skipIntro} onChange={event=>setSkipIntro(event.target.checked)}/><span>다시 안 보기</span></label><button className="greenhouse-primary greenhouse-intro-start" type="button" onClick={()=>{if(skipIntro)publish(service.save({...progress,introSeen:true}));close()}}>첫 식물 찾기</button></div></>}
+        {view==='intro'&&<><div className="greenhouse-hero-icon">🌿</div><small>국립세종수목원 탐험 안내</small><h2>E키로 관찰하고, 채집하기로 마이홈을 채워요</h2><p className="greenhouse-intro-lead">식물 가까이에서 E키를 누르면 상세 관찰 화면이 열립니다.<br/>관찰을 마친 뒤 채집하기를 눌러야 마이홈 수집 기록에 저장돼요.</p><div className="greenhouse-entry-guide greenhouse-entry-guide-simple"><span><b>1</b><i>🔎</i><strong>식물 관찰</strong><small>식물 가까이에서 E키를 눌러요.</small></span><span><b>2</b><i>🌱</i><strong>채집하기</strong><small>채집한 꽃은 마이홈 화단에 심을 수 있어요.</small></span><span><b>5</b><i>🌳</i><strong>기억나무 해금</strong><small>5개 채집 완료 후 기억나무가 열려요.</small></span></div><div className="greenhouse-link-guide"><article><span>🏡</span><div><b>마이홈 정원</b><small>채집한 식물 5개를 마이홈 화단에 심을 수 있어요.</small></div></article><article><span>🌳</span><div><b>기억나무</b><small>식물 5개를 채집하면 기억나무에서 나만의 기록을 남길 수 있어요.</small></div></article></div><div className="greenhouse-intro-actions"><label className="greenhouse-intro-skip"><input type="checkbox" checked={skipIntro} onChange={event=>setSkipIntro(event.target.checked)}/><span>다시 안 보기</span></label><button className="greenhouse-primary greenhouse-intro-start" type="button" onClick={()=>{if(skipIntro)publish(service.save({...progress,introSeen:true}));close()}}>탐험 시작하기</button></div></>}
         {view==='plant'&&plant&&<>
           <div className="greenhouse-plant-layout">
             <div className="greenhouse-media">
@@ -272,6 +284,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
             </div>
             <div className="greenhouse-plant-info">
               <header className="greenhouse-plant-header"><div style={{background:plant.fallbackColor}}>🌱</div><section><small>{plant.category==='flower'?'꽃':plant.category==='peach-tree'?'복숭아나무':'나무'}</small><h2>{plant.displayName}</h2>{plant.scientificName&&<i>{plant.scientificName}</i>}</section></header>
+              <button type="button" className={`greenhouse-plant-interest-button${plantInterestSaved?' is-saved':''}`} onClick={togglePlantInterest}>{plantInterestSaved?'★ 저장한 관심 식물':'☆ 관심 식물로 저장'}</button>
               {flowerCatalogEntry&&<div className="greenhouse-flower-meaning"><small>꽃말</small><strong>{flowerCatalogEntry.meaning}</strong></div>}
               <p className="greenhouse-description">{flowerCatalogEntry?.description??plant.shortDescription}</p>
               {flowerCatalogEntry&&<section className={`greenhouse-collection-status ${flowerCollected?'collected':''}`} aria-live="polite"><b>{collectionNotice||(flowerCollected?'채집 완료 · 마이홈 수집 기록에도 담긴 식물입니다.':'정보를 살펴본 뒤 아래 채집하기 버튼으로 기록할 수 있어요.')}</b>{flowerCollected&&<p><strong>이름:</strong> {flowerCatalogEntry.displayName}<br/><strong>꽃말:</strong> {flowerCatalogEntry.meaning}<br/><strong>설명:</strong> {flowerCatalogEntry.description}</p>}</section>}

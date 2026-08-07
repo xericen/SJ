@@ -142,6 +142,17 @@ test('공동캠퍼스 정부청사 포탈은 요청자가 확정한 공용 좌�
   assert.match(canonicalKeys,/\("campus", "government"\),/);
 });
 
+test('정부청사 전체 포탈은 E 버튼 없이 3초 체류로 이동한다',()=>{
+  const renderer=read('src/game/renderers/VillageMapRenderer.ts');
+  const government=renderer.slice(renderer.indexOf('export const GOVERNMENT_RENDERER_OPTIONS'),renderer.indexOf('export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS'));
+  ['campus','government-central-plaza','government-observatory','sejong-smart-city'].forEach(destination=>{
+    assert.match(government,new RegExp(`destination:'${destination}'[\\s\\S]{0,180}chargeSeconds:3`));
+  });
+  assert.doesNotMatch(government,/chargeSeconds:undefined/);
+  assert.match(renderer,/activePortal\?\.chargeSeconds/);
+  assert.match(renderer,/this\.portalTravelGate\.update\(performance\.now\(\),activePortal\.chargeSeconds/);
+});
+
 test('모집센터 공동캠퍼스 귀환 포탈은 요청자 좌표로 고정되고 편집 경로를 노출하지 않는다',()=>{
   const fixed={mapId:'recruitment-center',destination:'campus',x:1200,z:2014} as const;
   assert.deepEqual(

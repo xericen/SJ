@@ -19,6 +19,7 @@ test('호스트는 외부 ReviewOps SDK의 단일 식별자 오류만 격리한�
   const hostHtml=readFileSync(resolve(root,'../src/angular/index.pug'),'utf8');
   assert.match(hostHtml,/reviewops-sdk\\\.js/);
   assert.match(hostHtml,/isMinifiedReferenceError/);
+  assert.match(hostHtml,/isClosedMessageChannel/);
   assert.match(hostHtml,/event\.stopImmediatePropagation\(\)/);
   assert.match(hostHtml,/event\.preventDefault\(\)/);
 });

@@ -39,6 +39,9 @@ test('먹거리 부스에서 돌아오면 노란 건물을 피해 호수공원 �
 });
 
 for(const portal of LAKE_PARK_PORTALS){
+  test('호수공원 포탈은 흰색 원형 디자인을 사용한다',()=>{
+    assert.equal(portal.appearance,'white-circle');
+  });
   test(`${portal.label} 포탈은 반경을 벗어나면 충전을 취소하고 재진입 후 3초를 다시 센다`,()=>{
     const gate=new PortalTravelGate();
     let requests=0;

@@ -4,13 +4,18 @@ import test from 'node:test';
 
 const renderer=readFileSync(new URL('../src/game/renderers/VillageMapRenderer.ts',import.meta.url),'utf8');
 const page=readFileSync(new URL('../src/pages/GamePage.tsx',import.meta.url),'utf8');
+const sharedPortals=readFileSync(new URL('../shared/world-portals.ts',import.meta.url),'utf8');
 
-test('스마트시티 정부청사 포탈은 브라우저별 위치 편집을 유지한다',()=>{
+test('스마트시티 정부청사 포탈은 승인 좌표에 고정하고 위치 편집을 제거한다',()=>{
   const options=renderer.slice(renderer.indexOf('export const SEJONG_SMART_CITY_RENDERER_OPTIONS'),renderer.indexOf('export const SEJONG_ARTS_CENTER_RENDERER_OPTIONS'));
   assert.match(options,/destination:'government'/);
+  assert.match(sharedPortals,/mapId:'sejong-smart-city',destination:'government',x:1200,z:2680/);
+  assert.match(options,/WORLD_GUIDE_PORTAL_POSITIONS\['sejong-smart-city'\]/);
+  assert.match(options,/fixedPosition:true/);
   assert.match(options,/sharedPosition:false/);
-  assert.match(options,/positionEditable:true/);
-  assert.match(page,/currentMapId==='sejong-smart-city'.*primary-portal-place-at-player/);
+  assert.doesNotMatch(options,/positionEditable:true/);
+  assert.doesNotMatch(page,/currentMapId==='sejong-smart-city'.*primary-portal-place-at-player/);
+  assert.doesNotMatch(page,/정부청사 포탈 이동/);
 });
 
 test('중앙광장 정부청사 포탈은 전용 로컬 편집 버튼만 사용한다',()=>{

@@ -11,6 +11,7 @@ const normalizeApiBaseUrl = (configured: string | undefined) => {
 };
 
 export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+export const COMMUNITY_API_BASE_URL = import.meta.env.PROD ? '/wiz/api/page.home' : API_BASE_URL;
 export const SOCKET_URL = (
   import.meta.env.VITE_SOCKET_URL?.trim()
   || (import.meta.env.PROD ? '/wiz/app/main/page.home' : '')

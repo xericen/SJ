@@ -9,7 +9,7 @@ type HarnessMap=MapId;
 type Action={type:string;at?:number;[key:string]:unknown};
 export type GeneratedExperienceProfile={source:string;generatorSource?:'openai'|'fallback';title?:string;tags:string[];traits?:Array<{key:string;label:string;score:number;confidence:number}>;summary:string;evidence?:string[];updatedAt:string};
 export type ExperienceProfileFragment=GeneratedExperienceProfile&{scores?:Record<string,number>;sessionSummary?:Record<string,unknown>};
-export type SavedExperienceInterest={id:string;domain:'performance'|'food'|'festival';title:string;subtitle:string;tags:string[];placeCategories:string[];savedAt:string};
+export type SavedExperienceInterest={id:string;domain:'performance'|'food'|'festival'|'plant';title:string;subtitle:string;tags:string[];placeCategories:string[];savedAt:string};
 export type ExperienceActivityRecord={id:string;mapId:HarnessMap;title:string;note:string;point:number;breakdown:Array<{label:string;point:number}>;recordedAt:string};
 export type ExperienceAnalysisResult={summary:{scores:Record<string,number>;evidence:string[]};profile:GeneratedExperienceProfile;profileFragments?:ExperienceProfileFragment[];savedInterests?:SavedExperienceInterest[];activityRecords?:ExperienceActivityRecord[]};
 export const EXPERIENCE_PROFILE_KEY='sejong-ai-experience-profile-v1';
@@ -168,6 +168,8 @@ function trackSavedExperienceInterest(action:Action){
     domain='food';id=action.itemId;saved=action.type==='food_save';title=typeof action.itemName==='string'?action.itemName:'세종 먹거리';subtitle=[typeof action.menuName==='string'?action.menuName:'',typeof action.district==='string'?action.district:''].filter(Boolean).join(' · ');tags=[...(Array.isArray(action.categories)?action.categories.map(String):[]),...(Array.isArray(action.tags)?action.tags.map(String):[])].slice(0,8);placeCategories=[action.itemType==='cafe'?'카페':'음식점'];
   }else if((action.type==='festival-save'||action.type==='festival-route-save')&&typeof action.festivalId==='string'){
     domain='festival';id=action.festivalId;saved=action.saved!==false;title=typeof action.festivalTitle==='string'?action.festivalTitle:id;subtitle=typeof action.location==='string'?action.location:'';tags=Array.isArray(action.categories)?action.categories.map(String).slice(0,8):[];placeCategories=['문화시설','관광명소'];
+  }else if((action.type==='plant-save'||action.type==='plant-unsave')&&typeof action.plantId==='string'){
+    domain='plant';id=action.plantId;saved=action.saved!==false;title=typeof action.plantName==='string'?action.plantName:id;subtitle='국립세종수목원';tags=Array.isArray(action.tags)?action.tags.map(String).slice(0,8):[];placeCategories=['자연','식물'];
   }
   if(!domain||!id)return;
   const items=loadSavedExperienceInterests(activeUserKey).filter(item=>!(item.domain===domain&&item.id===id));

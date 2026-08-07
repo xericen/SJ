@@ -46,7 +46,7 @@ export function BearTravelStyleExperience({userKey,mapId}:{userKey:string;mapId:
     gameEvents.on('bear-clue-proximity-changed',proximity);gameEvents.on('bear-photo-captured',photo);
     return()=>{gameEvents.off('bear-clue-proximity-changed',proximity);gameEvents.off('bear-photo-captured',photo)};
   },[userKey]);
-  useEffect(()=>{if(mapId==='bear-play-zone'&&!progress.route.length)setIntroOpen(true)},[mapId,userKey]);
+  useEffect(()=>{if(mapId==='bear-play-zone')setIntroOpen(true)},[mapId]);
   useEffect(()=>{if(progress.result)setResultOpen(true)},[progress]);
   useEffect(()=>{
     const exitNearby=(value:unknown)=>{if(value&&mapId==='bear-play-zone'&&Object.keys(progress.choices).length===3&&!progress.companionChoice)setCompanionOpen(true)};

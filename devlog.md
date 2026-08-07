@@ -1,5 +1,7 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-07 | 022 | ReviewOps origin 수정용 운영 캐시 버전 갱신 | [상세](devlog/2026-08-07/022-bust-reviewops-cache.md) |
+| 2026-08-07 | 021 | 실제 WIZ 프로젝트에 ReviewOps 부모 origin 보정 반영 | [상세](devlog/2026-08-07/021-apply-reviewops-origin-fix.md) |
 | 2026-02-21 | 001 | 기존 인프라 page 앱 전체 삭제 및 일반 서비스 샘플 page 앱 생성 | [상세](devlog/2026-02-21/001-sample-pages-rebuild.md) |
 | 2026-07-18 | 001 | “여기 사람 있음” GPS 기반 세종 로컬 멀티버스 웹앱 흐름 구현 | [상세](devlog/2026-07-18/001-here-people-multiverse-flow.md) |
 | 2026-07-18 | 002 | “여기 사람 있음” 전체 서비스·월드맵·동행 흐름 확장 | [상세](devlog/2026-07-18/002-expanded-service-flow.md) |
@@ -270,3 +272,60 @@
 | 2026-08-07 | 003 | 홈 iframe 높이 축소 복구 및 전체 화면 표시 보장 | [상세](devlog/2026-08-07/003-restore-home-iframe-height.md) |
 | 2026-08-07 | 004 | 홈 데스크톱 캔버스 1320×880 비율 고정 | [상세](devlog/2026-08-07/004-fix-home-canvas-ratio.md) |
 | 2026-08-07 | 005 | 최신 해커톤 변경·README·WIZ 번들 GitHub 게시 | [상세](devlog/2026-08-07/005-publish-latest-hackathon-release.md) |
+| 2026-08-07 | 006 | 홈 외곽 카드를 로그인 페이지 크기로 확대 | [상세](devlog/2026-08-07/006-match-home-login-frame.md) |
+| 2026-08-07 | 007 | 내 프로필·관심사 레이더·최근 활동 데스크톱 크기 균형 조정 | [상세](devlog/2026-08-07/007-compact-profile-dashboard.md) |
+| 2026-08-07 | 008 | 세 체험 맵 카메라 고정·프로필 버튼 제거·축제 HUD 간격 조정 | [상세](devlog/2026-08-07/008-lock-experience-cameras-and-fix-hud.md) |
+| 2026-08-07 | 009 | 공동캠퍼스 계열·정부 맵 카메라 고정 및 스마트시티 포탈 편집 제거 | [상세](devlog/2026-08-07/009-lock-campus-government-cameras-and-smartcity-portal.md) |
+| 2026-08-07 | 010 | 축제부스 캐릭터·포탈 크기·화질·HUD 겹침 보정 및 충녕이 제거 | [상세](devlog/2026-08-07/010-festival-booth-scale-quality-hud.md) |
+| 2026-08-07 | 011 | 축제부스 화면 기준 NPC 크기·귀환 포탈·HUD fallback 재보정 | [상세](devlog/2026-08-07/011-festival-visible-fixes.md) |
+| 2026-08-07 | 012 | 축제부스 플레이어·NPC 축소와 먹거리부스형 귀환 포탈 적용 | [상세](devlog/2026-08-07/012-festival-small-characters-food-portal.md) |
+| 2026-08-07 | 013 | 공동캠퍼스 계열 활동 프로필 저장·HUD 펼침·정부청사 3초 포탈 적용 | [상세](devlog/2026-08-07/013-campus-profile-hud-government-portals.md) |
+| 2026-08-07 | 014 | 모든 맵 좌측 HUD 연결 및 공동캠퍼스 프로필 키워드 반영 보강 | [상세](devlog/2026-08-07/014-connect-left-hud-campus-profile-keywords.md) |
+| 2026-08-07 | 015 | 정부청사 포탈 3초 이동 확인 및 플레이어 2/3 축소 | [상세](devlog/2026-08-07/015-government-portal-charge-player-scale.md) |
+| 2026-08-07 | 016 | 곰 체험소 카메라·귀환 포탈 고정 및 좌측 HUD 활동 표시 추가 | [상세](devlog/2026-08-07/016-fix-bear-play-zone-camera-portal-hud.md) |
+| 2026-08-07 | 017 | 수목원·베어트리파크 카메라 프로필 적용 차단으로 각도 고정 | [상세](devlog/2026-08-07/017-lock-garden-bear-tree-camera-profiles.md) |
+| 2026-08-07 | 018 | 세 자연 맵 직접 미리보기 진입과 카메라 잠금 검증 | [상세](devlog/2026-08-07/018-verify-nature-map-camera-locks.md) |
+| 2026-08-07 | 019 | 자연 맵 카메라 잠금 운영 정적 자산 반영 및 sj.wizide.com 검증 | [상세](devlog/2026-08-07/019-publish-nature-camera-locks-to-wiz.md) |
+| 2026-08-07 | 017 | 정부청사 포탈 E 안내 제거와 3초 이동 번들 검증 | [상세](devlog/2026-08-07/017-government-portal-label-browser-verify.md) |
+| 2026-08-07 | 020 | 축제부스 현재 위치 아래 스탬프 패널 추가 및 충녕이 제거 확인 | [상세](devlog/2026-08-07/020-festival-stamp-panel-and-remove-chungnyeong.md) |
+| 2026-08-07 | 021 | 축제부스 좌측 HUD 스탬프 패널 겹침 해소 및 운영 반영 | [상세](devlog/2026-08-07/021-festival-left-hud-stamp-overlap.md) |
+| 2026-08-07 | 022 | 축제부스 기존 좌측 HUD에 스탬프 패널 강제 표시 | [상세](devlog/2026-08-07/022-festival-left-hud-passport-stack.md) |
+| 2026-08-07 | 023 | 곰체험소 먹이 E 안내 중복 제거 및 HUD 유지 | [상세](devlog/2026-08-07/023-bear-feed-single-e-and-hud.md) |
+| 2026-08-07 | 024 | 호수공원 세 포탈 제목 크기 통일 및 3초 문구 제거 | [상세](devlog/2026-08-07/024-lake-portal-title-size-and-copy.md) |
+| 2026-08-07 | 025 | ReviewOps 비동기 메시지 채널 종료 오류 격리 | [상세](devlog/2026-08-07/025-reviewops-async-message-channel.md) |
+| 2026-08-07 | 026 | WIZ main 프로젝트 빌드·운영 반영 확인 | [상세](devlog/2026-08-07/026-wiz-build-deploy.md) |
+| 2026-08-07 | 027 | 세종호수공원 포탈 제목 크기 통일 및 3초 문구 제거 | [상세](devlog/2026-08-07/027-lake-portal-labels.md) |
+| 2026-08-07 | 028 | 축제부스·먹거리부스 진입 안내 추가 | [상세](devlog/2026-08-07/028-experience-entry-tutorials.md) |
+| 2026-08-07 | 029 | 동아리 생성 HTML 응답 JSON 파싱 오류 보완 | [상세](devlog/2026-08-07/029-club-api-json-fallback.md) |
+| 2026-08-07 | 030 | 축제부스 스탬프 패널 좌측 하단 이동 | [상세](devlog/2026-08-07/030-festival-stamp-bottom.md) |
+| 2026-08-07 | 031 | 호수공원·축제부스 포탈 라벨 크기 통일 및 공동캠퍼스 라벨 하향 | [상세](devlog/2026-08-07/031-portal-label-layout.md) |
+| 2026-08-07 | 032 | 자연 맵 포탈·캐릭터·HUD·수집 안내 정리 | [상세](devlog/2026-08-07/032-nature-map-ui.md) |
+| 2026-08-07 | 033 | 수목원 E 관찰 후 채집 흐름 및 플레이어 크기 수정 | [상세](devlog/2026-08-07/033-garden-observe-collect.md) |
+| 2026-08-07 | 034 | 자연 맵 포탈 지연·수목원 식물 선택 HUD·캐릭터 조절 반영 | [상세](devlog/2026-08-07/034-nature-selection-and-portal-controls.md) |
+| 2026-08-07 | 035 | 자연 포탈 주황색·수목원 HUD 배치·관심 식물 저장 추가 | [상세](devlog/2026-08-07/035-plant-interest-and-portal-color.md) |
+| 2026-08-07 | 036 | React Hook 순서 오류 수정 및 WIZ 재배포 | [상세](devlog/2026-08-07/036-react-hook-order-fix.md) |
+| 2026-08-07 | 037 | 베어트리파크 곰 체험소 포탈 주황색 렌더링 경로 수정 | [상세](devlog/2026-08-07/037-bear-portal-orange-rendering.md) |
+| 2026-08-07 | 038 | 수목원 진입 안내·캐릭터 크기 덮어쓰기·5개 채집 해금 안내 수정 | [상세](devlog/2026-08-07/038-garden-intro-and-five-plant-unlock.md) |
+| 2026-08-07 | 039 | 수목원 캐릭터 2/3 축소 및 포탈 색상 덮어쓰기 최종 수정 | [상세](devlog/2026-08-07/039-garden-size-and-portal-theme-final.md) |
+| 2026-08-07 | 040 | 곰 체험소 포탈 통일·현재 활동 복구·5회 먹이 모션 반복 | [상세](devlog/2026-08-07/040-bear-feeding-loop-and-activity.md) |
+| 2026-08-07 | 041 | 곰 체험소 진입 설명 및 급여 완료 동상 안내 추가 | [상세](devlog/2026-08-07/041-bear-intro-and-statue-notice.md) |
+| 2026-08-07 | 042 | 세종호수공원 포탈 흰색 원형 디자인 통일 | [상세](devlog/2026-08-07/042-lake-portals-white-circle.md) |
+| 2026-08-07 | 043 | 베어트리파크 진입 안내 갱신 및 곰 체험소 포탈 디자인 통일 | [상세](devlog/2026-08-07/043-bear-park-intro-and-portal-design.md) |
+| 2026-08-07 | 044 | 운영 stale 청크 및 behavior sync 네트워크 오류 완화 | [상세](devlog/2026-08-07/044-stale-chunk-and-behavior-sync.md) |
+| 2026-08-07 | 045 | 곰 5회 급여 동상 자동 설치 및 마이홈 상단 HUD 겹침 수정 | [상세](devlog/2026-08-07/045-bear-statue-and-myhome-hud.md) |
+| 2026-08-07 | 046 | 동아리 생성 API 경로·모집글 추천·모집센터 원형 포탈 수정 | [상세](devlog/2026-08-07/046-club-api-recruitment-posts-and-portal.md) |
+| 2026-08-07 | 047 | WIZ 운영 API 부재 대응 및 동아리·모집글 로컬 저장 보강 | [상세](devlog/2026-08-07/047-wiz-api-fallback-for-community.md) |
+| 2026-08-07 | 048 | 모집 동기화·충녕 API fallback 경고 제거 및 모집글 저장 보강 | [상세](devlog/2026-08-07/048-recruitment-fallback-and-chat-warning.md) |
+| 2026-08-07 | 049 | WIZ 공용 커뮤니티·동아리 저장 API 연결 | [상세](devlog/2026-08-07/049-wiz-shared-community-api.md) |
+| 2026-08-07 | 050 | 모집글 용어 통일 및 동아리 거리제 공용 등록 연결 | [상세](devlog/2026-08-07/050-recruitment-labels-and-club-street-create.md) |
+| 2026-08-07 | 051 | 모집 목록 기본 데이터의 프로젝트 명칭을 모집으로 통일 | [상세](devlog/2026-08-07/051-recruitment-data-labels.md) |
+| 2026-08-07 | 052 | 전체 맵 진입 기록 WIZ MySQL 저장 연결 | [상세](devlog/2026-08-07/052-map-mysql-activity-sync.md) |
+| 2026-08-07 | 053 | 주요 맵 진입 안내문 및 정부청사 원형 포탈·전망대 3초 이동 적용 | [상세](devlog/2026-08-07/053-campus-intros-and-round-government-portals.md) |
+| 2026-08-07 | 054 | map_activity 500 스키마 오류 수정 및 공용 DB 저장 안정화 | [상세](devlog/2026-08-07/054-fix-map-activity-500.md) |
+| 2026-08-07 | 055 | 스마트시티 하단 정부청사 포탈 및 전망대 3초 귀환 적용 | [상세](devlog/2026-08-07/055-smartcity-bottom-portal.md) |
+| 2026-08-07 | 056 | WIZ·Express DB를 sjdb MySQL 서비스와 sj_hackathon 스키마로 통일 | [상세](devlog/2026-08-07/056-configure-sjdb-mysql.md) |
+| 2026-08-07 | 057 | map_activity 기존 레코드 dict 접근 오류 수정 | [상세](devlog/2026-08-07/057-fix-map-activity-existing-record.md) |
+| 2026-08-07 | 058 | 주요 맵 1회 진입 안내·동아리 MySQL 등록·이동 환경 개선 | [상세](devlog/2026-08-07/058-campus-map-guides-and-mysql-clubs.md) |
+| 2026-08-07 | 059 | 전체 맵 진입 안내문을 세종예술의전당 GUIDE 디자인으로 통일 | [상세](devlog/2026-08-07/059-unify-map-guide-design.md) |
+| 2026-08-07 | 060 | 스마트시티·중앙광장 하단 포탈·밝기·AI 원형 점프 보완 | [상세](devlog/2026-08-07/060-smartcity-plaza-portal-and-jump.md) |
+| 2026-08-07 | 061 | 전망대 3초 귀환·정부청사 캐릭터 upright·스마트시티 포탈 위치 보정 | [상세](devlog/2026-08-07/061-fix-observatory-return-and-government-avatar.md) |

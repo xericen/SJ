@@ -534,7 +534,7 @@ export function LakeParkExperiences(){
     if(!isFestivalExperience||!passport||!page)return;
     const updateStack=()=>{
       const pageTop=page.getBoundingClientRect().top;
-      const passportBottom=Math.ceil(passport.getBoundingClientRect().bottom-pageTop);
+      const passportBottom=Math.ceil(passport.getBoundingClientRect().bottom-pageTop)+8;
       page.style.setProperty('--festival-passport-bottom',`${passportBottom}px`);
     };
     updateStack();

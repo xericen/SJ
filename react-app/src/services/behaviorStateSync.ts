@@ -131,11 +131,12 @@ async function saveRemoteState(
 
 export function startBehaviorStateSync() {
   let stopped = false;
+  let remoteUnavailable = false;
   let sending = false;
   let lastSnapshot = '';
 
   const push = async (keepalive = false) => {
-    if (stopped || sending) return;
+    if (stopped || remoteUnavailable || sending) return;
     const entries = readSnapshot();
     const serialized = encodeSnapshot(entries);
     if (!keepalive && serialized === lastSnapshot) return;
@@ -144,10 +145,12 @@ export function startBehaviorStateSync() {
       await saveRemoteState(entries, keepalive);
       lastSnapshot = serialized;
     } catch (error) {
-      console.warn(
-        '[behavior state sync failed]',
-        error instanceof Error ? error.message : 'unknown',
-      );
+      const message = error instanceof Error ? error.message : 'unknown';
+      if (message === 'Failed to fetch' || error instanceof TypeError) {
+        remoteUnavailable = true;
+      } else {
+        console.warn('[behavior state sync failed]', message);
+      }
     } finally {
       sending = false;
     }
@@ -157,10 +160,11 @@ export function startBehaviorStateSync() {
     try {
       await loadRemoteState();
     } catch (error) {
-      console.warn(
-        '[behavior state hydrate failed]',
-        error instanceof Error ? error.message : 'unknown',
-      );
+      if (error instanceof TypeError || (error instanceof Error && error.message === 'Failed to fetch')) {
+        remoteUnavailable = true;
+      } else {
+        console.warn('[behavior state hydrate failed]', error instanceof Error ? error.message : 'unknown');
+      }
     }
     if (!stopped) await push();
   })();

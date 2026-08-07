@@ -5,6 +5,10 @@
 .greenhouse-book-button small{color:#78968d;font-size:8px;font-weight:800}
 .greenhouse-book-button b{font-size:12px}
 .greenhouse-book-button.is-complete{border-color:#e5be61;background:#fffaf0;color:#8b651c}
+.greenhouse-garden-pickup-status{position:absolute;z-index:2;left:20px;top:92px;min-width:245px;padding:10px 13px;display:flex;align-items:center;gap:9px;border:1px solid rgba(214,232,224,.95);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 12px 30px rgba(30,73,61,.16);backdrop-filter:blur(14px);pointer-events:none}.greenhouse-garden-pickup-status>span{font-size:21px}.greenhouse-garden-pickup-status>div{display:flex;flex-direction:column}.greenhouse-garden-pickup-status small{color:#78968d;font-size:8px;font-weight:800}.greenhouse-garden-pickup-status b{color:#306f5e;font-size:12px}.greenhouse-garden-pickup-status em{margin-left:auto;max-width:102px;color:#6d877e;font-size:7px;font-style:normal;line-height:1.35}
+.greenhouse-plant-interest-button{margin:11px 0 4px;padding:7px 11px;border:1px solid #d9e8e1;border-radius:999px;background:#fff;color:#5b8175;font-size:9px;font-weight:900;cursor:pointer}.greenhouse-plant-interest-button.is-saved{border-color:#e5c36b;background:#fff8e7;color:#986d1e}
+.greenhouse-garden-pickup-status{left:auto;right:240px;top:20px}
+.greenhouse-garden-pickup-status.is-complete{border-color:#e4c36c;background:#fff9e8}.greenhouse-garden-pickup-status.is-complete b{color:#986d1e}.greenhouse-garden-pickup-status.is-complete em{color:#8d6b29}
 .greenhouse-observe-button{position:absolute;left:50%;bottom:86px;min-width:245px;padding:11px 16px;display:flex;align-items:center;gap:12px;transform:translateX(-50%);border:1px solid rgba(255,255,255,.95);border-radius:18px;background:rgba(255,255,255,.95);color:#244a43;box-shadow:0 14px 35px rgba(22,64,52,.24);pointer-events:auto}
 .greenhouse-observe-button>span{font-size:24px}
 .greenhouse-observe-button div{display:flex;flex-direction:column;align-items:flex-start}

@@ -28,7 +28,9 @@ html.font-loading(lang="ko")
                     const message = typeof event.message === 'string' ? event.message : '';
                     const isReviewOpsSdk = /\/reviewops-sdk\.js(?:$|[?#])/.test(source);
                     const isMinifiedReferenceError = /^(?:Uncaught\s+)?(?:ReferenceError:\s*)?[A-Za-z_$][\w$]* is not defined$/.test(message);
-                    if (isReviewOpsSdk && isMinifiedReferenceError) {
+                    const isOriginMismatch = /Failed to execute 'postMessage' on 'DOMWindow': The target origin provided/.test(message);
+                    const isClosedMessageChannel = /A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received/.test(message);
+                    if (isReviewOpsSdk && (isMinifiedReferenceError || isOriginMismatch || isClosedMessageChannel)) {
                         event.stopImmediatePropagation();
                         event.preventDefault();
                     }

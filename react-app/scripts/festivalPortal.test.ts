@@ -36,7 +36,7 @@ test('축제부스 편집 UI와 모든 서버 저장 경로가 닫혀 있다',()
   const serverModel=read('../server/src/models/WorldPortalPosition.ts');
   const wizApi=read('../../src/app/page.home/api.py');
 
-  assert.match(page,/portalEditor=!\['town','personal-farm','campus','arts-center','festival-experience','food-experience','club-street-festival','government-central-plaza','sejong-smart-city'\]\.includes\(currentMapId\)/);
+  assert.match(page,/portalEditor=!\['town','personal-farm','garden','campus','arts-center','festival-experience','food-experience','club-street-festival','government-central-plaza','sejong-smart-city'\]\.includes\(currentMapId\)/);
   assert.doesNotMatch(experiences,/포탈 위치 편집/);
   assert.match(renderer,/position\.mapId==='festival-experience'/);
   assert.match(socketHandlers,/position\.mapId==='festival-experience'/);
@@ -56,8 +56,7 @@ test('축제부스 카메라는 40% 가까워지고 호수공원 귀환 시 포�
     {x:lakePortal.x+lakePortal.arrivalDirection.x*lakePortal.arrivalClearance,z:lakePortal.z+lakePortal.arrivalDirection.z*lakePortal.arrivalClearance},
     {x:1219,z:1682},
   );
-  assert.match(renderer,/FESTIVAL_EXPERIENCE_CAMERA_DISTANCE=1020/);
-  assert.match(renderer,/cameraDistance:FESTIVAL_EXPERIENCE_CAMERA_DISTANCE/);
+  assert.match(renderer,/cameraDistance:FIXED_WORLD_CAMERA_PROFILES\['festival-experience'\]\.cameraDistance/);
   assert.match(renderer,/'arrivalDirection' in entrance/);
   assert.match(renderer,/'arrivalClearance' in entrance/);
 });

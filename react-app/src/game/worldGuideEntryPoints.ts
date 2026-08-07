@@ -31,9 +31,14 @@ export const WORLD_GUIDE_PORTAL_POSITIONS:Record<GuideWorldMapId,PortalPoint>={
   'recruitment-center':{x:1200,z:2014},
   'project-room':{x:1220,z:2050},
   government:{x:1120,z:1731},
-  'government-central-plaza':{x:1200,z:1690},
+  // Place the government return portal at the lower edge of the plaza GLB.
+  'government-central-plaza':{x:1200,z:1800},
   'government-observatory':{x:1200,z:1790},
-  'sejong-smart-city':{x:1200,z:1690},
+  // Keep the government return portal at the bottom edge of the smart-city
+  // exhibition so it is reached after the visitor crosses the plaza.
+  // Raise the smart-city return portal slightly from the previous bottom
+  // position while keeping it inside the lower GLB plaza.
+  'sejong-smart-city':{x:1200,z:2500},
 };
 
 const PORTAL_SAFE_ENTRY_DISTANCE=140;

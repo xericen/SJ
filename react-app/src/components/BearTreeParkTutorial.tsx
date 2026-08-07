@@ -1,19 +1,19 @@
 import { useState } from 'react';
 
-const BEAR_TUTORIAL_HIDDEN_KEY='bear-tree-park-tutorial-hidden-v1';
+const BEAR_TUTORIAL_HIDDEN_KEY='bear-tree-park-tutorial-hidden-v2';
 
 const tutorialSteps=[
   {
     icon:'🌳',
-    label:'베어트리파크 · AI 여행 행동 분석',
-    title:'자연을 탐험하며 나의 여행 방식을 발견해요',
-    description:'곰 체험소에서 길가의 먹이를 찾고 움직이는 곰에게 전달해 보세요.',
+    label:'베어트리파크 · 숲길 자연 탐험',
+    title:'베어트리파크의 숲과 곰 체험을 둘러봐요',
+    description:'숲길을 걸으며 곰 가족 포토존을 체험하고, 필요하면 수목원과 곰 체험소로 이어지는 포탈을 이용해 보세요.',
     actions:[
-      {key:'💧',title:'폭포',copy:'물가와 곰의 생활환경 관찰'},
-      {key:'🪨',title:'동굴',copy:'곰의 휴식·보금자리 환경 탐색'},
-      {key:'🌲',title:'큰 나무',copy:'먹이와 휴식 환경 관찰'},
+      {key:'📸',title:'곰 가족 포토존',copy:'곰 가족과 사진을 남기는 공간'},
+      {key:'🌿',title:'세종수목원',copy:'식물을 관찰하고 채집하는 공간'},
+      {key:'🐻',title:'곰 체험소',copy:'길가의 먹이를 찾아 곰에게 전달하는 공간'},
     ],
-    hint:'정해진 순서는 없어요. 포토존 기록과 마지막 동행 선택도 여행 스타일 분석에 함께 반영됩니다.',
+    hint:'원하는 순서로 숲길을 탐험하세요. 포탈 가까이에서 E키를 누르면 다음 자연 체험으로 이동할 수 있습니다.',
   },
 ] as const;
 

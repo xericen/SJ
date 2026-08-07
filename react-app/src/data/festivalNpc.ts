@@ -4,6 +4,7 @@ export const FESTIVAL_NPC_JUNHO = {
   id: 'festival-npc-junho', nickname: '준호',
   status: '파란 체험 부스 앞에서 축제 프로그램을 둘러보는 중',
   x: 900, z: 1130, yaw: Math.PI * .65, walkSpeed: 38,
+  height: 120,
   patrol: [{x:900,z:1130},{x:760,z:990},{x:870,z:820},{x:1040,z:930}],
   model: 'cloths',
   appearance: {
@@ -16,6 +17,7 @@ export const FESTIVAL_NPC_HYUNWOO = {
   id: 'festival-npc-hyunwoo', nickname: '현우',
   status: '빨간 전시 부스 근처에서 공연 시간을 확인하는 중',
   x: 1500, z: 1130, yaw: -Math.PI * .65, walkSpeed: 42,
+  height: 120,
   patrol: [{x:1500,z:1130},{x:1640,z:990},{x:1530,z:820},{x:1360,z:930}],
   model: 'cloths',
   appearance: {
@@ -24,16 +26,4 @@ export const FESTIVAL_NPC_HYUNWOO = {
   } satisfies CharacterParts,
 } as const;
 
-export const FESTIVAL_GUIDE_CHUNGNYEONG = {
-  id: 'festival-guide-chungnyeong', nickname: '충녕이',
-  status: '축제부스 입구 포탈 옆에서 방문객을 맞이하는 중',
-  x: 1090, z: 520, yaw: Math.PI,
-  model: 'chungnyeong',
-  appearance: {hair:'',face:'',top:'',bottom:'',shoes:''} satisfies CharacterParts,
-  height: 150,
-  staticPose: true,
-  collisionRadius: 52,
-  interactionRadius: 220,
-} as const;
-
-export const FESTIVAL_NPCS = [FESTIVAL_NPC_JUNHO, FESTIVAL_NPC_HYUNWOO, FESTIVAL_GUIDE_CHUNGNYEONG] as const;
+export const FESTIVAL_NPCS = [FESTIVAL_NPC_JUNHO, FESTIVAL_NPC_HYUNWOO] as const;

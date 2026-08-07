@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import html
 import json
 import math
@@ -66,9 +67,9 @@ WORLD_PORTAL_DEFAULTS = (
     ("government", "government-central-plaza", 720, 1010),
     ("government", "government-observatory", 1680, 1010),
     ("government", "sejong-smart-city", 1200, 1190),
-    ("government-central-plaza", "government", 1200, 1690),
+    ("government-central-plaza", "government", 1200, 1800),
     ("government-observatory", "government", 1200, 1790),
-    ("sejong-smart-city", "government", 1200, 1690),
+    ("sejong-smart-city", "government", 1200, 2500),
 )
 WORLD_PORTAL_KEYS = {(item[0], item[1]) for item in WORLD_PORTAL_DEFAULTS}
 FROZEN_WORLD_PORTAL_MAPS = {
@@ -77,6 +78,7 @@ FROZEN_WORLD_PORTAL_MAPS = {
     "arts-center",
     "festival-experience",
     "food-experience",
+    "bear-play-zone",
     "garden",
 }
 CANONICAL_WORLD_PORTAL_KEYS = {
@@ -1298,8 +1300,11 @@ def _personal_farm_default(now=None):
     }
     return {
         "gardenMission": {
+            "guideSeen": False,
             "collectedFlowerIds": [],
+            "favoriteFlowerIds": [],
             "plantedFlowerIds": [],
+            "plantedFlowers": [],
             "completed": False,
             "completedAt": None,
             "completedFlowerIds": [],
@@ -1307,10 +1312,18 @@ def _personal_farm_default(now=None):
             "interestCompleted": False,
             "interestCompletedAt": None,
         },
+        "memoryTree": {
+            "sourceFlowerIds": [],
+            "analysisText": "",
+            "analyzedAt": None,
+        },
         "bearMission": {
             "collectedFeedIds": [],
             "completedFeedSpotIds": [],
             "fedFeedSpotIds": [],
+            "repeatFeedSpotId": None,
+            "repeatFeedAvailableAt": None,
+            "totalFeedCount": 0,
             "bearFed": False,
             "bearFedAt": None,
             "completed": False,
@@ -1354,9 +1367,56 @@ def _normalize_personal_farm(value):
     result["gardenMission"]["collectedFlowerIds"] = _personal_farm_allowed_list(
         garden.get("collectedFlowerIds"), PERSONAL_FARM_FLOWERS
     )
-    result["gardenMission"]["plantedFlowerIds"] = _personal_farm_allowed_list(
+    result["gardenMission"]["guideSeen"] = garden.get("guideSeen") is True
+    result["gardenMission"]["favoriteFlowerIds"] = _personal_farm_allowed_list(
+        garden.get("favoriteFlowerIds"), PERSONAL_FARM_FLOWERS
+    )[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+    legacy_planted_flower_ids = _personal_farm_allowed_list(
         garden.get("plantedFlowerIds"), PERSONAL_FARM_FLOWERS
     )[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+    planted_flowers = []
+    used_slots = set()
+    used_flowers = set()
+    source_planted = garden.get("plantedFlowers")
+    if isinstance(source_planted, list):
+        for item in source_planted:
+            if not isinstance(item, dict):
+                continue
+            slot = item.get("slot")
+            flower_id = item.get("flowerId")
+            planted_at = item.get("plantedAt")
+            if (
+                isinstance(slot, int) and 1 <= slot <= PERSONAL_FARM_FLOWER_BED_LIMIT
+                and flower_id in PERSONAL_FARM_FLOWERS
+                and slot not in used_slots
+                and flower_id not in used_flowers
+            ):
+                used_slots.add(slot)
+                used_flowers.add(flower_id)
+                planted_flowers.append({
+                    "slot": slot,
+                    "flowerId": flower_id,
+                    "plantedAt": planted_at if isinstance(planted_at, str) else result["createdAt"],
+                })
+    if not planted_flowers:
+        for index, flower_id in enumerate(legacy_planted_flower_ids):
+            planted_flowers.append({
+                "slot": index + 1,
+                "flowerId": flower_id,
+                "plantedAt": result["createdAt"],
+            })
+    planted_flowers = sorted(planted_flowers, key=lambda item: item["slot"])[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+    result["gardenMission"]["plantedFlowers"] = planted_flowers
+    result["gardenMission"]["plantedFlowerIds"] = [item["flowerId"] for item in planted_flowers]
+    memory = value.get("memoryTree") or {}
+    if isinstance(memory, dict):
+        result["memoryTree"]["sourceFlowerIds"] = _personal_farm_allowed_list(
+            memory.get("sourceFlowerIds"), PERSONAL_FARM_FLOWERS
+        )[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+        if isinstance(memory.get("analysisText"), str):
+            result["memoryTree"]["analysisText"] = memory["analysisText"]
+        if isinstance(memory.get("analyzedAt"), str):
+            result["memoryTree"]["analyzedAt"] = memory["analyzedAt"]
     result["bearMission"]["collectedFeedIds"] = _personal_farm_allowed_list(
         bear.get("collectedFeedIds"), PERSONAL_FARM_FEEDS
     )
@@ -1372,6 +1432,14 @@ def _normalize_personal_farm(value):
         item for item in fed_feed_spot_ids
         if item in result["bearMission"]["completedFeedSpotIds"]
     ]
+    repeat_spot_id = bear.get("repeatFeedSpotId")
+    if repeat_spot_id in PERSONAL_FARM_FEED_SPOTS:
+        result["bearMission"]["repeatFeedSpotId"] = repeat_spot_id
+    if isinstance(bear.get("repeatFeedAvailableAt"), str):
+        result["bearMission"]["repeatFeedAvailableAt"] = bear["repeatFeedAvailableAt"]
+    total_feed_count = bear.get("totalFeedCount")
+    if isinstance(total_feed_count, int):
+        result["bearMission"]["totalFeedCount"] = max(0, total_feed_count)
     result["bearMission"]["bearFed"] = bear.get("bearFed") is True
     if isinstance(bear.get("bearFedAt"), str):
         result["bearMission"]["bearFedAt"] = bear["bearFedAt"]
@@ -1425,18 +1493,43 @@ def _apply_personal_farm_rules(progress, now=None):
     timestamp = (now or datetime.datetime.now()).isoformat()
     garden = progress["gardenMission"]
     bear = progress["bearMission"]
-    garden_complete = all(
-        item in garden["collectedFlowerIds"]
-        for item in PERSONAL_FARM_REQUIRED_FLOWERS
-    ) and len(garden["plantedFlowerIds"]) == PERSONAL_FARM_FLOWER_BED_LIMIT
+    planted_flowers = garden.get("plantedFlowers") or []
+    garden["plantedFlowers"] = sorted([
+        item for item in planted_flowers
+        if isinstance(item, dict)
+        and isinstance(item.get("slot"), int)
+        and 1 <= item["slot"] <= PERSONAL_FARM_FLOWER_BED_LIMIT
+        and item.get("flowerId") in PERSONAL_FARM_FLOWERS
+    ], key=lambda item: item["slot"])[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+    garden["plantedFlowerIds"] = [item["flowerId"] for item in garden["plantedFlowers"]]
+    garden["favoriteFlowerIds"] = _personal_farm_allowed_list(
+        garden.get("favoriteFlowerIds"), PERSONAL_FARM_FLOWERS
+    )[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+    garden["guideSeen"] = garden.get("guideSeen") is True
+    if not isinstance(progress.get("memoryTree"), dict):
+        progress["memoryTree"] = {"sourceFlowerIds": [], "analysisText": "", "analyzedAt": None}
+    progress["memoryTree"]["sourceFlowerIds"] = _personal_farm_allowed_list(
+        progress["memoryTree"].get("sourceFlowerIds"), PERSONAL_FARM_FLOWERS
+    )[:PERSONAL_FARM_FLOWER_BED_LIMIT]
+    if not isinstance(progress["memoryTree"].get("analysisText"), str):
+        progress["memoryTree"]["analysisText"] = ""
+    if not isinstance(progress["memoryTree"].get("analyzedAt"), str):
+        progress["memoryTree"]["analyzedAt"] = None
+    garden_complete = len(garden["plantedFlowers"]) == PERSONAL_FARM_FLOWER_BED_LIMIT and (
+        len(garden["favoriteFlowerIds"]) == PERSONAL_FARM_FLOWER_BED_LIMIT
+        or len(garden["plantedFlowerIds"]) == PERSONAL_FARM_FLOWER_BED_LIMIT
+    )
     bear["fedFeedSpotIds"] = list(dict.fromkeys(
         item for item in bear.get("fedFeedSpotIds", [])
         if item in bear["completedFeedSpotIds"] and item in PERSONAL_FARM_FEED_SPOTS
     ))
-    bear_complete = all(
+    bear["totalFeedCount"] = max(len(bear["fedFeedSpotIds"]), int(bear.get("totalFeedCount") or 0))
+    bear_complete = bear.get("bearFed") is True or bear["totalFeedCount"] >= len(PERSONAL_FARM_FEED_SPOTS) or all(
         item in bear["fedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS
     )
     bear["bearFed"] = bear_complete
+    if bear_complete and not bear.get("bearFedAt"):
+        bear["bearFedAt"] = timestamp
     if not bear_complete:
         bear["bearFedAt"] = None
     if garden_complete and not garden.get("completedAt"):
@@ -1533,7 +1626,7 @@ def personal_farm_progress():
 
     garden = progress["gardenMission"]
     bear = progress["bearMission"]
-    if action in ("collectFlower", "plantFlower", "removeFlower"):
+    if action in ("collectFlower", "plantFlower", "removeFlower", "toggleFavoriteFlower"):
         flower_id = wiz.request.query("flowerId", "").strip()
         if flower_id not in PERSONAL_FARM_FLOWERS:
             return _personal_farm_error(400, "INVALID_FLOWER_ID", "지원하지 않는 꽃입니다.")
@@ -1542,19 +1635,58 @@ def personal_farm_progress():
                 return _personal_farm_error(409, "FLOWER_ALREADY_COLLECTED", "이미 수집한 꽃입니다.")
             garden["collectedFlowerIds"].append(flower_id)
         elif action == "plantFlower":
-            if flower_id not in garden["collectedFlowerIds"]:
+            if flower_id not in garden["collectedFlowerIds"] and flower_id not in garden["favoriteFlowerIds"]:
                 return _personal_farm_error(409, "FLOWER_NOT_COLLECTED", "꽃을 먼저 수집해 주세요.")
-            if flower_id in garden["plantedFlowerIds"]:
+            slot_value = wiz.request.query("slot", "").strip()
+            slot = None
+            if slot_value:
+                try:
+                    slot = int(slot_value)
+                except (TypeError, ValueError):
+                    slot = None
+                if slot is None or slot < 1 or slot > PERSONAL_FARM_FLOWER_BED_LIMIT:
+                    return _personal_farm_error(400, "INVALID_FLOWER_SLOT", "꽃 자리는 1부터 5까지만 사용할 수 있습니다.")
+                garden["plantedFlowers"] = [
+                    item for item in garden["plantedFlowers"]
+                    if item["slot"] != slot and item["flowerId"] != flower_id
+                ]
+                garden["plantedFlowers"].append({"slot": slot, "flowerId": flower_id, "plantedAt": datetime.datetime.now().isoformat()})
+            elif flower_id in garden["plantedFlowerIds"]:
                 return _personal_farm_error(409, "FLOWER_ALREADY_PLANTED", "이미 심은 꽃입니다.")
-            if len(garden["plantedFlowerIds"]) >= PERSONAL_FARM_FLOWER_BED_LIMIT:
+            elif len(garden["plantedFlowers"]) >= PERSONAL_FARM_FLOWER_BED_LIMIT:
                 return _personal_farm_error(409, "FLOWER_BED_FULL", "화단에는 꽃을 5개까지 심을 수 있습니다.")
-            garden["plantedFlowerIds"].append(flower_id)
-        else:
+            else:
+                occupied = {item["slot"] for item in garden["plantedFlowers"]}
+                slot = next((item for item in range(1, PERSONAL_FARM_FLOWER_BED_LIMIT + 1) if item not in occupied), None)
+                garden["plantedFlowers"].append({"slot": slot, "flowerId": flower_id, "plantedAt": datetime.datetime.now().isoformat()})
+        elif action == "removeFlower":
             if flower_id not in garden["plantedFlowerIds"]:
                 return _personal_farm_error(409, "FLOWER_NOT_PLANTED", "화단에 심지 않은 꽃입니다.")
-            garden["plantedFlowerIds"] = [
-                item for item in garden["plantedFlowerIds"] if item != flower_id
-            ]
+            garden["plantedFlowers"] = [item for item in garden["plantedFlowers"] if item["flowerId"] != flower_id]
+        else:
+            if flower_id in garden["favoriteFlowerIds"]:
+                garden["favoriteFlowerIds"] = [item for item in garden["favoriteFlowerIds"] if item != flower_id]
+                progress["memoryTree"] = {"sourceFlowerIds": [], "analysisText": "", "analyzedAt": None}
+            else:
+                if len(garden["favoriteFlowerIds"]) >= PERSONAL_FARM_FLOWER_BED_LIMIT:
+                    return _personal_farm_error(409, "FAVORITE_FLOWERS_FULL", "선택한 꽃 5개 중 하나를 해제한 뒤 새 꽃을 선택해 주세요.")
+                if flower_id not in garden["collectedFlowerIds"]:
+                    garden["collectedFlowerIds"].append(flower_id)
+                garden["favoriteFlowerIds"].append(flower_id)
+                progress["memoryTree"] = {"sourceFlowerIds": [], "analysisText": "", "analyzedAt": None}
+    elif action == "guideSeen":
+        garden["guideSeen"] = True
+    elif action == "analyzeMemoryTree":
+        flower_ids = list(garden["favoriteFlowerIds"])
+        if len(flower_ids) != PERSONAL_FARM_FLOWER_BED_LIMIT:
+            return _personal_farm_error(409, "FIVE_FLOWERS_REQUIRED", "먼저 마음에 드는 꽃 5개를 선택해 주세요.")
+        memory = progress["memoryTree"]
+        if memory.get("analysisText") and memory.get("sourceFlowerIds") == flower_ids:
+            pass
+        else:
+            memory["sourceFlowerIds"] = flower_ids
+            memory["analysisText"] = "선택한 식물 기록을 바탕으로 차분한 자연 산책형 성향이 확인되었습니다."
+            memory["analyzedAt"] = datetime.datetime.now().isoformat()
     elif action == "collectFeed":
         feed_id = wiz.request.query("feedId", "").strip()
         if feed_id not in PERSONAL_FARM_FEEDS:
@@ -1566,6 +1698,22 @@ def personal_farm_progress():
         spot_id = wiz.request.query("spotId", "").strip()
         if spot_id not in PERSONAL_FARM_FEED_SPOTS:
             return _personal_farm_error(400, "INVALID_FEED_SPOT_ID", "지원하지 않는 먹이 지점입니다.")
+        if bear.get("completed"):
+            if bear.get("repeatFeedSpotId"):
+                return _personal_farm_error(409, "FEED_PENDING_DELIVERY", "먼저 들고 있는 먹이를 곰에게 주세요.")
+            available_at = bear.get("repeatFeedAvailableAt")
+            if isinstance(available_at, str):
+                try:
+                    if datetime.datetime.fromisoformat(available_at) > datetime.datetime.now():
+                        return _personal_farm_error(409, "FEED_RESPAWNING", "먹이가 다시 나타나는 중입니다.")
+                except ValueError:
+                    pass
+            bear["repeatFeedSpotId"] = spot_id
+            feed_id = PERSONAL_FARM_FEED_BY_SPOT[spot_id]
+            if feed_id not in bear["collectedFeedIds"]:
+                bear["collectedFeedIds"].append(feed_id)
+            progress = _save_personal_farm(db, user_id, progress, record)
+            return wiz.response.status(200, progress=progress)
         if spot_id in bear["completedFeedSpotIds"]:
             return _personal_farm_error(409, "FEED_SPOT_ALREADY_COMPLETED", "이미 주운 먹이입니다.")
         if len(bear["completedFeedSpotIds"]) > len(bear["fedFeedSpotIds"]):
@@ -1577,10 +1725,16 @@ def personal_farm_progress():
             bear["collectedFeedIds"].append(feed_id)
         bear["completedFeedSpotIds"].append(spot_id)
     elif action == "feedBear":
-        if bear.get("bearFed"):
-            return _personal_farm_error(
-                409, "BEAR_ALREADY_FED", "이미 곰 급여 체험을 완료했습니다."
-            )
+        if bear.get("completed"):
+            if not bear.get("repeatFeedSpotId"):
+                return _personal_farm_error(409, "FEED_NOT_COLLECTED", "먼저 다시 나타난 먹이를 주워 주세요.")
+            bear["repeatFeedSpotId"] = None
+            bear["repeatFeedAvailableAt"] = (
+                datetime.datetime.now() + datetime.timedelta(seconds=3)
+            ).isoformat()
+            bear["totalFeedCount"] = int(bear.get("totalFeedCount") or 0) + 1
+            progress = _save_personal_farm(db, user_id, progress, record)
+            return wiz.response.status(200, progress=progress)
         pending_spot_id = next((
             item for item in bear["completedFeedSpotIds"]
             if item not in bear["fedFeedSpotIds"]
@@ -1590,8 +1744,12 @@ def personal_farm_progress():
                 409, "FEED_NOT_COLLECTED", "먹이를 하나 주운 뒤 곰에게 주세요."
             )
         bear["fedFeedSpotIds"].append(pending_spot_id)
+        bear["totalFeedCount"] = int(bear.get("totalFeedCount") or 0) + 1
         if all(item in bear["fedFeedSpotIds"] for item in PERSONAL_FARM_FEED_SPOTS):
             bear["bearFedAt"] = datetime.datetime.now().isoformat()
+            bear["repeatFeedAvailableAt"] = (
+                datetime.datetime.now() + datetime.timedelta(seconds=3)
+            ).isoformat()
     elif action == "activeRewards":
         try:
             reward_ids = json.loads(wiz.request.query("rewardIds", "[]"))
@@ -1924,3 +2082,91 @@ def behavior_state():
         saved=len(normalized),
         updatedAt=now.isoformat(),
     )
+
+
+def _shared_json_collection(name):
+    db = struct.db("ai_behavior_state")
+    db.orm.create_table(safe=True)
+    record = db.get(id=f"shared-{name}")
+    if record is None:
+        return db, []
+    try:
+        value = json.loads(record.get("payload") or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        value = []
+    return db, value if isinstance(value, list) else []
+
+
+def _shared_json_endpoint(name):
+    db, items = _shared_json_collection(name)
+    action = wiz.request.query("action", "").strip()
+    payload = wiz.request.query("payload", "")
+    if action == "create" and payload:
+        try:
+            item = json.loads(payload)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return wiz.response.status(400, message="저장 데이터 형식이 올바르지 않습니다.")
+        if not isinstance(item, dict) or not item.get("id"):
+            return wiz.response.status(400, message="저장 데이터가 비어 있습니다.")
+        items = [item] + [entry for entry in items if entry.get("id") != item.get("id")]
+        now = datetime.datetime.now()
+        record = db.get(id=f"shared-{name}")
+        values = {"id": f"shared-{name}", "payload": json.dumps(items, ensure_ascii=False), "updated": now}
+        if record is None:
+            values["created"] = now
+            db.insert(values)
+        else:
+            db.update(values, id=f"shared-{name}")
+    return wiz.response.status(200, items=items)
+
+
+def community():
+    return _shared_json_endpoint("community_posts")
+
+
+def clubs():
+    return _shared_json_endpoint("community_clubs")
+
+
+MAP_ACTIVITY_IDS = {
+    "town", "arts-center", "festival-experience", "food-experience", "club-street-festival",
+    "bear-tree-park", "bear-play-zone", "garden", "campus", "student-hall", "recruitment-center",
+    "project-room", "government", "government-central-plaza", "government-policy-hall",
+    "government-observatory", "sejong-smart-city", "jochwon-station", "traditional-market",
+    "jochwon-park", "college-street", "personal-farm",
+}
+
+
+def map_activity():
+    map_id = wiz.request.query("mapId", "").strip()
+    user_id = (session.get("id") or wiz.request.query("userKey", "guest")).strip()[:120]
+    if map_id not in MAP_ACTIVITY_IDS:
+        return wiz.response.status(400, message="지원하지 않는 맵입니다.")
+    db = struct.db("ai_behavior_state")
+    db.orm.create_table(safe=True)
+    # ai_behavior_state has a unique user_id and fixed-length primary key.
+    # Do not add map_id/last_visited columns here: older WIZ deployments use
+    # the shared schema and reject unknown fields, which caused a 500 response.
+    normalized_user_id = user_id[:32]
+    key = f"map-{hashlib.sha256(normalized_user_id.encode('utf-8')).hexdigest()[:27]}"
+    now = datetime.datetime.now()
+    # The same user may already have an AI behavior row. Reuse it so the
+    # unique user_id constraint is respected instead of attempting a second
+    # insert that surfaces as an opaque 500 response.
+    record = db.get(user_id=normalized_user_id) or db.get(id=key)
+    if record is not None:
+        key = record.get("id", key)
+    activities = {}
+    if record is not None:
+        try:
+            activities = json.loads(record.get("payload") or "{}")
+        except (TypeError, ValueError):
+            activities = {}
+    activities[map_id] = now.isoformat()
+    values = {"id": key, "user_id": normalized_user_id, "version": 1, "payload": json.dumps({"mapActivity": activities}, ensure_ascii=False), "updated": now}
+    if record is None:
+        values["created"] = now
+        db.insert(values)
+    else:
+        db.update(values, id=key)
+    return wiz.response.status(200, mapId=map_id, userId=normalized_user_id, visitedAt=now.isoformat())

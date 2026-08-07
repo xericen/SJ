@@ -7,6 +7,7 @@ import {
   type FormEvent
 } from 'react';
 import type { UserProfile } from '../types';
+import { COMMUNITY_API_BASE_URL } from '../config/api';
 import './CommunityPage.css';
 
 type CommunityPageProps = {
@@ -58,10 +59,6 @@ type ApiErrorBody = {
   error?: string;
 };
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ??
-  '';
-
 const BOARD_CATEGORIES = [
   '자유게시판',
   '정보게시판',
@@ -80,6 +77,11 @@ const CLUB_CATEGORIES = [
   '봉사',
   '기타'
 ];
+const API_BASE_URL=COMMUNITY_API_BASE_URL;
+const LOCAL_COMMUNITY_POSTS='sejong-community-posts-v1';
+const LOCAL_CLUBS='sejong-community-clubs-v1';
+const readLocalJson=<T,>(key:string,fallback:T):T=>{try{const value=JSON.parse(localStorage.getItem(key)??'null');return value===null?fallback:value as T}catch{return fallback}};
+const writeLocalJson=(key:string,value:unknown)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{/* storage unavailable */}};
 
 const CLUB_COLORS = [
   '#ff6b6b',
@@ -217,15 +219,15 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/community`
+        `${API_BASE_URL}/community`
       );
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      const data =
-        (await response.json()) as CommunityPost[];
+      const body=await response.json() as CommunityPost[]|{data?:{items?:CommunityPost[]}};
+      const data=Array.isArray(body)?body:body.data?.items??[];
 
       setPosts(
         Array.isArray(data)
@@ -245,6 +247,8 @@ export function CommunityPage({
           : []
       );
     } catch (error) {
+      const localPosts=readLocalJson<CommunityPost[]>(LOCAL_COMMUNITY_POSTS,[]);
+      if(localPosts.length){setPosts(localPosts);setErrorMessage('서버 연결이 지연되어 이 기기에 저장된 모집글을 표시합니다.');return}
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -260,14 +264,15 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/clubs`
+        `${API_BASE_URL}/clubs`
       );
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      const data = (await response.json()) as Club[];
+      const body=await response.json() as Club[]|{data?:{items?:Club[]}};
+      const data=Array.isArray(body)?body:body.data?.items??[];
 
       setClubs(
         Array.isArray(data)
@@ -280,6 +285,8 @@ export function CommunityPage({
           : []
       );
     } catch (error) {
+      const localClubs=readLocalJson<Club[]>(LOCAL_CLUBS,[]);
+      if(localClubs.length){setClubs(localClubs);setErrorMessage('서버 연결이 지연되어 이 기기에 저장된 동아리를 표시합니다.');return}
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -372,28 +379,19 @@ export function CommunityPage({
     setErrorMessage('');
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/community`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
+      const response = await fetch(`${API_BASE_URL}/community?action=create&payload=${encodeURIComponent(JSON.stringify({
             author: userName,
             title: postTitle,
             content: postContent,
             category: postCategory
-          })
-        }
-      );
+          }))}`);
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      const createdPost =
-        (await response.json()) as CommunityPost;
+      const body=await response.json() as {data?:{items?:CommunityPost[]}};
+      const createdPost=body.data?.items?.[0]??{id:`local-post-${Date.now()}`,author:userName,title:postTitle,content:postContent,category:postCategory,likes:0,likedBy:[],comments:[],createdAt:new Date().toISOString()};
 
       setPosts((currentPosts) => [
         createdPost,
@@ -405,11 +403,9 @@ export function CommunityPage({
       setPostCategory(BOARD_CATEGORIES[0]);
       setShowPostComposer(false);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : '게시글을 작성하지 못했습니다.'
-      );
+      const createdPost:CommunityPost={id:`local-post-${Date.now()}`,author:userName,title:postTitle.trim(),content:postContent.trim(),category:postCategory,likes:0,likedBy:[],comments:[],createdAt:new Date().toISOString()};
+      const nextPosts=[createdPost,...readLocalJson<CommunityPost[]>(LOCAL_COMMUNITY_POSTS,[])];
+      writeLocalJson(LOCAL_COMMUNITY_POSTS,nextPosts);setPosts(currentPosts=>[createdPost,...currentPosts]);setPostTitle('');setPostContent('');setPostCategory(BOARD_CATEGORIES[0]);setShowPostComposer(false);setErrorMessage('서버 연결이 지연되어 이 기기에 모집글을 저장했습니다.');void error;
     } finally {
       setWorkingKey('');
     }
@@ -429,7 +425,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/community/${postId}`,
+        `${API_BASE_URL}/community/${postId}`,
         {
           method: 'DELETE'
         }
@@ -461,7 +457,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/community/${postId}/like`,
+        `${API_BASE_URL}/community/${postId}/like`,
         {
           method: 'POST',
           headers: {
@@ -522,7 +518,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/community/${postId}/comments`,
+        `${API_BASE_URL}/community/${postId}/comments`,
         {
           method: 'POST',
           headers: {
@@ -585,7 +581,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/community/${postId}/comments/${commentId}`,
+        `${API_BASE_URL}/community/${postId}/comments/${commentId}`,
         {
           method: 'DELETE'
         }
@@ -633,30 +629,21 @@ export function CommunityPage({
     setErrorMessage('');
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/clubs`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
+      const response = await fetch(`${API_BASE_URL}/clubs?action=create&payload=${encodeURIComponent(JSON.stringify({
             name: clubName,
             description: clubDescription,
             category: clubCategory,
             color: clubColor,
             ownerId: userId,
             ownerName: userName
-          })
-        }
-      );
+          }))}`);
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      const createdClub =
-        (await response.json()) as Club;
+      const body=await response.json() as {data?:{items?:Club[]}};
+      const createdClub=body.data?.items?.[0]??{id:`local-club-${Date.now()}`,name:clubName,description:clubDescription,category:clubCategory,color:clubColor,ownerId:userId,ownerName:userName,members:[],createdAt:new Date().toISOString()};
 
       setClubs((currentClubs) => [
         createdClub,
@@ -669,11 +656,9 @@ export function CommunityPage({
       setClubColor(CLUB_COLORS[0]);
       setShowClubComposer(false);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : '동아리를 만들지 못했습니다.'
-      );
+      const createdClub:Club={id:`local-club-${Date.now()}`,name:clubName.trim(),description:clubDescription.trim(),category:clubCategory,color:clubColor,ownerId:userId,ownerName:userName,members:[{userId,name:userName,joinedAt:new Date().toISOString()}],createdAt:new Date().toISOString()};
+      const nextClubs=[createdClub,...readLocalJson<Club[]>(LOCAL_CLUBS,[])];
+      writeLocalJson(LOCAL_CLUBS,nextClubs);setClubs(currentClubs=>[createdClub,...currentClubs]);setClubName('');setClubDescription('');setClubCategory(CLUB_CATEGORIES[0]);setClubColor(CLUB_COLORS[0]);setShowClubComposer(false);setErrorMessage('서버 연결이 지연되어 이 기기에 동아리를 저장했습니다.');void error;
     } finally {
       setWorkingKey('');
     }
@@ -685,7 +670,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/clubs/${clubId}/join`,
+        `${API_BASE_URL}/clubs/${clubId}/join`,
         {
           method: 'POST',
           headers: {
@@ -735,7 +720,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/clubs/${clubId}/leave`,
+        `${API_BASE_URL}/clubs/${clubId}/leave`,
         {
           method: 'POST',
           headers: {
@@ -784,7 +769,7 @@ export function CommunityPage({
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/clubs/${clubId}`,
+        `${API_BASE_URL}/clubs/${clubId}`,
         {
           method: 'DELETE',
           headers: {

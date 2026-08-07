@@ -194,8 +194,8 @@
 
 /* 2026 desktop-first landing dashboard: keep the primary journey in one viewport. */
 @media(min-width:901px){
-  .welcome-page{height:100dvh;min-height:100dvh;padding:10px;overflow:hidden;place-items:center}
-  .welcome-card{width:min(1320px,calc(100vw - 20px),calc(150dvh - 30px));height:auto;min-height:0;aspect-ratio:3/2;padding:8px 28px 16px;border-radius:24px}
+  .welcome-page{height:100dvh;min-height:100dvh;padding:24px;overflow:hidden;place-items:center}
+  .welcome-card{width:min(1480px,100%);height:calc(100dvh - 48px);min-height:0;padding:8px 28px 16px;border-radius:24px}
   .welcome-card-home{display:grid;grid-template-rows:64px minmax(0,1fr)}
   .welcome-header{height:64px}
   .welcome-home-dashboard{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) 178px;gap:12px}

@@ -51,10 +51,10 @@
       if (window.parent === window) return;
       let immediateParentOrigin = '';
       try {
-        immediateParentOrigin = window.parent.location.origin;
+        immediateParentOrigin = new URL(document.referrer).origin;
       } catch {
         try {
-          immediateParentOrigin = new URL(document.referrer).origin;
+          immediateParentOrigin = window.parent.location.origin;
         } catch {
           return;
         }
@@ -70,6 +70,7 @@
           sdkConfig = {
             ...(value && typeof value === 'object' ? value : {}),
             parentOrigin: immediateParentOrigin,
+            allowedOrigins: [immediateParentOrigin],
           };
         },
       });

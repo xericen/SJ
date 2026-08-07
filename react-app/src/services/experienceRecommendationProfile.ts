@@ -7,7 +7,7 @@ import { loadBearHabitatProgress } from './bearHabitatDecision';
 import { buildAiSejongProfile } from './aiSejongProfile';
 import {loadExperienceProfileFragments,loadFestivalKeywordInsights,loadGeneratedExperienceProfile,loadSavedExperienceInterests,type GeneratedExperienceProfile} from './experienceHarness';
 import {recordProfileVisit} from './profileProgress';
-import {loadCampusProfileSignals} from './campusProfileSignals';
+import {campusSignalKeywords,loadCampusProfileSignals} from './campusProfileSignals';
 
 const LAKE_INTEREST_KEY='sejong-lake-interest-profile-v1';
 const MAP_RECORD_PREFIX='sejong-map-experience-v1:';
@@ -60,6 +60,10 @@ const mapRecords:Partial<Record<MapId,{record:string;categories:string[]}>>={
   'bear-tree-park':{record:'베어트리파크 숲 탐험',categories:['공원','관광명소']},
   'bear-play-zone':{record:'베어트리파크 곰 관찰',categories:['공원','관광명소']},
   campus:{record:'공동캠퍼스 이웃 만남',categories:['문화시설']},
+  'student-hall':{record:'학생회관 이웃 추천 확인',categories:['문화시설']},
+  'recruitment-center':{record:'모집센터 동행 모집 확인',categories:['문화시설']},
+  'project-room':{record:'프로젝트실 협업 코스 기획',categories:['문화시설']},
+  'club-street-festival':{record:'동아리 거리제 커뮤니티 활동',categories:['문화시설']},
   government:{record:'정부청사 공동 계획',categories:['문화시설','관광명소']},
   'sejong-smart-city':{record:'세종 스마트시티 국가시범도시 탐험',categories:['문화시설','관광명소']},
 };
@@ -132,6 +136,7 @@ export function buildExperienceRecommendationProfile(profile:UserProfile):Public
   const profileFragments=loadExperienceProfileFragments(profile.nickname);
   const savedInterests=loadSavedExperienceInterests(profile.nickname);
   const festivalKeywords=loadFestivalKeywordInsights(profile.nickname);
+  const campusKeywords=campusSignalKeywords(profile.nickname);
   if(generatedExperience){const label=analysisLabel(generatedExperience);experienceRecords.push(...generatedExperience.tags.map(tag=>`${label}: ${tag}`),`AI 체험 분석: ${generatedExperience.summary}`)}
   profileFragments.forEach(fragment=>{const label=analysisLabel(fragment);experienceRecords.push(...fragment.tags.map(tag=>`${label}: ${tag}`),`${label} 분석: ${fragment.summary}`)});
   loadCampusProfileSignals(profile.nickname).slice(0,8).forEach(signal=>experienceRecords.push(`캠퍼스 성향: ${signal.keywords[0]??signal.title}`));
@@ -205,6 +210,7 @@ export function buildExperienceRecommendationProfile(profile:UserProfile):Public
   festivalKeywords.forEach(item=>experienceRecords.push(`축제 취향: ${item.keyword}`));
   const inferredInterests=[
     ...festivalKeywords.map(item=>item.keyword),
+    ...campusKeywords,
     ...savedInterests.flatMap(item=>item.tags),
     ...profileFragments.flatMap(fragment=>fragment.tags),
     ...aiSejongProfile.interests.map(item=>item.label),

@@ -9,21 +9,23 @@ import {
   PERSONAL_FARM_CAMERA_PROFILE,
   personalFarmCameraDistance,
   SEJONG_ARTS_CENTER_NAVIGATION_PROFILE,
-  SHOWCASE_WORLD_CAMERA_DISTANCE,
   UNIFIED_WORLD_MAP_IDS,
   usesUnifiedWorldNavigation,
   WORLD_GUIDE_MAP_IDS,
 } from '../src/game/worldNavigationProfile';
 
-test('공간 안내 17개 중 호수공원·수목원은 지형 맞춤 카메라를 유지한다',()=>{
+test('공간 안내 17개 중 호수공원·수목원과 고정 완료된 세 체험 맵은 지형 맞춤 카메라를 유지한다',()=>{
   assert.equal(WORLD_GUIDE_MAP_IDS.length,17);
   assert.equal(new Set(WORLD_GUIDE_MAP_IDS).size,17);
-  assert.deepEqual(AUTHORED_CAMERA_MAP_IDS,['town','garden']);
-  assert.equal(UNIFIED_WORLD_MAP_IDS.length,15);
+  assert.deepEqual(AUTHORED_CAMERA_MAP_IDS,['town','garden','arts-center','festival-experience','food-experience']);
+  assert.equal(UNIFIED_WORLD_MAP_IDS.length,12);
   UNIFIED_WORLD_MAP_IDS.forEach(mapId=>assert.equal(usesUnifiedWorldNavigation(mapId),true));
   assert.equal(usesUnifiedWorldNavigation('town'),false);
   assert.equal(usesUnifiedWorldNavigation('bear-tree-park'),true);
   assert.equal(usesUnifiedWorldNavigation('garden'),false);
+  assert.equal(usesUnifiedWorldNavigation('arts-center'),false);
+  assert.equal(usesUnifiedWorldNavigation('festival-experience'),false);
+  assert.equal(usesUnifiedWorldNavigation('food-experience'),false);
   assert.deepEqual(SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.character,{height:150});
   assert.deepEqual(SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.movement,{walkSpeed:180,runSpeed:280});
 });
@@ -40,7 +42,7 @@ test('맵별 카메라 거리와 추적 제한을 예술의전당 기준으로 �
     cameraScreenOffsetY:140,
     cameraFollowBounds:{maxZ:1000},
     cameraDownScreenLimitZ:900,
-    characterHeight:94,
+    characterHeight:63,
   });
   assert.equal(options.perspectiveCamera,true);
   assert.equal(options.fixedCameraTarget,false);
@@ -55,14 +57,6 @@ test('맵별 카메라 거리와 추적 제한을 예술의전당 기준으로 �
   assert.equal(options.characterHeight,150);
 });
 
-test('예술의전당·축제부스·먹거리부스만 캐릭터와 카메라 사이를 조금 더 띄운다',()=>{
-  assert.equal(SHOWCASE_WORLD_CAMERA_DISTANCE,1550);
-  (['arts-center','festival-experience','food-experience'] as const).forEach(mapId=>{
-    assert.equal(applyUnifiedWorldCamera({},mapId).cameraDistance,SHOWCASE_WORLD_CAMERA_DISTANCE);
-  });
-  assert.equal(applyUnifiedWorldCamera({},'project-room').cameraDistance,1300);
-});
-
 test('마이홈 카메라는 야외 1820과 이후 확대한 실내 1400 거리를 유지한다',()=>{
   assert.equal(PERSONAL_FARM_CAMERA_PROFILE.distanceMultiplier,1.4);
   assert.equal(PERSONAL_FARM_CAMERA_PROFILE.outdoorDistance,Math.round(1300*1.4));
@@ -73,7 +67,7 @@ test('마이홈 카메라는 야외 1820과 이후 확대한 실내 1400 거리�
 });
 
 test('수목원은 캐릭터 비율을 낮추고 더 넓은 맵 조망을 유지한다',()=>{
-  assert.deepEqual(GARDEN_NAVIGATION_PROFILE,{cameraDistance:1550,cameraZoom:.9,characterHeight:110});
+  assert.deepEqual(GARDEN_NAVIGATION_PROFILE,{cameraDistance:1550,cameraZoom:.9,characterHeight:160});
 });
 
 test('공동캠퍼스는 이름표를 줄이고 베어트리파크는 좁은 화각으로 렌즈 왜곡을 줄인다',()=>{

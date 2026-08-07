@@ -1,7 +1,8 @@
 import type {MapId} from '../../shared/socket-events';
+import {isFixedWorldCameraMap} from '../game/fixedWorldCameraProfiles';
 import {WORLD_GUIDE_MAP_IDS} from '../game/worldNavigationProfile';
 
-export const WORLD_CAMERA_EDITOR_MAP_IDS=[...WORLD_GUIDE_MAP_IDS] as const;
+export const WORLD_CAMERA_EDITOR_MAP_IDS=WORLD_GUIDE_MAP_IDS.filter(mapId=>!isFixedWorldCameraMap(mapId));
 const editableMapIds=new Set<MapId>(WORLD_CAMERA_EDITOR_MAP_IDS);
 
 export type WorldCameraProfile={
@@ -15,7 +16,7 @@ export type WorldCameraProfile={
 };
 
 export const WORLD_CAMERA_PROFILE_LIMITS={
-  characterHeight:{min:60,max:220,step:2},
+  characterHeight:{min:60,max:300,step:2},
   cameraElevationDeg:{min:15,max:65,step:1},
   cameraAzimuthDeg:{min:-180,max:180,step:1},
   cameraDistance:{min:500,max:2400,step:10},

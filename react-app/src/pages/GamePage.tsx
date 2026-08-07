@@ -12,12 +12,13 @@ import { ObservatoryTelescopeInteraction } from '../components/ObservatoryTelesc
 import { FoodTruckExperience } from '../components/FoodTruckExperience';
 import { ArtsCenterPosterKiosk } from '../components/ArtsCenterPosterKiosk';
 import { ArtsCenterStageVideo } from '../components/ArtsCenterStageVideo';
-import { ArtsCenterTutorial } from '../components/ArtsCenterTutorial';
+import { ArtsCenterTutorial,ExperienceTutorial } from '../components/ArtsCenterTutorial';
 import { ClubStreetExperience } from '../components/ClubStreetExperience';
 import { StudentHallBoards } from '../components/StudentHallBoards';
 import { ProjectLobbyBoard } from '../components/ProjectLobbyBoard';
 import { RecruitmentCenterDesk,RECRUITMENT_GUIDE_ID } from '../components/RecruitmentCenterDesk';
 import { RecruitmentCenterKiosk } from '../components/RecruitmentCenterKiosk';
+import { CampusMapIntro } from '../components/CampusMapIntro';
 import { SmartCityExperience } from '../components/SmartCityExperience';
 import {WorldCameraEditor} from '../components/WorldCameraEditor';
 import type { GameReturnState } from '../game/gameReturnState';
@@ -26,6 +27,7 @@ import { PROJECT_ROOM_NPC } from '../data/projectRoomNpc';
 import { STUDENT_HALL_NPCS } from '../data/studentHallNpc';
 import { FESTIVAL_NPCS } from '../data/festivalNpc';
 import { CAMPUS_BUILDINGS,loadVisitedCampusBuildings,recordCampusBuildingVisit } from '../services/campusVisits';
+import {recordCampusProfileSignal} from '../services/campusProfileSignals';
 import {loadSharedWorldPortalState} from '../services/worldPortalPositions';
 import {isPersonalFarmReturnMap,loadPersonalFarmReturnMap,savePersonalFarmReturnMap} from '../game/personalFarmReturnMap';
 type NearbyNpc={id:string;nickname:string;status:string;appearance:UserProfile['character'];model:UserProfile['model'];x:number;z:number};
@@ -63,6 +65,7 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
  const [personalFarmSeat,setPersonalFarmSeat]=useState<{id:string;kind:'chair'|'sofa';label:string;seated?:boolean}|null>(null);
  const [personalFarmBed,setPersonalFarmBed]=useState<{sleeping:boolean}|null>(null);
  const [artsCenterTutorialOpen,setArtsCenterTutorialOpen]=useState(false);
+ const [experienceTutorialOpen,setExperienceTutorialOpen]=useState<'festival'|'food'|null>(null);
  const [nearbyPortal,setNearbyPortal]=useState<{destination:MapId;label:string;theme?:'mint'|'blue'|'orange';chargeSeconds?:number}|null>(null),[portalProgress,setPortalProgress]=useState(0);
  const [nearbyInteraction,setNearbyInteraction]=useState<{destination:MapId;label:string;buttonLabel:string;chargeSeconds?:number}|null>(null),[interactionProgress,setInteractionProgress]=useState(0);
  const [campusHubOpen,setCampusHubOpen]=useState(false),[campusHubTab,setCampusHubTab]=useState<CampusHubTab>('people');
@@ -156,13 +159,13 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
  },[socialBlocks]);
  useEffect(()=>{if(!notice)return;const timer=window.setTimeout(()=>setNotice(''),2000);return()=>window.clearTimeout(timer)},[notice]);
  useEffect(()=>{const changed=(open:boolean)=>setCameraEditorOpen(open);gameEvents.on('world-camera-editor-open-changed',changed);return()=>{gameEvents.off('world-camera-editor-open-changed',changed)}},[]);
- useEffect(()=>{const focused=FOCUSED_EXPERIENCE_MAPS.has(currentMapId);pageRef.current?.classList.toggle('is-focused-experience',focused);if(focused){setOnlineCollapsed(true);setFriendsOpen(false)}},[currentMapId]);
- useEffect(()=>{const locked=lakeTutorialOpen||guideConversation||bearTutorialOpen||artsCenterTutorialOpen||bearPhotoMode||campusHubOpen||aiProfileOpen||projectRoomPanelOpen||governmentAiCenterOpen||recruitmentDeskOpen||recruitmentKioskOpen||cameraEditorOpen||!!encounter,syncInputLock=()=>gameEvents.emit('game-input-lock',locked);syncInputLock();gameEvents.on('map-travel-complete',syncInputLock);return()=>{gameEvents.off('map-travel-complete',syncInputLock);if(locked)gameEvents.emit('game-input-lock',false)}},[lakeTutorialOpen,guideConversation,bearTutorialOpen,artsCenterTutorialOpen,bearPhotoMode,campusHubOpen,aiProfileOpen,projectRoomPanelOpen,governmentAiCenterOpen,recruitmentDeskOpen,recruitmentKioskOpen,cameraEditorOpen,encounter]);
+ useEffect(()=>{const focused=FOCUSED_EXPERIENCE_MAPS.has(currentMapId);pageRef.current?.classList.toggle('is-focused-experience',focused);if(focused)setFriendsOpen(false)},[currentMapId]);
+ useEffect(()=>{const locked=lakeTutorialOpen||guideConversation||bearTutorialOpen||artsCenterTutorialOpen||!!experienceTutorialOpen||bearPhotoMode||campusHubOpen||aiProfileOpen||projectRoomPanelOpen||governmentAiCenterOpen||recruitmentDeskOpen||recruitmentKioskOpen||cameraEditorOpen||!!encounter,syncInputLock=()=>gameEvents.emit('game-input-lock',locked);syncInputLock();gameEvents.on('map-travel-complete',syncInputLock);return()=>{gameEvents.off('map-travel-complete',syncInputLock);if(locked)gameEvents.emit('game-input-lock',false)}},[lakeTutorialOpen,guideConversation,bearTutorialOpen,artsCenterTutorialOpen,experienceTutorialOpen,bearPhotoMode,campusHubOpen,aiProfileOpen,projectRoomPanelOpen,governmentAiCenterOpen,recruitmentDeskOpen,recruitmentKioskOpen,cameraEditorOpen,encounter]);
  useEffect(()=>{const overviewChanged=(active:boolean)=>setMapOverview(active);gameEvents.on('map-overview-changed',overviewChanged);return()=>{gameEvents.off('map-overview-changed',overviewChanged)}},[]);
  useEffect(()=>{const proximityChanged=(nearby:boolean)=>setMapSignNearby(nearby);gameEvents.on('map-sign-proximity-changed',proximityChanged);return()=>{gameEvents.off('map-sign-proximity-changed',proximityChanged)}},[]);
  useEffect(()=>{
   const started=(destination:MapId)=>{const origin=currentMapIdRef.current;if(destination==='personal-farm'&&isPersonalFarmReturnMap(origin))setPersonalFarmReturnMap(savePersonalFarmReturnMap(origin))};
-  const changed=(mapId:MapId)=>{currentMapIdRef.current=mapId;setCurrentMapId(mapId);if(FOCUSED_EXPERIENCE_MAPS.has(mapId)){setOnlineCollapsed(true);setFriendsOpen(false)}};
+  const changed=(mapId:MapId)=>{currentMapIdRef.current=mapId;setCurrentMapId(mapId);if(FOCUSED_EXPERIENCE_MAPS.has(mapId))setFriendsOpen(false)};
   gameEvents.on('map-travel-started',started);gameEvents.on('map-travel-complete',changed);
   return()=>{gameEvents.off('map-travel-started',started);gameEvents.off('map-travel-complete',changed)};
  },[]);
@@ -178,6 +181,19 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
  useEffect(()=>{const changed=(bed:{sleeping:boolean}|null)=>setPersonalFarmBed(bed);gameEvents.on('personal-farm-bed-proximity-changed',changed);return()=>{gameEvents.off('personal-farm-bed-proximity-changed',changed)}},[]);
  useEffect(()=>{const open=(tab:CampusHubTab)=>{setVisitedCampusBuildings(recordCampusBuildingVisit(profile.nickname,tab));setCampusHubTab(tab);setCampusHubOpen(true);setCampusFastTravelOpen(false)};gameEvents.on('campus-hub-open',open);return()=>{gameEvents.off('campus-hub-open',open)}},[profile.nickname]);
  useEffect(()=>{const changed=(feature:{id:CampusFeaturePortalId;label:string;description:string}|null)=>setNearbyCampusFeature(feature);gameEvents.on('campus-feature-portal-proximity-changed',changed);return()=>{gameEvents.off('campus-feature-portal-proximity-changed',changed)}},[]);
+ useEffect(()=>{
+  const campusMapCopy:Partial<Record<MapId,{zone:string;subject:string;title:string;note:string;keywords:string[]}>>={
+   campus:{zone:'공동캠퍼스',subject:'campus-visit',title:'공동캠퍼스 활동 시작',note:'공동캠퍼스에서 학생회관, 모집센터, 프로젝트실, 동아리 거리제 활동을 둘러봤어요.',keywords:['공동캠퍼스','연결','관계']},
+   'student-hall':{zone:'학생회관',subject:'student-hall-visit',title:'학생회관 방문',note:'학생회관에서 현재 활동 중인 이웃과 추천 게시판을 확인했어요.',keywords:['학생회관','이웃 추천','관계']},
+   'recruitment-center':{zone:'모집센터',subject:'recruitment-center-visit',title:'모집센터 방문',note:'모집센터에서 동행 모집과 참가 신청 활동을 확인했어요.',keywords:['모집센터','참가 신청','동행']},
+   'project-room':{zone:'프로젝트실',subject:'project-room-visit',title:'프로젝트실 방문',note:'프로젝트실에서 함께 만들 프로젝트와 코스 기획 활동을 확인했어요.',keywords:['프로젝트실','협업','코스 기획']},
+   'club-street-festival':{zone:'동아리 거리제',subject:'club-street-visit',title:'동아리 거리제 방문',note:'동아리 거리제에서 관심 동아리와 커뮤니티 활동을 둘러봤어요.',keywords:['동아리 거리제','커뮤니티','활동']},
+  };
+  const copy=campusMapCopy[currentMapId];
+  if(!copy)return;
+  recordCampusProfileSignal(profile.nickname,{mapId:currentMapId,zone:copy.zone,action:'map-visit',subject:copy.subject,title:copy.title,note:copy.note,keywords:copy.keywords,axes:{relation:5,explore:2},point:4});
+ },[currentMapId,profile.nickname]);
+ useEffect(()=>{void fetch(`/wiz/api/page.home/map_activity?mapId=${encodeURIComponent(currentMapId)}&userKey=${encodeURIComponent(profile.nickname||'guest')}`,{credentials:'include'}).catch(()=>undefined)},[currentMapId,profile.nickname]);
  useEffect(()=>{const changed=(player:PlayerState|null)=>setNearbyPlayer(player);gameEvents.on('nearby-player-changed',changed);return()=>{gameEvents.off('nearby-player-changed',changed)}},[]);
  useEffect(()=>{const changed=(npc:NearbyNpc|null)=>setNearbyNpc(npc);gameEvents.on('local-npc-proximity-changed',changed);return()=>{gameEvents.off('local-npc-proximity-changed',changed)}},[]);
  useEffect(()=>{const changed=(position:NpcScreenPosition|null)=>setNearbyNpcScreen(position);gameEvents.on('local-npc-screen-position',changed);return()=>{gameEvents.off('local-npc-screen-position',changed)}},[]);
@@ -186,7 +202,7 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
  useEffect(()=>{if(location!=='세종호수공원'){setGuideNearby(false);setLakeTutorialOpen(false);setGuideConversation(false)}if(!['공동캠퍼스','학생회관'].includes(location))setCampusHubOpen(false);if(location!=='공동캠퍼스')setCampusFastTravelOpen(false)},[location]);
  useEffect(()=>{localStorage.removeItem('project-room-campus-portal-position-v1')},[]);
  useEffect(()=>{const normalized=normalizePlaceName(location);if(normalized!==location)setLocation(normalized)},[location]);
- useEffect(()=>{setArtsCenterTutorialOpen(location==='세종예술의전당')},[location]);
+ useEffect(()=>{setArtsCenterTutorialOpen(location==='세종예술의전당');setExperienceTutorialOpen(location==='축제부스'?'festival':location==='먹거리 부스'?'food':null)},[location]);
  useEffect(()=>{
   if(location==='베어트리파크'&&!bearTutorialShown&&localStorage.getItem('bear-tree-park-tutorial-hidden-v1')!=='true'){
    setBearTutorialStep(0);setBearTutorialOpen(true);setBearTutorialShown(true);
@@ -232,7 +248,6 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
  return <main ref={pageRef} className={`game-page ${currentMapId==='personal-farm'?'is-personal-farm':''} ${mapOverview?'is-map-overview':''} ${bearPhotoMode?'is-bear-photo':''} ${smartCityExperienceOpen?'is-smart-city-experience':''}`}><div className="game-layout"><GameCanvas profile={profile} returnState={returnState}/>{mapSignNearby&&!mapOverview&&!tutorialOpen&&<button type="button" className={`map-view-button ${guideNearby?'with-guide':''}`} onClick={()=>gameEvents.emit('map-overview-toggle',true)}><span>🗺️</span><div><small>지도 표지판이 가까이 있어요</small><b>세종호수공원 지도 보기</b></div><MapPin size={18}/></button>}<div className="world-location-chip"><span><MapPin size={15}/></span><div><small>현재 위치</small><b>{normalizePlaceName(location)}</b></div></div>{currentMapId!=='personal-farm'&&<button type="button" className="world-exit" onClick={close}><LogOut size={15}/> 나가기</button>}<aside className={`online ${onlineCollapsed?'is-collapsed':''} ${['베어트리파크','곰 체험소','수목원'].includes(normalizePlaceName(location))?'is-nature-chapter':''}`}><div className="online-heading"><span><Users size={17}/></span><div><small>지금 함께하는 사람</small><h3>현재 활동 중</h3></div><b>{visiblePlayers.length+1+localNpcs.length}</b><button type="button" className="online-collapse" onClick={()=>setOnlineCollapsed(value=>!value)} aria-label={onlineCollapsed?'현재 활동 중인 사람 펼치기':'현재 활동 중인 사람 접기'}>{onlineCollapsed?'‹':'접기 ‹'}</button></div><div className="online-list"><button type="button" className="me my-profile-card" onClick={()=>setAiProfileOpen(true)} aria-label={`${profile.nickname}님의 내 프로필 열기`}><CharacterPreview parts={profile.character} small/><div><small className="my-profile-kicker">내 프로필</small><b>{profile.nickname}</b><small>체험할수록 성장해요</small></div><span className="my-profile-action">보기</span><i/></button>{localNpcs.map(npc=><button type="button" className="campus-npc-card" key={npc.id} onClick={()=>setSelectedNpc(npc)}><CharacterPreview parts={npc.appearance} small/><div><small className="campus-npc-kicker">{location} 친구 · NPC</small><b>{npc.nickname}</b><small>{npc.status}</small></div><i/></button>)}{visiblePlayers.map(p=><button key={p.id} onClick={()=>setSelected(p)}><CharacterPreview parts={p.appearance} small/><div><b>{p.nickname}</b><small>{p.isMoving?'다음 체험으로 이동 중':'함께할 신호를 기다리는 중'}</small></div><i/></button>)}</div></aside>{mapOverview&&<section className="map-overview-ui"><div><span>🗺️</span><div><small>세종호수공원 안내도</small><b>소통 체험 여정 지도</b><p>충녕이 → 바람의 언덕 → 시민광장 순서로 이어져요.</p></div></div><button type="button" onClick={()=>gameEvents.emit('map-overview-toggle',false)}><X size={16}/> 지도 닫기</button></section>}</div>
  <WorldCameraEditor mapId={currentMapId} canEdit={canEditPortals}/>
  {currentMapId==='personal-farm'?<nav className="personal-farm-top-actions" aria-label="마이홈 메뉴"><button type="button" onClick={()=>gameEvents.emit('travel-to-map',personalFarmReturnMap)} aria-label="마이홈에 오기 전 맵으로 이동"><MapPin size={15}/> 맵 이동</button><button type="button" onClick={close}><LogOut size={15}/> 나가기</button></nav>:<button type="button" className="world-my-home" aria-label="마이홈으로 이동" onClick={()=>gameEvents.emit('travel-to-map','personal-farm')}><span aria-hidden="true">🏡</span> 마이홈</button>}
- {currentMapId==='sejong-smart-city'&&canEditPortals&&<button type="button" className="portal-position-editor arts-center-portal-editor" onClick={()=>{gameEvents.emit('primary-portal-place-at-player');setNotice('정부청사 포탈을 현재 위치로 옮겼어요.')}}><span>🌀</span><div><small>운영자 포탈 편집</small><b>정부청사 포탈 이동</b></div><MapPin size={16}/></button>}
  {currentMapId==='government-central-plaza'&&canEditPortals&&<button type="button" className="portal-position-editor arts-center-portal-editor" onClick={()=>{gameEvents.emit('primary-portal-place-at-player');setNotice('정부청사 귀환 포탈을 현재 위치로 옮겼어요.')}}><span>🌀</span><div><small>운영자 포탈 편집</small><b>정부청사 귀환 포탈 이동</b></div><MapPin size={16}/></button>}
  {portalEditor}
  {bearPhotoNearby&&!bearPhotoMode&&<button type="button" className="bear-photo-enter-button" onClick={()=>gameEvents.emit('bear-photo-enter')}><span>📸</span><div><small>곰 가족 포토존</small><b>포토존 사진찍기</b></div><MapPin size={18}/></button>}
@@ -248,6 +263,7 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
  {personalFarmBed&&<button type="button" className="personal-farm-interaction-prompt" onClick={()=>gameEvents.emit('personal-farm-bed-toggle')}><span>🛏️</span><div><small>마이홈 침대</small><b>{personalFarmBed.sleeping?'E 버튼으로 일어나기':'E 버튼으로 잠자기'}</b></div><kbd>E</kbd></button>}
  {lakeTutorialOpen&&<LakeParkTutorial onClose={()=>setLakeTutorialOpen(false)}/>}
  {artsCenterTutorialOpen&&<ArtsCenterTutorial onClose={()=>setArtsCenterTutorialOpen(false)}/>}
+ {experienceTutorialOpen&&<ExperienceTutorial kind={experienceTutorialOpen} onClose={()=>setExperienceTutorialOpen(null)}/>}
  {['공동캠퍼스','학생회관'].includes(location)&&nearbyCampusFeature&&!campusHubOpen&&<section className="campus-feature-enter" aria-live="polite"><span>{CAMPUS_BUILDINGS[nearbyCampusFeature.id].icon}</span><div><small>{nearbyCampusFeature.description}</small><b>{nearbyCampusFeature.label} 열기</b></div><kbd>E</kbd></section>}
  {location==='공동캠퍼스'&&!campusHubOpen&&visitedCampusBuildings.length>0&&<div className={`campus-fast-travel ${campusFastTravelOpen?'is-open':''}`}><button type="button" className="campus-fast-travel-toggle" onClick={()=>setCampusFastTravelOpen(value=>!value)}><MapPin size={15}/><span><small>방문한 건물</small><b>빠른 이동</b></span><i>{campusFastTravelOpen?'×':'›'}</i></button>{campusFastTravelOpen&&<section><header><small>FAST TRAVEL</small><b>방문한 건물로 이동</b><p>도착 후 건물 앞에서 E를 눌러 입장하세요.</p></header>{visitedCampusBuildings.map(id=><button type="button" key={id} onClick={()=>{gameEvents.emit('campus-building-fast-travel',id);setCampusFastTravelOpen(false);setNotice(`${CAMPUS_BUILDINGS[id].label} 앞으로 이동했어요.`)}}><span>{CAMPUS_BUILDINGS[id].icon}</span><div><b>{CAMPUS_BUILDINGS[id].label}</b><small>{CAMPUS_BUILDINGS[id].feature}</small></div><MapPin size={13}/></button>)}</section>}</div>}
  {nearbyPortal?.chargeSeconds&&!mapOverview&&!tutorialOpen&&<section className={`portal-charge-panel ${nearbyPortal.theme==='blue'?'is-blue':''} ${guideNearby||mapSignNearby?'with-nearby-actions':''}`}><span>✨</span><div><small>포탈 이동 준비</small><b>{normalizePlaceName(nearbyPortal.label)}(으)로 이동 중</b><div className="portal-charge-steps" style={{gridTemplateColumns:`repeat(${nearbyPortal.chargeSeconds}, minmax(0, 1fr))`}}>{Array.from({length:nearbyPortal.chargeSeconds},(_,index)=><div key={index}><span>{index+1}</span><i><b style={{width:`${Math.max(0,Math.min(1,portalProgress*nearbyPortal.chargeSeconds!-index))*100}%`}}/></i></div>)}</div><em>포탈 안에서 {nearbyPortal.chargeSeconds}초 동안 머물러 주세요</em></div></section>}
@@ -282,6 +298,7 @@ export function GamePage({profile,returnState,onExit,onEditProfile,onOpenCommuni
    onEditInterests={openProfileEditor}
  />}
  {<RecruitmentCenterKiosk active={location==='모집센터'} onOpenChange={setRecruitmentKioskOpen} onNotice={setNotice}/>}
+ {<CampusMapIntro mapId={currentMapId}/>}
  {<SmartCityExperience active={currentMapId==='sejong-smart-city'} profile={profile} onNotice={setNotice} onOpenChange={setSmartCityExperienceOpen}/>}
  {campusHubOpen&&<CampusCommunicationHub profile={profile} players={visiblePlayers} initialTab={campusHubTab} onClose={()=>setCampusHubOpen(false)} onProfile={player=>{setCampusHubOpen(false);setSelected(player)}} onDirectChat={player=>{openOrRequestDirectChat(player);setCampusHubOpen(false)}} onClubChat={club=>{const inviteeIds=visiblePlayers.filter(player=>club.members.some(member=>member.name===player.nickname)).map(player=>player.id);socket.emit('createGroup',{name:club.name,inviteeIds});setCampusHubOpen(false);setNotice(`${club.name} 단체 채팅을 열었어요.`)}} onGovernment={()=>{setCampusHubOpen(false);gameEvents.emit('travel-to-map','government')}}/>}
  {aiProfileOpen&&<AiSejongProfile profile={profile} onClose={()=>setAiProfileOpen(false)} onEdit={()=>{setAiProfileOpen(false);openProfileEditor()}}/>}

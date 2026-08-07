@@ -55,12 +55,13 @@ import { LAKE_PARK_PORTALS } from '../lakeParkPortals';
 import { CAMPUS_FEATURE_PORTALS,CAMPUS_FEATURE_PORTAL_DESTINATIONS,type CampusFeaturePortalConfig } from '../campusFeaturePortals';
 import { isPortalChargePositionHeld,PortalTravelGate } from '../portalTravelGate';
 import { ARTS_CENTER_CHARACTER_FOOT_LIFT,ARTS_CENTER_MAX_JUMP_STEP_HEIGHT,characterVisualY,DEFAULT_MAX_STEP_HEIGHT,isGroundFootprintCoherent,JUMP_COLLISION_CLEARANCE,reachableStepHeight } from '../groundTraversal';
-import { clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,orthographicZoomForCameraDistance,SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE } from '../cameraFollow';
+import { clampCameraBehindLimit,LAKE_PARK_CAMERA_ELEVATION_DEG,LAKE_PARK_CAMERA_ZOOM,LAKE_PARK_FOLLOW_CAMERA_DISTANCE,orthographicZoomForCameraDistance } from '../cameraFollow';
 import { DEFAULT_BEAR_PHOTO_PORTAL_POSITION } from '../bearPhotoZonePosition';
 import {GARDEN_NAVIGATION_PROFILE,personalFarmCameraDistance} from '../worldNavigationProfile';
 import {withUnifiedWorldPortalVisual} from '../worldPortalVisual';
 import {portalVisualScaleForMap} from '../campusPortalVisual';
 import type {WorldCameraProfile} from '../../services/worldCameraProfiles';
+import {FIXED_WORLD_CAMERA_PROFILES} from '../fixedWorldCameraProfiles';
 
 const WORLD_WIDTH=2400;
 const WORLD_HEIGHT=1900;
@@ -155,7 +156,6 @@ const CLUB_STREET_BOOTH_ANCHORS_FRONT_TO_BACK=[
 // Change these x/z values to move the lake-park return portal in the festival map.
 export const FESTIVAL_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['festival-experience'];
 export const FOOD_LAKE_RETURN_PORTAL_POSITION=WORLD_GUIDE_PORTAL_POSITIONS['food-experience'];
-export const FESTIVAL_EXPERIENCE_CAMERA_DISTANCE=1020;
 const FOOD_EXPERIENCE_CAMERA_DOWN_LIMIT_Z=FOOD_LAKE_RETURN_PORTAL_POSITION.z;
 const LAKE_PARK_GUIDE={x:2045,z:1138,yaw:-.78} as const;
 const LAKE_GUIDE_INTRO_DURATION_MS=2600;
@@ -213,7 +213,7 @@ type LocalNpcState={
   blockedSeconds:number;
 };
 type PortalConfig={x:number;z:number;destination:PortalPosition['destination'];label:string;appearance?:'standing'|'white-circle'|'energy-rift';fixedPosition?:boolean;theme?:'mint'|'blue'|'orange';chargeSeconds?:number;activationRadius?:number;sharedPosition?:boolean;positionEditable?:boolean;hideMarker?:boolean;arrivalDirection?:{x:number;z:number};arrivalClearance?:number};
-type InteractionConfig={x:number;z:number;destination:WorldInteractionPosition['destination'];label:string;buttonLabel:string;fixedPosition?:boolean;chargeSeconds?:number;positionEditable?:boolean};
+type InteractionConfig={x:number;z:number;destination:WorldInteractionPosition['destination'];label:string;buttonLabel:string;appearance?:PortalConfig['appearance'];theme?:PortalConfig['theme'];fixedPosition?:boolean;chargeSeconds?:number;positionEditable?:boolean};
 type LakeExperienceConfig={id:LakeExperienceId;x:number;z:number;label:string;description:string;color:number;radius?:number};
 type StudentHallFeatureTarget={id:CampusFeaturePortalId;x:number;z:number;radius:number;label:string;description:string};
 type StudentHallBoardId='occupancy'|'activity';
@@ -289,6 +289,7 @@ export type WorldMapRendererOptions={
   minPixelRatio?:number;
   performancePixelRatio?:number;
   maxPixelRatio?:number;
+  uprightCharacter?:boolean;
   toneMappingExposure?:number;
   lightingIntensityMultiplier?:number;
   sceneBackgroundColor?:THREE.ColorRepresentation;
@@ -352,13 +353,13 @@ const [LAKE_PARK_PRIMARY_PORTAL,...LAKE_PARK_FIXED_PORTALS]=LAKE_PARK_PORTALS;
 export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config})),lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
 export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:bearTreeParkModelUrl,mapName:'베어트리파크',spawn:BEAR_TREE_PARK_SPAWN,
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:true,chargeSeconds:3,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'orange',fixedPosition:true,chargeSeconds:3,sharedPosition:false},
   fixedPortals:[
-    {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3},
+    {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',theme:'orange',fixedPosition:true,chargeSeconds:3},
   ],
-  interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:true,chargeSeconds:3},
-  nameplateScale:1.25,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
-  lightingIntensityMultiplier:.76,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
+  interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',appearance:'white-circle',theme:'orange',fixedPosition:true,chargeSeconds:3},
+  nameplateScale:1.25,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.94,
+  lightingIntensityMultiplier:.9,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
   performancePixelRatio:1.25,simplifiedCollision:false,bearPhotoZone:true,
 };
 export const BEAR_PLAY_ZONE_RENDERER_OPTIONS:WorldMapRendererOptions={
@@ -444,6 +445,7 @@ export const GARDEN_RENDERER_OPTIONS:WorldMapRendererOptions={
     label:'마이홈으로 이동',
     appearance:'white-circle',
     fixedPosition:true,
+    chargeSeconds:3,
   }],
   greenhouse:true,
 };
@@ -452,7 +454,7 @@ export const CAMPUS_RENDERER_OPTIONS:WorldMapRendererOptions={
   mapName:'공동캠퍼스',
   spawn:CAMPUS_SPAWN,
   portal:{...WORLD_GUIDE_PORTAL_POSITIONS.campus,destination:'town',label:'세종호수공원',theme:'blue',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
-  fixedPortals:[{x:368,z:899,destination:'government',label:'정부청사',appearance:'standing',theme:'blue',chargeSeconds:3,activationRadius:140,fixedPosition:true,sharedPosition:false}],
+  fixedPortals:[{x:368,z:899,destination:'government',label:'정부청사',appearance:'white-circle',theme:'blue',chargeSeconds:3,activationRadius:140,fixedPosition:true,sharedPosition:false}],
   campusFeaturePortals:CAMPUS_FEATURE_PORTALS.map(config=>({...config})),
   // Preserve the authored campus perspective. The orthographic overview made
   // the buildings look flattened and exposed too much of the bright ground.
@@ -538,7 +540,7 @@ export const RECRUITMENT_CENTER_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:recruitmentCenterModelUrl,
   mapName:'모집센터',
   spawn:RECRUITMENT_CENTER_SPAWN,
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['recruitment-center'],destination:'campus',label:'공동 캠퍼스로 돌아가기',appearance:'energy-rift',theme:'mint',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['recruitment-center'],destination:'campus',label:'공동 캠퍼스로 돌아가기',appearance:'white-circle',theme:'mint',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   localNpcs:[{
     id:'recruitment-center-guide-chungnyeong',
     nickname:'충녕이',
@@ -582,7 +584,7 @@ export const PROJECT_ROOM_RENDERER_OPTIONS:WorldMapRendererOptions={
   companionModelUrl:projectLobbyModelUrl,
   mapName:'프로젝트실',
   spawn:PROJECT_ROOM_SPAWN,
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['project-room'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'energy-rift',theme:'orange',chargeSeconds:3,activationRadius:140,fixedPosition:true,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['project-room'],destination:'campus',label:'공동캠퍼스로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,activationRadius:140,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
@@ -606,21 +608,21 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:governmentModelUrl,
   mapName:'정부청사',
   spawn:GOVERNMENT_SPAWN,
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',theme:'orange',fixedPosition:false,sharedPosition:true,positionEditable:true},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
   fixedPortals:[
-    {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'standing',theme:'blue',fixedPosition:false,sharedPosition:true,positionEditable:true},
-    {x:1680,z:1010,destination:'government-observatory',label:'전망대',appearance:'standing',theme:'orange',fixedPosition:false,sharedPosition:true,positionEditable:true},
-    {x:1200,z:1190,destination:'sejong-smart-city',label:'세종 스마트시티 국가시범도시',appearance:'standing',theme:'blue',fixedPosition:false,sharedPosition:true,positionEditable:true},
+    {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'white-circle',theme:'blue',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
+    {x:1680,z:1010,destination:'government-observatory',label:'전망대',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
+    {x:1200,z:1190,destination:'sejong-smart-city',label:'세종 스마트시티 국가시범도시',appearance:'white-circle',theme:'blue',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
   ],
   cameraElevationDeg:38,
   cameraZoom:1.05,
-  characterHeight:CHARACTER_HEIGHT,
+  characterHeight:165,
   performanceMode:true,
   performanceFrameRate:60,
   minPixelRatio:.65,
   performancePixelRatio:.9,
   balancedTextureQuality:true,
-  simplifiedCollision:true,
+  simplifiedCollision:false,
   fastGroundSampling:true,
   lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.7,performanceFrameRate:30,balancedTextureQuality:false},
 };
@@ -634,6 +636,7 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
     label:'정부청사로 돌아가기',
     appearance:'white-circle',
     theme:'blue',
+    chargeSeconds:3,
     fixedPosition:true,
     sharedPosition:false,
     positionEditable:true,
@@ -648,6 +651,9 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraDistance:1550,
   cameraFov:46,
   characterHeight:150,
+  // The AI recommendation ring has a raised top; jumping may clear the
+  // platform edge and the dedicated platform sampler keeps the avatar on it.
+  maxJumpStepHeight:140,
   groundFillColor:0xd9d9d5,
   // The plaza has several large glass surfaces and three embedded web panels.
   // Keep it on the same stable 30fps budget as the other interior maps.
@@ -657,9 +663,9 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   prioritizeGroundTextures:false,
   performancePixelRatio:1,
   maxPixelRatio:1.15,
-  toneMappingExposure:.9,
-  lightingIntensityMultiplier:.78,
-  sceneBackgroundColor:'#7899aa',
+  toneMappingExposure:1.08,
+  lightingIntensityMultiplier:1.02,
+  sceneBackgroundColor:'#a6c0c7',
   simplifiedCollision:false,
   // Remove the two GLB kiosks placed between the side Web UI panels and the
   // center panel. The outer kiosks remain available as plaza decoration.
@@ -688,6 +694,7 @@ export const GOVERNMENT_OBSERVATORY_RENDERER_OPTIONS:WorldMapRendererOptions={
     label:'정부청사로 돌아가기',
     appearance:'white-circle',
     theme:'blue',
+    chargeSeconds:3,
     fixedPosition:true,
     sharedPosition:false,
   },
@@ -722,7 +729,6 @@ export const SEJONG_SMART_CITY_RENDERER_OPTIONS:WorldMapRendererOptions={
     chargeSeconds:3,
     fixedPosition:true,
     sharedPosition:false,
-    positionEditable:true,
   },
   perspectiveCamera:true,
   fixedCameraTarget:false,
@@ -733,7 +739,9 @@ export const SEJONG_SMART_CITY_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraFov:46,
   // Keep the current exhibition framing when the player walks into the large
   // foreground plaza; only the avatar continues toward the bottom edge.
-  cameraFollowBounds:{maxZ:SEJONG_SMART_CITY_SPAWN.z+220},
+  // Follow the avatar through the foreground plaza so the bottom GLB portal
+  // remains on-screen and reachable.
+  cameraFollowBounds:{maxZ:SEJONG_SMART_CITY_WORLD_HEIGHT-35},
   characterHeight:150,
   // The authored showroom floor stops just past the entrance even though the
   // foreground plaza remains visible. Treat that plaza as a continuation of
@@ -783,14 +791,14 @@ export const SEJONG_ARTS_CENTER_RENDERER_OPTIONS:WorldMapRendererOptions={
   centerInWorldCoordinates:true,
   // Look inward from the entrance. The previous 40-degree azimuth placed the
   // camera on the poster-wall side and looked out into the open GLB boundary.
-  cameraElevationDeg:29,
-  cameraAzimuthDeg:180,
-  cameraDistance:SEJONG_ARTS_CENTER_FOLLOW_CAMERA_DISTANCE,
-  cameraFov:46,
-  cameraTargetHeight:75,
+  cameraElevationDeg:FIXED_WORLD_CAMERA_PROFILES['arts-center'].cameraElevationDeg,
+  cameraAzimuthDeg:FIXED_WORLD_CAMERA_PROFILES['arts-center'].cameraAzimuthDeg,
+  cameraDistance:FIXED_WORLD_CAMERA_PROFILES['arts-center'].cameraDistance,
+  cameraFov:FIXED_WORLD_CAMERA_PROFILES['arts-center'].cameraFov,
+  cameraTargetHeight:FIXED_WORLD_CAMERA_PROFILES['arts-center'].cameraTargetHeight,
   // Preserve the approved view direction and stop only downward screen follow.
   cameraDownScreenLimitZ:SEJONG_ARTS_CENTER_CAMERA_DOWN_LIMIT_Z,
-  characterHeight:150,
+  characterHeight:FIXED_WORLD_CAMERA_PROFILES['arts-center'].characterHeight,
   // Keep the collision/camera ground baseline unchanged while lifting only
   // the character visual above the authored lobby floor finish.
   characterGroundClearance:4,
@@ -836,15 +844,16 @@ export const FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
     {id:'central-plaza',x:1640,z:1080,label:'세종 축제 한눈에 보기',description:'E를 눌러 실제 방문 정보를 확인하세요.',color:0xe75b4f,radius:280},
   ],
   lakeExperienceObjectNames:{'activity-zone':'StageBack','food-shop-zone':'Blue_Experience_Tent_Roof','central-plaza':'Red_Experience_Tent_Roof'},
-  portal:{...FESTIVAL_LAKE_RETURN_PORTAL_POSITION,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'white-circle',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
+  portal:{...FESTIVAL_LAKE_RETURN_PORTAL_POSITION,destination:'town',label:'세종호수공원으로 돌아가기',appearance:'energy-rift',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false},
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
-  cameraElevationDeg:31,
-  cameraAzimuthDeg:180,
-  cameraDistance:FESTIVAL_EXPERIENCE_CAMERA_DISTANCE,
-  cameraFov:46,
-  characterHeight:150,
+  cameraElevationDeg:FIXED_WORLD_CAMERA_PROFILES['festival-experience'].cameraElevationDeg,
+  cameraAzimuthDeg:FIXED_WORLD_CAMERA_PROFILES['festival-experience'].cameraAzimuthDeg,
+  cameraDistance:FIXED_WORLD_CAMERA_PROFILES['festival-experience'].cameraDistance,
+  cameraTargetHeight:FIXED_WORLD_CAMERA_PROFILES['festival-experience'].cameraTargetHeight,
+  cameraFov:FIXED_WORLD_CAMERA_PROFILES['festival-experience'].cameraFov,
+  characterHeight:FIXED_WORLD_CAMERA_PROFILES['festival-experience'].characterHeight,
   // The avatar models are normalized to a zero-foot baseline, so only retain
   // the small anti-z-fighting clearance used by the other grounded maps.
   characterGroundClearance:4,
@@ -855,7 +864,10 @@ export const FESTIVAL_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
   groundingShadows:false,
   performanceMode:true,
   balancedTextureQuality:true,
-  performancePixelRatio:.9,
+  performancePixelRatio:1.5,
+  minPixelRatio:1.25,
+  maxPixelRatio:2,
+  antialias:true,
   // Booths, tables, trees, light poles and the stage are physical obstacles.
   // Full body collision prevents the avatar capsule from passing through the
   // prop side faces while the authored lawn remains the only walkable floor.
@@ -873,14 +885,15 @@ export const FOOD_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
   perspectiveCamera:true,
   fixedCameraTarget:false,
   centerInWorldCoordinates:true,
-  cameraElevationDeg:31,
-  cameraAzimuthDeg:180,
-  cameraDistance:1700,
-  cameraFov:46,
+  cameraElevationDeg:FIXED_WORLD_CAMERA_PROFILES['food-experience'].cameraElevationDeg,
+  cameraAzimuthDeg:FIXED_WORLD_CAMERA_PROFILES['food-experience'].cameraAzimuthDeg,
+  cameraDistance:FIXED_WORLD_CAMERA_PROFILES['food-experience'].cameraDistance,
+  cameraTargetHeight:FIXED_WORLD_CAMERA_PROFILES['food-experience'].cameraTargetHeight,
+  cameraFov:FIXED_WORLD_CAMERA_PROFILES['food-experience'].cameraFov,
   // Keep the lake-return portal fully in view when the player walks farther
   // toward the lower edge of the authored food-booth island.
   cameraDownScreenLimitZ:FOOD_EXPERIENCE_CAMERA_DOWN_LIMIT_Z,
-  characterHeight:150,
+  characterHeight:FIXED_WORLD_CAMERA_PROFILES['food-experience'].characterHeight,
   characterGroundClearance:12,
   groundFillColor:0xbfd6c2,
   groundingShadows:true,
@@ -1322,8 +1335,11 @@ class WorldCharacter{
   update(position:THREE.Vector3,normal:THREE.Vector3,yaw:number,motion:MotionState,delta:number){
     if(!this.photoPoseActive&&!this.activeEmote&&motion!==this.active)this.setMotion(motion);
     this.root.position.copy(position);
-    this.tiltQuaternion.setFromUnitVectors(this.upVector,normal);
-    this.turnQuaternion.setFromAxisAngle(normal,yaw);
+    // Keep the avatar upright even when a GLB floor normal is slightly
+    // sloped; the ground height still follows the surface for walking.
+    const characterUp=this.upVector;
+    this.tiltQuaternion.setFromUnitVectors(this.upVector,characterUp);
+    this.turnQuaternion.setFromAxisAngle(characterUp,yaw);
     this.targetQuaternion.copy(this.turnQuaternion).multiply(this.tiltQuaternion);
     if(this.lying)this.targetQuaternion.multiply(this.lyingQuaternion);
     this.root.quaternion.slerp(this.targetQuaternion,1-Math.exp(-12*delta));
@@ -3054,20 +3070,17 @@ export class VillageMapRenderer{
     gameEvents.emit('interaction-charge-progress',0);
   }
 
-  private createWorldPortalLabel(label:string,showInteractionKey:boolean){
+  private createWorldPortalLabel(label:string,_chargeSeconds?:number){
     const canvas=document.createElement('canvas');canvas.width=720;canvas.height=180;
     const context=canvas.getContext('2d')!;
     context.shadowColor='rgba(20,51,44,.28)';context.shadowBlur=22;
     context.fillStyle='rgba(20,51,44,.94)';context.beginPath();context.roundRect(18,18,684,144,34);context.fill();
     context.shadowBlur=0;context.strokeStyle='#ffffff';context.lineWidth=5;context.stroke();
     context.textAlign='center';context.fillStyle='#ffffff';context.font='900 46px "Noto Sans KR",sans-serif';
-    context.fillText(label,360,showInteractionKey?77:105);
-    if(showInteractionKey){
-      context.fillStyle='#bfe9db';context.font='800 27px "Noto Sans KR",sans-serif';context.fillText('E  포탈 들어가기',360,126);
-    }
+    context.fillText(label,360,105);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=textureAnisotropy;
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false,depthWrite:false}));
-    const compact=this.options.mapName==='베어트리파크'||this.options.mapName==='모집센터'&&label.includes('공동 캠퍼스')||['세종호수공원','공동캠퍼스','베어트리파크','공연 부스','먹거리 부스','축제 부스','세종 추천 코스 게시판'].includes(label);
+    const compact=this.options.mapName==='세종호수공원'||this.options.mapName==='축제부스'||this.options.mapName==='베어트리파크'||this.options.mapName==='모집센터'&&label.includes('공동 캠퍼스')||['공동캠퍼스','베어트리파크','공연 부스','먹거리 부스','축제 부스','세종 추천 코스 게시판'].includes(label);
     sprite.scale.set(compact?125:250,compact?31:62,1);sprite.renderOrder=120;sprite.frustumCulled=false;
     return sprite;
   }
@@ -3095,7 +3108,7 @@ export class VillageMapRenderer{
       root.userData.phase=0;root.userData.appearance='white-circle';root.userData.groundHeight=groundHeight;
       const light=new THREE.PointLight(color,2.2,155);light.position.set(0,0,38);root.add(light);
       root.userData.light=light;
-      const label=this.createWorldPortalLabel(config.label,!config.chargeSeconds);
+      const label=this.createWorldPortalLabel(config.label,config.chargeSeconds);
       label.position.set(0,0,112);root.add(label);root.userData.label=label;
       if(this.options.mapName==='베어트리파크'&&config.destination==='garden'){
         root.userData.natureJourney='garden';
@@ -3223,7 +3236,7 @@ export class VillageMapRenderer{
       groundLight.position.set(0,12,8);
       root.add(groundLight);
 
-      const label=this.createWorldPortalLabel(config.label,!config.chargeSeconds);
+      const label=this.createWorldPortalLabel(config.label,config.chargeSeconds);
       label.position.set(0,132,0);
       root.add(label);
       root.userData.label=label;
@@ -3250,8 +3263,8 @@ export class VillageMapRenderer{
     base.position.y=4;root.add(base,ring,glow);root.userData.glow=glow;root.userData.groundHeight=groundHeight;this.scene.add(root);
     const light=new THREE.PointLight(blue?0x7fc5ff:orange?0xffa347:0x76f5d1,3.2,210);light.position.set(0,52,18);root.add(light);
     if(config.hideMarker){base.visible=false;ring.visible=false;glow.visible=false;light.visible=false}
-    const label=this.createWorldPortalLabel(config.label,!config.chargeSeconds);
-    label.position.set(0,62,85);
+    const label=this.createWorldPortalLabel(config.label,config.chargeSeconds);
+    label.position.set(0,config.destination==='campus'?38:62,85);
     root.add(label);root.userData.label=label;
     return root;
   }
@@ -4623,7 +4636,7 @@ export class VillageMapRenderer{
     root.userData.center=center;root.userData.ring=ring;root.userData.middleRing=middleRing;root.userData.innerRing=innerRing;root.userData.pulseRing=pulseRing;root.userData.groundHeight=groundHeight;root.userData.phase=config.id==='wind-hill'?Math.PI:0;root.userData.experienceId=config.id;
     const light=new THREE.PointLight(config.color,2.2,155);light.position.set(0,0,38);root.add(light);
     root.userData.light=light;
-    const label=this.createWorldPortalLabel(config.label,false);
+    const label=this.createWorldPortalLabel(config.label);
     label.position.set(0,0,112);root.add(label);root.userData.label=label;
     this.scene.add(root);
     this.applyLakeJourneyHighlight(root);
@@ -4682,7 +4695,7 @@ export class VillageMapRenderer{
     const light=new THREE.PointLight(0xffffff,2.2,155);light.position.set(0,0,38);root.add(light);
     root.userData.light=light;
     if(this.options.interaction&&this.interactionPosition&&position.x===this.interactionPosition.x&&position.z===this.interactionPosition.z){
-      const label=this.createWorldPortalLabel(this.options.interaction.label,!this.options.interaction.chargeSeconds);
+      const label=this.createWorldPortalLabel(this.options.interaction.label,this.options.interaction.chargeSeconds);
       label.position.set(0,0,112);root.add(label);root.userData.label=label;
     }
     this.scene.add(root);
@@ -4884,8 +4897,9 @@ export class VillageMapRenderer{
   }
   private syncResidentBearBehavior(progress=this.personalFarmProgress){
     if(this.options.mapName!=='곰 체험소'||this.residentBehavior==='celebrating')return;
-    const pendingFeed=Boolean(progress&&progress.bearMission.completedFeedSpotIds.length>progress.bearMission.fedFeedSpotIds.length);
-    this.setResidentBehavior(pendingFeed&&!progress?.bearMission.bearFed?'begging':'patrol');
+    const fedCount=progress?.bearMission.fedFeedSpotIds.length??0;
+    const needsMoreFeed=fedCount<BEAR_FEED_SPOT_IDS.length&&!progress?.bearMission.bearFed;
+    this.setResidentBehavior(needsMoreFeed?'begging':'patrol');
   }
   private playResidentFeedReward(){
     if(this.options.mapName!=='곰 체험소'||!this.residentRewardActions.length)return;
@@ -5497,7 +5511,8 @@ export class VillageMapRenderer{
     this.syncResidentBearBehavior(progress);
     if(!this.options.personalFarm)return;
     const active=progress.farm.activeRewardIds;
-    const bearStatueUnlocked=progress.farm.unlockedRewardIds.includes('bear-statue')||progress.bearMission.completed;
+    // 5번째 급여 직후에는 API 응답의 completed/reward 동기화 순서가 달라도 동상을 즉시 배치한다.
+    const bearStatueUnlocked=progress.farm.unlockedRewardIds.includes('bear-statue')||progress.bearMission.completed||progress.bearMission.bearFed;
     void this.renderPersonalFarmBearStatue(bearStatueUnlocked);
     void this.renderPersonalFarmFlowers();
     this.personalFarmRewardsRoot?.removeFromParent();

@@ -13,7 +13,7 @@ test('랜딩 핵심 콘텐츠는 데스크톱 한 화면 대시보드와 네 개
   assert.match(landing,/className="welcome-flow-summary"/);
   assert.match(landing,/탐험[\s\S]*취향 기록[\s\S]*사람 연결[\s\S]*AI 코스 추천/);
   assert.match(landingCss,/@media\(min-width:901px\)[\s\S]*?\.welcome-page\{height:100dvh;min-height:100dvh;[^}]*overflow:hidden/);
-  assert.match(landingCss,/\.welcome-card\{width:min\(1320px,calc\(100vw - 20px\),calc\(150dvh - 30px\)\);height:auto;[^}]*aspect-ratio:3\/2/);
+  assert.match(landingCss,/\.welcome-card\{width:min\(1480px,100%\);height:calc\(100dvh - 48px\)/);
   assert.match(landingCss,/\.welcome-card-home \.welcome-hero\{[^}]*grid-template-columns:minmax\(0,42fr\) minmax\(0,58fr\)/);
   assert.match(landingCss,/\.welcome-place-grid\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)/);
 });
@@ -22,6 +22,7 @@ test('프로필 첫 화면은 요약·핵심 성향·최근 활동·AI·추천�
   assert.match(profile,/progress\.records\.slice\(0, 4\)/);
   assert.match(profile,/ai\.recommendedCourse\.slice\(0,3\)/);
   assert.match(profile,/className="profile-card ai-summary-card"/);
+  assert.doesNotMatch(profile,/최근 활동 기록<\/h3><button[^>]*>전체 기록 보기/);
   assert.match(profile,/className="profile-detail-tabs"/);
   assert.match(profile,/저장한 관심사[\s\S]*성장 히스토리[\s\S]*전체 활동 기록[\s\S]*AI 상세 분석/);
   assert.match(profileCss,/@media\(min-width:901px\)[\s\S]*?grid-template-rows:106px minmax\(0,1fr\) 164px 46px/);

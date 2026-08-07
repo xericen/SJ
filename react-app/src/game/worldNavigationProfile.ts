@@ -7,7 +7,7 @@ export const WORLD_GUIDE_MAP_IDS=[
   'government','government-central-plaza','government-observatory','sejong-smart-city',
 ] as const satisfies readonly MapId[];
 
-export const AUTHORED_CAMERA_MAP_IDS=['town','garden'] as const satisfies readonly MapId[];
+export const AUTHORED_CAMERA_MAP_IDS=['town','garden','arts-center','festival-experience','food-experience'] as const satisfies readonly MapId[];
 const authoredCameraMapIds=new Set<MapId>(AUTHORED_CAMERA_MAP_IDS);
 export const UNIFIED_WORLD_MAP_IDS=WORLD_GUIDE_MAP_IDS.filter(mapId=>!authoredCameraMapIds.has(mapId));
 
@@ -40,7 +40,7 @@ export const GARDEN_NAVIGATION_PROFILE={
   // while distance alone only moves the camera without making the character smaller.
   cameraDistance:1550,
   cameraZoom:.9,
-  characterHeight:110,
+  characterHeight:160,
 } as const;
 
 export const CAMPUS_NAVIGATION_PROFILE={
@@ -56,11 +56,8 @@ export const BEAR_TREE_NAVIGATION_PROFILE={
 } as const;
 
 export const GOVERNMENT_NAVIGATION_PROFILE={
-  characterHeight:94,
+  characterHeight:63,
 } as const;
-
-export const SHOWCASE_WORLD_CAMERA_DISTANCE=1550;
-const showcaseWorldMapIds=new Set<MapId>(['arts-center','festival-experience','food-experience']);
 
 const unifiedWorldMapIds=new Set<MapId>(UNIFIED_WORLD_MAP_IDS);
 export const usesUnifiedWorldNavigation=(mapId:MapId)=>unifiedWorldMapIds.has(mapId);
@@ -75,8 +72,6 @@ export function applyUnifiedWorldCamera<T extends object>(options:T,mapId?:MapId
         ?CAMPUS_NAVIGATION_PROFILE.cameraDistance
       :mapId==='bear-tree-park'
         ?BEAR_TREE_NAVIGATION_PROFILE.cameraDistance
-      :mapId&&showcaseWorldMapIds.has(mapId)
-        ?SHOWCASE_WORLD_CAMERA_DISTANCE
       :SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.camera.cameraDistance,
     cameraFov:mapId==='bear-tree-park'
       ?BEAR_TREE_NAVIGATION_PROFILE.cameraFov

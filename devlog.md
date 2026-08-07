@@ -334,3 +334,4 @@
 | 2026-08-07 | 064 | 세종예술의전당·먹거리·축제 체험을 최근 활동기록에 연결 | [상세](devlog/2026-08-07/064-record-lake-experiences.md) |
 | 2026-08-07 | 065 | 곰 5회 급여 완료 시 곰 동상을 마이홈에 자동 설치 | [상세](devlog/2026-08-07/065-auto-place-bear-statue.md) |
 | 2026-08-07 | 066 | README에 체험용·카카오 로그인 프로필 저장 차이 추가 | [상세](devlog/2026-08-07/066-readme-profile-storage-modes.md) |
+| 2026-08-07 | 067 | 공간 안내에서 동아리거리제·스마트시티 GLB 미리보기 연결 보완 | [상세](devlog/2026-08-07/067-space-guide-glb-previews.md) |

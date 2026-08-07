@@ -1558,6 +1558,10 @@ def _apply_personal_farm_rules(progress, now=None):
     farm["unlocked"] = garden_complete and bear_complete
     farm["unlockedRewardIds"] = rewards
     farm["activeRewardIds"] = [item for item in farm["activeRewardIds"] if item in rewards]
+    # The bear statue is an automatic reward: completing five feed deliveries
+    # must place it in My Home without requiring a second manual placement step.
+    if bear_complete and "bear-statue" not in farm["activeRewardIds"]:
+        farm["activeRewardIds"].append("bear-statue")
     farm["bearGrowthStage"] = "locked"
     nature = progress["natureChapter"]
     nature["gardenCompleted"] = garden_complete

@@ -332,3 +332,4 @@
 | 2026-08-07 | 062 | README 공간별 체험표를 실제 웹 동선 기준으로 갱신 | [상세](devlog/2026-08-07/062-readme-space-experiences.md) |
 | 2026-08-07 | 063 | README 서비스명을 세종한바퀴로 통일하고 현재 웹 기준 개요 정리 | [상세](devlog/2026-08-07/063-readme-brand-and-current-web.md) |
 | 2026-08-07 | 064 | 세종예술의전당·먹거리·축제 체험을 최근 활동기록에 연결 | [상세](devlog/2026-08-07/064-record-lake-experiences.md) |
+| 2026-08-07 | 065 | 곰 5회 급여 완료 시 곰 동상을 마이홈에 자동 설치 | [상세](devlog/2026-08-07/065-auto-place-bear-statue.md) |

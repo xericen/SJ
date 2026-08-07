@@ -1,0 +1,31 @@
+# Node / frontend
+node_modules/
+**/node_modules/
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.vscode/
+*.swp
+
+# Build / runtime artifacts
+build/
+bundle/
+dist/
+coverage/
+log/
+*.log
+
+# Local secrets
+.env
+.env.*
+config/secret.py

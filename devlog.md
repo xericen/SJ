@@ -329,3 +329,4 @@
 | 2026-08-07 | 059 | 전체 맵 진입 안내문을 세종예술의전당 GUIDE 디자인으로 통일 | [상세](devlog/2026-08-07/059-unify-map-guide-design.md) |
 | 2026-08-07 | 060 | 스마트시티·중앙광장 하단 포탈·밝기·AI 원형 점프 보완 | [상세](devlog/2026-08-07/060-smartcity-plaza-portal-and-jump.md) |
 | 2026-08-07 | 061 | 전망대 3초 귀환·정부청사 캐릭터 upright·스마트시티 포탈 위치 보정 | [상세](devlog/2026-08-07/061-fix-observatory-return-and-government-avatar.md) |
+| 2026-08-07 | 062 | README 공간별 체험표를 실제 웹 동선 기준으로 갱신 | [상세](devlog/2026-08-07/062-readme-space-experiences.md) |

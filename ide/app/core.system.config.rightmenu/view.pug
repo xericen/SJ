@@ -1,0 +1,6 @@
+wiz-workspace-app-portal(*ngIf="menu.mode == 'workspace.app.portal'")
+wiz-workspace-app-preview(*ngIf="menu.mode == 'workspace.app.preview'", (binding)="service.event.bind($event.id, $event.data)")
+wiz-xterm-app-term(*ngIf="menu.mode == 'xterm.app.term'")
+wiz-core-app-ide(*ngIf="menu.mode == 'core.app.ide'")
+wiz-core-app-setting(*ngIf="menu.mode == 'core.app.setting'")
+wiz-core-app-status(*ngIf="menu.mode == 'core.app.status'")

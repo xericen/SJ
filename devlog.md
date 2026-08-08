@@ -360,3 +360,4 @@
 | 2026-08-08 | 021 | 최신 React 번들을 WIZ 운영 자산에 동기화·배포 | [상세](devlog/2026-08-08/021-deploy-latest-reviewops-bundle.md) |
 | 2026-08-08 | 022 | 프로젝트실 프로젝트 공유·참여 프로필 승인 및 맵 전환 오류 보강 | [상세](devlog/2026-08-08/022-fix-project-room-sharing-and-runtime-errors.md) |
 | 2026-08-08 | 023 | 축제 NPC 대화·모집 저장·정부청사 포탈·스마트시티 완료 흐름 수정 및 운영 배포 | [상세](devlog/2026-08-08/023-reviewops-festival-recruitment-government-smartcity.md) |
+| 2026-08-08 | 024 | 축제 NPC 대화 중 체험 E키 UI 겹침 방지 | [상세](devlog/2026-08-08/024-fix-festival-npc-interaction-overlap.md) |

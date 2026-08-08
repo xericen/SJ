@@ -33,6 +33,10 @@
 .world-location-chip>div{min-width:0;display:flex;flex:1;flex-direction:column}
 .world-location-chip small{color:#82938f;font-size:8px;font-weight:800}
 .world-location-chip b{overflow:hidden;margin-top:1px;color:#214640;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.game-page.is-npc-chat .lake-experience-enter,
+.game-page.is-npc-chat .festival-experience-passport,
+.game-page.is-npc-chat .lake-experience-overlay,
+.game-page.is-npc-chat .lake-picnic-overlay{display:none!important}
 .game-page:has(.festival-experience-passport) .world-location-chip{z-index:56;width:245px;min-width:245px;border-radius:17px 17px 0 0;box-shadow:0 8px 22px rgba(28,67,57,.12)}
 .game-page:has(.festival-experience-passport) .online{z-index:57;display:block;left:20px;top:var(--festival-passport-bottom,258px);width:245px;max-height:calc(100dvh - var(--festival-passport-bottom,258px) - 84px);border-top:0;border-radius:0 0 17px 17px;box-shadow:0 14px 38px rgba(28,67,57,.16)}
 @media(max-width:900px){.game-page:has(.festival-experience-passport) .world-location-chip{left:12px;top:12px;width:245px;min-width:245px;max-width:245px}.game-page:has(.festival-experience-passport) .world-location-chip>div{display:flex}.game-page:has(.festival-experience-passport) .online{left:12px;top:var(--festival-passport-bottom,250px);width:245px;max-height:calc(100dvh - var(--festival-passport-bottom,250px) - 84px)}}

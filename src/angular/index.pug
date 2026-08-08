@@ -35,6 +35,16 @@ html.font-loading(lang="ko")
                         event.preventDefault();
                     }
                 }, true);
+
+                // model-viewer and the game renderer are isolated bundles. Three.js
+                // reports that expected boundary as a warning, but it is not an
+                // application error and drowns out actionable diagnostics.
+                const originalWarn = console.warn;
+                console.warn = (...args) => {
+                    const message = args.map(value => typeof value === 'string' ? value : '').join(' ');
+                    if (/Multiple instances of Three\.js being imported/.test(message)) return;
+                    originalWarn.apply(console, args);
+                };
             })();
         
         meta(name="viewport" content="width=device-width, initial-scale=1.0")

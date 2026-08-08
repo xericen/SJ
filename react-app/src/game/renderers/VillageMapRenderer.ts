@@ -298,6 +298,7 @@ export type WorldMapRendererOptions={
   simplifiedCollision?:boolean;
   maxJumpStepHeight?:number;
   fastGroundSampling?:boolean;
+  stableCharacterGrounding?:boolean;
   collisionExcludePrefixes?:string[];
   collisionObjectPrefixes?:string[];
   hiddenObjectPrefixes?:string[];
@@ -610,8 +611,12 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   portal:{...WORLD_GUIDE_PORTAL_POSITIONS.government,destination:'campus',label:'공동캠퍼스',theme:'orange',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
   fixedPortals:[
     {x:720,z:1010,destination:'government-central-plaza',label:'중앙광장 · AI 세종 추천센터',appearance:'standing',theme:'blue',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
-    {x:1680,z:1010,destination:'government-observatory',label:'전망대',appearance:'standing',theme:'orange',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
-    {x:1200,z:1190,destination:'sejong-smart-city',label:'세종 스마트시티 국가시범도시',appearance:'standing',theme:'blue',chargeSeconds:3,fixedPosition:false,sharedPosition:true,positionEditable:true},
+    // The former observatory point intersected the high government roof.
+    // This point is on the open ground beyond the right-hand building row.
+    {x:1900,z:1350,destination:'government-observatory',label:'전망대',appearance:'standing',theme:'orange',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:false},
+    // Keep Smart City far to the left of the central-plaza portal on a flat,
+    // reachable part of the government grounds.
+    {x:260,z:1190,destination:'sejong-smart-city',label:'세종 스마트시티 국가시범도시',appearance:'standing',theme:'blue',chargeSeconds:3,fixedPosition:true,sharedPosition:false,positionEditable:false},
   ],
   cameraElevationDeg:38,
   cameraZoom:1.05,
@@ -621,8 +626,9 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   minPixelRatio:.65,
   performancePixelRatio:.9,
   balancedTextureQuality:true,
-  simplifiedCollision:true,
-  fastGroundSampling:true,
+  simplifiedCollision:false,
+  fastGroundSampling:false,
+  stableCharacterGrounding:true,
   lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.7,performanceFrameRate:30,balancedTextureQuality:false},
 };
 export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
@@ -652,17 +658,23 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   characterHeight:150,
   groundFillColor:0xd9d9d5,
   // The plaza has several large glass surfaces and three embedded web panels.
-  // Keep it on the same stable 30fps budget as the other interior maps.
+  // Preserve the authored plaza materials at full display resolution.
   groundingShadows:false,
   performanceMode:true,
+  adaptivePixelRatio:false,
+  antialias:true,
   balancedTextureQuality:true,
-  prioritizeGroundTextures:false,
-  performancePixelRatio:1,
-  maxPixelRatio:1.15,
-  toneMappingExposure:.9,
-  lightingIntensityMultiplier:.78,
-  sceneBackgroundColor:'#7899aa',
-  simplifiedCollision:false,
+  prioritizeGroundTextures:true,
+  maxTextureSize:2048,
+  minPixelRatio:1,
+  performancePixelRatio:1.2,
+  maxPixelRatio:1.2,
+  performanceFrameRate:45,
+  toneMappingExposure:1.18,
+  lightingIntensityMultiplier:1.12,
+  sceneBackgroundColor:'#b9d7d8',
+  simplifiedCollision:true,
+  fastGroundSampling:true,
   // Remove the two GLB kiosks placed between the side Web UI panels and the
   // center panel. The outer kiosks remain available as plaza decoration.
   hiddenObjectPrefixes:[
@@ -1653,6 +1665,7 @@ export class VillageMapRenderer{
   private bearFeedingNearby=false;
   private pendingHabitatResource?:HabitatResourceId;
   private localRenderPosition=new THREE.Vector3();
+  private visualGroundHeight?:number;
   private remoteRenderPosition=new THREE.Vector3();
   private followTarget=new THREE.Vector3();
   private boundsCenter=new THREE.Vector3();
@@ -1774,6 +1787,7 @@ export class VillageMapRenderer{
     if(options.projectRoomInteractions)gameEvents.on('project-room-seat-toggle',this.toggleProjectRoomSeat);
     if(options.centralPlazaSofaSeats)gameEvents.on('central-plaza-sofa-seat-toggle',this.toggleCentralPlazaSofaSeat);
     if(options.projectRoomInteractions)gameEvents.on('project-room-door-unlock',this.unlockProjectRoomDoor);
+    if(options.projectRoomInteractions)gameEvents.on('project-room-instance-enter',this.onProjectRoomInstanceEnter);
     if(options.projectRoomInteractions)window.addEventListener('pointerdown',this.onProjectRoomKioskPointerDown,true);
     if(options.governmentCentralPlazaWebUi)gameEvents.on('government-webui-open',this.enterGovernmentWebUi);
     if(options.governmentCentralPlazaWebUi)gameEvents.on('government-webui-close',this.exitGovernmentWebUi);
@@ -2009,7 +2023,7 @@ export class VillageMapRenderer{
         :this.findSafeSpawn(this.localX,this.localZ);
       if(safeSpawn){
         this.localX=safeSpawn.x;this.localZ=safeSpawn.z;
-        this.localGround=safeSpawn.ground.height;this.localNormal.copy(safeSpawn.ground.normal);
+        this.localGround=safeSpawn.ground.height;this.visualGroundHeight=this.localGround;this.localNormal.copy(safeSpawn.ground.normal);
         // WorldScene owns the persisted 2D coordinates. When a restored farm
         // position is corrected here, feed the resolved coordinate back on the
         // first playable frame instead of letting the stale value overwrite it.
@@ -2763,7 +2777,7 @@ export class VillageMapRenderer{
       this.localX=spawn.x;
       this.localZ=spawn.z;
       const ground=safeSpawn?.ground??this.sampleGround(spawn.x,spawn.z,this.localGround,true,1200);
-      if(ground){this.localGround=ground.height;this.localNormal.copy(ground.normal)}
+      if(ground){this.localGround=ground.height;this.visualGroundHeight=this.localGround;this.localNormal.copy(ground.normal)}
       if(forcedSpawn)this.pendingTeleport={x:spawn.x,z:spawn.z,groundHeight:ground?.height};
       this.portalEntryArmed=false;
       this.interactionEntryArmed=false;
@@ -3399,6 +3413,9 @@ export class VillageMapRenderer{
       this.mapMeshes=this.mapMeshes.filter(candidate=>candidate!==mesh);
       this.mapMeshBounds.delete(mesh);
     });
+  };
+  private onProjectRoomInstanceEnter=()=>{
+    if(this.options.projectRoomInteractions)this.projectRoomCameraAzimuthDeg=-90;
   };
   private lockProjectRoomDoor(){
     if(!this.projectRoomDoorUnlocked)return;
@@ -4194,6 +4211,18 @@ export class VillageMapRenderer{
     this.governmentWebUiTextures.push(texture);return texture;
   }
   private setupGovernmentWebUi(model:THREE.Object3D){
+    // Use the authored save-course marker as the single source of truth for
+    // the return portal instead of a hand-tuned plaza coordinate.
+    if(this.options.mapName==='중앙광장'&&this.options.portal?.destination==='government'){
+      const marker=model.getObjectByName('Marker_SaveCourse');
+      if(marker){
+        const markerPosition=new THREE.Vector3();
+        marker.getWorldPosition(markerPosition);
+        this.options.portal.x=markerPosition.x;
+        this.options.portal.z=this.sceneToWorldZ(markerPosition.z);
+        this.portalPosition={x:markerPosition.x,z:this.options.portal.z};
+      }
+    }
     // Turn the side displays farther toward the visitor. This keeps their
     // architectural inward angle while exposing the complete screen surface.
     const sideTilt=.36;
@@ -5975,10 +6004,17 @@ export class VillageMapRenderer{
         gameEvents.emit('lake-experience-proximity-changed',nearby?{id:nearby.id,label:nearby.label,description:nearby.description}:null);
       }
     }
-    const groundPosition=this.followTarget.set(nextX,sample.height+this.characterGroundClearance,this.worldToSceneZ(nextZ));
-    const position=this.localRenderPosition.copy(groundPosition);position.y=characterVisualY(sample.height,this.characterGroundClearance,this.characterFootLift,jumpHeight);
+    const stableGrounding=this.options.stableCharacterGrounding===true;
+    const previousVisualGround=this.visualGroundHeight??sample.height;
+    const visualGround=stableGrounding&&Math.abs(sample.height-previousVisualGround)<45
+      ?THREE.MathUtils.lerp(previousVisualGround,sample.height,1-Math.exp(-18*Math.max(0,delta)))
+      :sample.height;
+    this.visualGroundHeight=visualGround;
+    const visualNormal=stableGrounding?this.guideNpcUprightNormal:sample.normal;
+    const groundPosition=this.followTarget.set(nextX,visualGround+this.characterGroundClearance,this.worldToSceneZ(nextZ));
+    const position=this.localRenderPosition.copy(groundPosition);position.y=characterVisualY(visualGround,this.characterGroundClearance,this.characterFootLift,jumpHeight);
     if(emote)this.localCharacter.playEmote(emote,emote==='talking');else this.localCharacter.stopEmote();
-    this.localCharacter.update(position,sample.normal,yaw,motion,delta);
+    this.localCharacter.update(position,visualNormal,yaw,motion,delta);
     this.followCharacter(groundPosition,delta);this.syncFestivalStageScreenRect();this.adjustQuality(delta);this.renderAccumulator+=delta;if(this.renderAccumulator>=this.renderInterval){this.renderAccumulator%=this.renderInterval;this.render()}
     return {x:nextX,z:nextZ,groundHeight:sample.height};
   }
@@ -5997,6 +6033,9 @@ export class VillageMapRenderer{
   removeRemoteCharacter(id:string){this.remotes.get(id)?.destroy();this.remotes.delete(id);this.remoteGrounds.delete(id)}
 
   movementFromScreen(x:number,z:number){
+    // Keep the project-room lobby and collaboration area on the same WASD
+    // world grid, even though the internal camera is turned to the right.
+    if(this.options.mapName==='프로젝트실')return {x,z};
     const azimuth=THREE.MathUtils.degToRad(this.projectRoomCameraAzimuthDeg??this.options.cameraAzimuthDeg??0);
     const cosine=Math.cos(azimuth),sine=Math.sin(azimuth);
     return {x:x*cosine+z*sine,z:-x*sine+z*cosine};
@@ -6371,6 +6410,7 @@ export class VillageMapRenderer{
     if(this.options.projectRoomInteractions)gameEvents.off('project-room-seat-toggle',this.toggleProjectRoomSeat);
     if(this.options.centralPlazaSofaSeats)gameEvents.off('central-plaza-sofa-seat-toggle',this.toggleCentralPlazaSofaSeat);
     if(this.options.projectRoomInteractions)gameEvents.off('project-room-door-unlock',this.unlockProjectRoomDoor);
+    if(this.options.projectRoomInteractions)gameEvents.off('project-room-instance-enter',this.onProjectRoomInstanceEnter);
     if(this.options.projectRoomInteractions)window.removeEventListener('pointerdown',this.onProjectRoomKioskPointerDown,true);
     if(this.options.foodTruckExperience)gameEvents.off('food-truck-kiosk-activate',this.enterFoodTruckKiosk);
     if(this.options.foodTruckExperience)gameEvents.off('food-truck-kiosk-close',this.exitFoodTruckKiosk);

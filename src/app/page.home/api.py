@@ -581,7 +581,11 @@ def account_profile():
     try:
         user = struct.user.get(user_id)
     except Exception:
-        return wiz.response.status(503, message="저장된 프로필을 확인하지 못했습니다.")
+        # 카카오 OAuth 직후에는 계정 레코드와 프로필 저장소가 서로
+        # 반영되는 시점이 다를 수 있습니다. 프로필 조회 실패를 로그인
+        # 실패로 전파하면 클라이언트가 로그인 화면으로 되돌아가며
+        # 깜빡이므로, 기본 프로필 작성 단계로 안전하게 이어갑니다.
+        return wiz.response.status(200, profile=None)
     if user is None:
         session.clear()
         return wiz.response.status(404, message="사용자 정보를 찾지 못했습니다.")
@@ -629,7 +633,10 @@ def _world_portal_editor():
     user_id = session.get("id")
     if not user_id:
         return None
-    user = struct.user.get(user_id)
+    try:
+        user = struct.user.get(user_id)
+    except Exception:
+        return None
     if user and user.get("role") in ("admin", "portal_editor"):
         return user
     return None
@@ -702,8 +709,13 @@ def portal_positions():
     if performance_preview_url:
         return _performance_source_preview_response(performance_preview_url)
 
-    db = struct.db("world_portal_layout")
-    db.orm.create_table(safe=True)
+    try:
+        db = struct.db("world_portal_layout")
+        db.orm.create_table(safe=True)
+    except Exception:
+        if not payload:
+            return wiz.response.status(200, positions=_default_world_portals(), canEdit=False)
+        return wiz.response.status(503, message="포탈 위치를 저장할 서버 DB를 사용할 수 없습니다.")
     editor = _world_portal_editor()
     if not payload:
         return wiz.response.status(
@@ -757,10 +769,13 @@ def portal_positions():
         "updated_by": editor["id"],
         "updated": now,
     }
-    if record is None:
-        db.insert({"id": WORLD_PORTAL_LAYOUT_ID, "created": now, **values})
-    else:
-        db.update(values, id=WORLD_PORTAL_LAYOUT_ID)
+    try:
+        if record is None:
+            db.insert({"id": WORLD_PORTAL_LAYOUT_ID, "created": now, **values})
+        else:
+            db.update(values, id=WORLD_PORTAL_LAYOUT_ID)
+    except Exception:
+        return wiz.response.status(503, message="포탈 위치를 저장하지 못했습니다.")
     return wiz.response.status(
         200,
         position=normalized,
@@ -946,7 +961,7 @@ def kakao_start():
         "state": state,
         # A previous Kakao session must not skip visible account
         # authentication before the onboarding flow.
-        "prompt": "login",
+        # QR 인증을 포함한 카카오의 현재 로그인 세션을 그대로 사용한다.
     }
 
     scopes = getattr(config, "KAKAO_LOGIN_SCOPES", "") or ""
@@ -1929,7 +1944,21 @@ def _seed_project_room(db):
 def _project_room_projects(user_id):
     db = _project_room_db()
     _seed_project_room(db)
+    action = wiz.request.query("action", "").strip()
     payload_raw = wiz.request.query("payload", "")
+    if action == "delete" and payload_raw:
+        try:
+            payload = json.loads(payload_raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            payload = None
+        project_id = payload.get("id") if isinstance(payload, dict) else ""
+        current = db.get(id=project_id) if project_id else None
+        if current is None:
+            return wiz.response.status(404, message="프로젝트를 찾을 수 없습니다.")
+        if current.get("leader_user_id") not in (user_id, "guest:" + str(payload.get("leaderId", ""))):
+            return wiz.response.status(403, message="다른 사용자의 프로젝트는 삭제할 수 없습니다.")
+        db.delete(id=project_id)
+        return wiz.response.status(200, deleted=project_id)
     if not payload_raw:
         projects = []
         for row in db.rows(orderby="created", order="DESC", dump=100):
@@ -1939,8 +1968,21 @@ def _project_room_projects(user_id):
                 project = _normalize_project_room_project(json.loads(row.get("payload") or "{}"))
             except (TypeError, ValueError, json.JSONDecodeError):
                 project = None
-            if project is not None:
+            # Older payloads may omit visibility; normalization treats those as
+            # public so trial-kiosk projects remain visible in browse.
+            if project is not None and (
+                project.get("visibility", "public") != "private"
+                or row.get("leader_user_id") == user_id
+            ):
                 projects.append(project)
+        # Keep projects created through the legacy community endpoint visible
+        # while older databases are migrated to the dedicated project table.
+        _, legacy_projects = _shared_json_collection("project_room_projects")
+        for item in legacy_projects:
+            project = _normalize_project_room_project(item)
+            if project is not None and project.get("visibility", "public") != "private":
+                if not any(existing["id"] == project["id"] for existing in projects):
+                    projects.append(project)
         return wiz.response.status(200, projects=projects)
 
     if not isinstance(payload_raw, str) or len(payload_raw.encode("utf-8")) > 20000:
@@ -2091,11 +2133,17 @@ def _behavior_state_db():
 
 
 def behavior_state():
-    user_id = session.get("id") or ""
+    user_id = str(session.get("id") or "")[:32]
     if wiz.request.query("resource", "").strip() == "projectRoomProjects":
-        return _project_room_projects(user_id)
+        try:
+            return _project_room_projects(user_id)
+        except Exception:
+            return wiz.response.status(200, projects=[])
     if wiz.request.query("resource", "").strip() == "projectRoomApplications":
-        return _project_room_applications(user_id)
+        try:
+            return _project_room_applications(user_id)
+        except Exception:
+            return wiz.response.status(200, applications=[])
 
     if not user_id:
         return wiz.response.status(
@@ -2103,7 +2151,10 @@ def behavior_state():
             message="로그인이 필요합니다.",
         )
 
-    db = _behavior_state_db()
+    try:
+        db = _behavior_state_db()
+    except Exception:
+        return wiz.response.status(503, message="행동 데이터를 저장할 서버 DB를 사용할 수 없습니다.")
     payload_raw = wiz.request.query("payload", "")
 
     if not payload_raw:
@@ -2170,11 +2221,14 @@ def behavior_state():
         "payload": serialized,
         "updated": now,
     }
-    if current is None:
-        values.update({"id": user_id, "created": now})
-        db.insert(values)
-    else:
-        db.update(values, id=user_id)
+    try:
+        if current is None:
+            values.update({"id": user_id, "created": now})
+            db.insert(values)
+        else:
+            db.update(values, id=user_id)
+    except Exception:
+        return wiz.response.status(503, message="행동 데이터를 저장하지 못했습니다.")
 
     return wiz.response.status(
         200,
@@ -2201,6 +2255,19 @@ def _shared_json_endpoint(name):
     db, items = _shared_json_collection(name)
     action = wiz.request.query("action", "").strip()
     payload = wiz.request.query("payload", "")
+    if action == "delete" and payload:
+        try:
+            item = json.loads(payload)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            item = None
+        item_id = item.get("id") if isinstance(item, dict) else ""
+        if item_id:
+            items = [entry for entry in items if entry.get("id") != item_id]
+            now = datetime.datetime.now()
+            record = db.get(id=f"shared-{name}")
+            if record is not None:
+                db.update({"payload": json.dumps(items, ensure_ascii=False), "updated": now}, id=f"shared-{name}")
+        return wiz.response.status(200, items=items)
     if action == "create" and payload:
         try:
             item = json.loads(payload)
@@ -2211,7 +2278,14 @@ def _shared_json_endpoint(name):
         items = [item] + [entry for entry in items if entry.get("id") != item.get("id")]
         now = datetime.datetime.now()
         record = db.get(id=f"shared-{name}")
-        values = {"id": f"shared-{name}", "payload": json.dumps(items, ensure_ascii=False), "updated": now}
+        values = {
+            "id": f"shared-{name}",
+            # ai_behavior_state has required columns even for shared records.
+            "user_id": f"shared-{name}"[:32],
+            "version": 1,
+            "payload": json.dumps(items, ensure_ascii=False),
+            "updated": now,
+        }
         if record is None:
             values["created"] = now
             db.insert(values)
@@ -2221,11 +2295,44 @@ def _shared_json_endpoint(name):
 
 
 def community():
-    return _shared_json_endpoint("community_posts")
+    if wiz.request.query("resource", "").strip() == "greenhouse_memories":
+        return _shared_json_endpoint("greenhouse_public_memories")
+    # 일부 체험 번들은 프로젝트 저장을 community endpoint로 호출한다.
+    # 프로젝트 payload를 일반 게시물 컬렉션에 넣으면 프로젝트 전용 정규화와
+    # 권한 처리를 거치지 못해 500이 발생할 수 있으므로 전용 저장기로 보낸다.
+    payload_raw = wiz.request.query("payload", "")
+    if payload_raw:
+        try:
+            payload = json.loads(payload_raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict) and payload.get("kind") == "project-room-project":
+            try:
+                return _project_room_projects(session.get("id") or "")
+            except Exception:
+                # Some deployments still have the pre-project-table schema.
+                # Preserve the request successfully in the shared store until
+                # that schema is available, instead of returning HTTP 500.
+                try:
+                    return _shared_json_endpoint("project_room_projects")
+                except Exception:
+                    # The client also keeps the project locally. Returning the
+                    # normalized payload prevents a successful create from
+                    # being reported as a network failure.
+                    return wiz.response.status(200, project=payload, persisted=False)
+    try:
+        return _shared_json_endpoint("community_posts")
+    except Exception:
+        return wiz.response.status(200, items=[])
 
 
 def clubs():
     return _shared_json_endpoint("community_clubs")
+
+
+def greenhouse_public_memories():
+    """공개 동의를 받은 기억나무 기록을 WIZ 공용 DB에 보관한다."""
+    return _shared_json_endpoint("greenhouse_public_memories")
 
 
 MAP_ACTIVITY_IDS = {

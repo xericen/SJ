@@ -5,6 +5,7 @@ import { loadBearHabitatProgress } from './bearHabitatDecision';
 import {loadExperienceProfileFragments,loadFestivalKeywordInsights,loadGeneratedExperienceProfile,loadSavedExperienceInterests} from './experienceHarness';
 import {buildFoodTasteProfile} from './foodTasteProfile';
 import {campusSignalKeywords} from './campusProfileSignals';
+import {buildProfileProgress} from './profileProgress';
 
 type ProfileInterest={emoji:string;label:string};
 export type AiSejongProfile={
@@ -65,6 +66,7 @@ export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
   const festivalInterests=loadFestivalKeywordInsights(profile.nickname).map(item=>({emoji:'🎪',label:item.keyword}));
   const savedInterests=loadSavedExperienceInterests(profile.nickname);
   const foodTaste=buildFoodTasteProfile();
+  const liveProgress=buildProfileProgress(profile);
   const campusInterests=campusSignalKeywords(profile.nickname).map(label=>({emoji:/자연/.test(label)?'🌿':/문화|축제/.test(label)?'🎭':/먹거리|카페/.test(label)?'🍽️':/기록/.test(label)?'📸':/교류|동행|대화|모임/.test(label)?'🤝':'🧭',label}));
   const fragmentInterests=experienceProfiles.flatMap(fragment=>fragment.tags.map(label=>({emoji:fragment.source==='sejong_food_trucks'?'🍽️':fragment.source==='sejong_festival_booth'?'🎪':'🎭',label})));
   const savedTags=savedInterests.flatMap(item=>item.tags.slice(0,3).map(label=>({emoji:item.domain==='food'?'🍽️':item.domain==='festival'?'🎪':'🎭',label})));
@@ -101,9 +103,15 @@ export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
   const completion=completed*20;
   const pace=decisionResult?.title==='효율 운영형'?'효율적으로':decisionResult?.title==='상황 적응형'?'유연하게':'차근차근';
   const memory=interests.some(item=>item.label==='사진')?'풍경과 순간을 기록하는':'여러 조건을 살펴 결정하는';
-  const baseAnalysis=generatedExperience?.summary??(completed
-    ?`새로운 장소를 ${pace} 둘러보며 ${memory} 사람입니다.${dominant?` 자연에서는 ${emotionIcon(dominant)} ${dominant}의 감정을 가장 자주 느껴요.`:''}`
-    :'세종 곳곳의 체험을 시작하면 나만의 여행 성향이 이곳에 자라납니다.');
+  const radarLabels={nature:'자연·힐링',culture:'문화·예술',explore:'탐험·발견',record:'사진·기록',relation:'사람·교류',food:'먹거리·로컬'} as const;
+  const liveRadar=(Object.entries(liveProgress.scores) as Array<[keyof typeof radarLabels,number]>).filter(([,score])=>score>0).sort((a,b)=>b[1]-a[1]).slice(0,2);
+  const savedEvidence=savedInterests.slice(0,3).map(item=>item.title);
+  const liveEvidence=[...interests.slice(0,3).map(item=>item.label),...savedEvidence].filter(Boolean);
+  const baseAnalysis=liveEvidence.length||liveRadar.length
+    ?`${liveRadar.length?`${liveRadar.map(([axis])=>radarLabels[axis]).join('과 ')} 성향이 두드러지고, `:''}${liveEvidence.length?`${liveEvidence.join(' · ')}에 관심을 보이는 `:''}${memory} 사람입니다.${dominant?` 자연에서는 ${emotionIcon(dominant)} ${dominant}의 감정을 가장 자주 느껴요.`:''}`
+    :generatedExperience?.summary??(completed
+      ?`새로운 장소를 ${pace} 둘러보며 ${memory} 사람입니다.${dominant?` 자연에서는 ${emotionIcon(dominant)} ${dominant}의 감정을 가장 자주 느껴요.`:''}`
+      :'세종 곳곳의 체험을 시작하면 나만의 여행 성향이 이곳에 자라납니다.');
   const oneLineAnalysis=foodTaste.summary?`${baseAnalysis} ${foodTaste.summary}`:baseAnalysis;
   return {
     nickname:profile.nickname,

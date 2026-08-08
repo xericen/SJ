@@ -164,6 +164,10 @@ export function recordExperienceAction(action:Action){
   if(action.type==='festival-booth-complete'){
     cacheLocalFestivalActivity(activeUserKey,{mapId:'festival-experience',sessionId:`immediate-${Date.now()}`,events:[action]});
   }
+  if(action.type.startsWith('greenhouse-')){
+    const subject=typeof action.plantId==='string'?action.plantId:typeof action.stage==='number'?String(action.stage):String(Date.now());
+    cacheGenericActivity(activeUserKey,{mapId:'garden',sessionId:`immediate-${action.type}-${subject}`,events:[action]});
+  }
   if(action.type==='booth'&&typeof action.zone==='string'&&action.zone.startsWith('festival-filter:')){
     gameEvents.emit('experience-action',{type:'festival-filter',filter:action.zone.slice('festival-filter:'.length)});
     return;
@@ -211,12 +215,13 @@ function cacheExperienceActivities(nickname:string,records:ExperienceActivityRec
   profileStorage().setItem(historyKey(nickname),JSON.stringify(records.slice(-100)));
 }
 function mergeExperienceActivities(nickname:string,records:ExperienceActivityRecord[]){
-  const merged=new Map(loadExperienceActivityHistory(nickname).map(record=>[record.id,record]));
-  records.forEach(record=>merged.set(record.id,record));
+  const keyFor=(record:ExperienceActivityRecord)=>record.mapId==='arts-center'?`${record.mapId}:performance:${record.title}`:record.id;
+  const merged=new Map(loadExperienceActivityHistory(nickname).map(record=>[keyFor(record),record]));
+  records.forEach(record=>merged.set(keyFor(record),record));
   cacheExperienceActivities(nickname,[...merged.values()].sort((a,b)=>Date.parse(a.recordedAt)-Date.parse(b.recordedAt)));
 }
 const GENERIC_ACTION_LABELS:Record<string,string>={
-  'map-enter':'입장','map-exit':'탐험','club-open':'동아리 부스 살펴보기','club-detail':'동아리 상세 보기','club-join':'동아리 가입','club-save':'관심 동아리 저장','club-activity':'동아리 활동 참여','club-vote':'동아리 제안 투표','photo':'사진 기록','favorite':'관심 저장','save':'저장','complete':'체험 완료','apply':'참여 신청','join':'참여','select':'선택','open':'상세 보기','interaction':'공간 체험',
+  'map-enter':'입장','map-exit':'탐험','club-open':'동아리 부스 살펴보기','club-detail':'동아리 상세 보기','club-join':'동아리 가입','club-save':'관심 동아리 저장','club-activity':'동아리 활동 참여','club-vote':'동아리 제안 투표','greenhouse-observe':'식물 관찰','greenhouse-collect':'식물 채집','greenhouse-analysis':'충녕 AI 자연 성향 분석','greenhouse-memory':'기억나무 기록','photo':'사진 기록','favorite':'관심 저장','save':'저장','complete':'체험 완료','apply':'참여 신청','join':'참여','select':'선택','open':'상세 보기','interaction':'공간 체험',
 };
 const meaningfulValue=(action:Action,keys:string[])=>keys.map(key=>action[key]).find(value=>typeof value==='string'&&value.trim());
 function genericActionCopy(action:Action){
@@ -230,6 +235,7 @@ function genericActionCopy(action:Action){
 }
 function cacheGenericActivity(nickname:string,payload:{mapId:HarnessMap;sessionId:string;events:Action[]}){
   if(['arts-center','food-experience','festival-experience'].includes(payload.mapId))return;
+  if(payload.mapId==='garden'&&!payload.sessionId.startsWith('immediate-greenhouse-'))return;
   const actions=payload.events.filter(event=>event.type!=='map-enter');
   const representative=[...actions].reverse().find(event=>event.type!=='map-exit')??actions.at(-1);
   const duration=Math.max(1,Math.round((Number(actions.at(-1)?.at) || 0)/1000));

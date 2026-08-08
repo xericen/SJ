@@ -1,16 +1,21 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/examples/jsm/utils/SkeletonUtils.js';
-import bearModelUrl from '../assets/characters/bear.glb?url';
+import bearTreeModelUrl from '../assets/maps/new-beartree.glb?url';
 
-let sourcePromise:Promise<THREE.Group>|undefined;
+const STATUE_NODE_NAME='tripo_node_663ac3ae-202d-4035-bde3-3b143688b477';
+
+let sourcePromise:Promise<THREE.Object3D>|undefined;
 
 async function loadSource(){
   if(!sourcePromise){
-    sourcePromise=new Promise<THREE.Group>((resolve,reject)=>{
-      new GLTFLoader().load(bearModelUrl,gltf=>{
-        const source=gltf.scene;source.name='bear-statue-source';source.updateMatrixWorld(true);
-        resolve(source);
+    sourcePromise=new Promise<THREE.Object3D>((resolve,reject)=>{
+      new GLTFLoader().load(bearTreeModelUrl,gltf=>{
+        const source=gltf.scene;source.updateMatrixWorld(true);
+        const statue=source.getObjectByName(STATUE_NODE_NAME);
+        if(!statue){reject(new Error(`Bear statue node not found: ${STATUE_NODE_NAME}`));return}
+        statue.name='bear-tree-statue-source';
+        resolve(statue);
       },undefined,reject);
     }).catch(error=>{sourcePromise=undefined;throw error});
   }
@@ -20,7 +25,7 @@ async function loadSource(){
 export async function createBearStatueObject(options:{targetHeight?:number;rotationY?:number}={}){
   const bear=cloneSkeleton(await loadSource()) as THREE.Group;
   bear.name='personal-farm-bear-statue-model';
-  bear.traverse(child=>{if(child instanceof THREE.Mesh){child.material=new THREE.MeshStandardMaterial({color:0xb68a4d,roughness:.48,metalness:.62});child.castShadow=true;child.receiveShadow=true}});
+  bear.traverse(child=>{if(child instanceof THREE.Mesh){child.castShadow=true;child.receiveShadow=true}});
   if(options.targetHeight){
     const size=new THREE.Box3().setFromObject(bear).getSize(new THREE.Vector3());
     if(size.y>.01)bear.scale.multiplyScalar(options.targetHeight/size.y);

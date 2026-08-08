@@ -17,6 +17,7 @@ let socialMode=Boolean(typeof window!=='undefined'&&localStorage.getItem('jochiw
 const clean=(value:string)=>value.trim().replace(/^#/,'').slice(0,40);
 const unique=(values:string[])=>[...new Set(values.map(clean).filter(Boolean))];
 const slug=(value:string)=>value.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g,'-').replace(/^-|-$/g,'').slice(0,80)||'general';
+const isLegacyPhantomVisit=(item:CampusProfileSignal)=>item.action==='visit-complete'&&['recruitment-center','student-hall','club-street-festival'].includes(item.mapId);
 
 export function loadCampusProfileSignals(nickname:string):CampusProfileSignal[]{
   const key=keyFor(nickname);
@@ -25,7 +26,7 @@ export function loadCampusProfileSignals(nickname:string):CampusProfileSignal[]{
   try{
     // Legacy display only. Unified profiles never read this local cache.
     const parsed=JSON.parse(localStorage.getItem(key)??'[]') as unknown;
-    const legacy=Array.isArray(parsed)?parsed.filter((item):item is CampusProfileSignal=>Boolean(item&&typeof item==='object'&&'id' in item&&'axes' in item)):[];
+    const legacy=Array.isArray(parsed)?parsed.filter((item):item is CampusProfileSignal=>Boolean(item&&typeof item==='object'&&'id' in item&&'axes' in item)).filter(item=>!isLegacyPhantomVisit(item)):[];
     memorySignals.set(key,legacy);return legacy;
   }catch{return []}
 }

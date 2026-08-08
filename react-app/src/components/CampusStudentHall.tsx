@@ -1,9 +1,8 @@
 import { Headphones, LockKeyhole, Sparkles, Users, X } from 'lucide-react';
-import { useEffect,useState } from 'react';
+import { useState } from 'react';
 import type { PlayerState,PublicMatchProfile } from '../../shared/socket-events';
 import { CharacterPreview } from './CharacterPreview';
 import { recordCampusProfileSignal } from '../services/campusProfileSignals';
-import { gameEvents } from '../game/events';
 
 type MatchResult={
   totalScore:number;
@@ -17,7 +16,6 @@ const cleanInterest=(value:string)=>value.replace(/^.*?:\s*/,'').replace(/\s+/g,
 
 export function CampusStudentHall({players,matches,profileBasis,nickname,loading,onProfile,onDirectChat,onNotice,onClose}:{players:PlayerState[];matches:Record<string,MatchResult>;profileBasis:PublicMatchProfile;nickname:string;loading:boolean;onProfile:(player:PlayerState)=>void;onDirectChat:(player:PlayerState)=>void;onNotice:(message:string)=>void;onClose:()=>void}){
   const [listening,setListening]=useState<string|null>(null);
-  useEffect(()=>{const leave=(mapId:string)=>{if(mapId!=='student-hall')recordCampusProfileSignal(nickname,{mapId:'student-hall',zone:'학생회관',action:'visit-complete',subject:'student-hall',title:'학생회관 방문 완료',note:'학생회관의 추천 이웃과 교류 체험을 마치고 공동캠퍼스로 돌아왔어요',point:5,keywords:['학생회관','교류 탐색'],axes:{relation:3,explore:2}})};gameEvents.on('map-travel-complete',leave);return()=>{gameEvents.off('map-travel-complete',leave)}},[nickname]);
   const activePlayers=players.filter(player=>matches[player.id]).slice(0,3);
   const profileKeywords=[profileBasis.mbti,...profileBasis.interests,...profileBasis.usagePurposes,...profileBasis.preferredPlaceCategories].filter(Boolean).slice(0,5);
 
@@ -29,7 +27,7 @@ export function CampusStudentHall({players,matches,profileBasis,nickname,loading
   };
   const openProfile=(player:PlayerState)=>{recordCampusProfileSignal(nickname,{mapId:'student-hall',zone:'학생회관',action:'recommended-profile',subject:player.id,title:'추천 이웃 프로필 확인',note:`${player.nickname}님의 공통 관심사와 공개 프로필을 살펴봤어요`,point:3,keywords:['관심사 중심','신중한 연결'],axes:{relation:2,explore:1}});onProfile(player)};
   const requestChat=(player:PlayerState)=>{recordCampusProfileSignal(nickname,{mapId:'student-hall',zone:'학생회관',action:'chat-request',subject:player.id,title:'추천 이웃에게 대화 신청',note:`${player.nickname}님과 새로운 대화를 시작했어요`,point:8,keywords:['대화에 열린','새로운 만남'],axes:{relation:8}});onDirectChat(player)};
-  const closeStudentHall=()=>{recordCampusProfileSignal(nickname,{mapId:'student-hall',zone:'학생회관',action:'visit-complete',subject:'student-hall',title:'학생회관 방문 완료',note:'추천 이웃 프로필과 캠퍼스 교류 기능을 살펴봤어요',point:5,keywords:['학생회관','교류 탐색'],axes:{relation:3,explore:2}});onClose()};
+  const closeStudentHall=()=>{onClose()};
 
   return <section className="student-match-panel" aria-label="나와 잘 맞는 사람 추천">
     <header className="student-match-header">

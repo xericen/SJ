@@ -42,7 +42,7 @@ test('맵별 카메라 거리와 추적 제한을 예술의전당 기준으로 �
     cameraScreenOffsetY:140,
     cameraFollowBounds:{maxZ:1000},
     cameraDownScreenLimitZ:900,
-    characterHeight:63,
+    characterHeight:78,
   });
   assert.equal(options.perspectiveCamera,true);
   assert.equal(options.fixedCameraTarget,false);
@@ -72,7 +72,7 @@ test('수목원은 캐릭터 비율을 낮추고 더 넓은 맵 조망을 유지
 
 test('공동캠퍼스는 이름표를 줄이고 베어트리파크는 좁은 화각으로 렌즈 왜곡을 줄인다',()=>{
   assert.deepEqual(CAMPUS_NAVIGATION_PROFILE,{cameraDistance:800,characterHeight:80,nameplateScale:.8});
-  assert.deepEqual(BEAR_TREE_NAVIGATION_PROFILE,{cameraDistance:1200,cameraFov:38,characterHeight:80});
+  assert.deepEqual(BEAR_TREE_NAVIGATION_PROFILE,{cameraDistance:1800,cameraFov:38,characterHeight:80});
   (['campus','bear-tree-park'] as const).forEach(mapId=>{
     const options=applyUnifiedWorldCamera({},mapId);
     assert.equal(options.perspectiveCamera,true);
@@ -82,6 +82,6 @@ test('공동캠퍼스는 이름표를 줄이고 베어트리파크는 좁은 화
   });
   assert.equal(applyUnifiedWorldCamera({},'campus').cameraDistance,800);
   assert.equal(applyUnifiedWorldCamera({},'campus').nameplateScale,.8);
-  assert.equal(applyUnifiedWorldCamera({},'bear-tree-park').cameraDistance,1200);
+  assert.equal(applyUnifiedWorldCamera({},'bear-tree-park').cameraDistance,1800);
   assert.equal(applyUnifiedWorldCamera({},'bear-tree-park').cameraFov,38);
 });

@@ -37,6 +37,9 @@
 .game-page.is-npc-chat .festival-experience-passport,
 .game-page.is-npc-chat .lake-experience-overlay,
 .game-page.is-npc-chat .lake-picnic-overlay{display:none!important}
+/* 축제 탐색관과 NPC 대화 시작 프롬프트는 같은 하단 중앙 영역을 사용한다.
+   탐색관을 먼저 보여 주고, 탐색관을 닫거나 멀어지면 NPC 프롬프트를 복원한다. */
+.game-page:has(.lake-experience-enter) .encounter-start-prompt{display:none!important}
 .game-page:has(.festival-experience-passport) .world-location-chip{z-index:56;width:245px;min-width:245px;border-radius:17px 17px 0 0;box-shadow:0 8px 22px rgba(28,67,57,.12)}
 .game-page:has(.festival-experience-passport) .online{z-index:57;display:block;left:20px;top:var(--festival-passport-bottom,258px);width:245px;max-height:calc(100dvh - var(--festival-passport-bottom,258px) - 84px);border-top:0;border-radius:0 0 17px 17px;box-shadow:0 14px 38px rgba(28,67,57,.16)}
 @media(max-width:900px){.game-page:has(.festival-experience-passport) .world-location-chip{left:12px;top:12px;width:245px;min-width:245px;max-width:245px}.game-page:has(.festival-experience-passport) .world-location-chip>div{display:flex}.game-page:has(.festival-experience-passport) .online{left:12px;top:var(--festival-passport-bottom,250px);width:245px;max-height:calc(100dvh - var(--festival-passport-bottom,250px) - 84px)}}
@@ -298,3 +301,15 @@
   .game-page.is-personal-farm .personal-farm-reward-status{left:auto;right:12px;top:64px;max-width:calc(100vw - 24px)}
 }
 .game-page .direct-panel header .direct-room-leave{width:auto;padding:0 9px;border:1px solid #d9e6e1;border-radius:8px;color:#6f817b;font-size:9px;font-weight:800}.game-page .direct-panel header .direct-room-leave:hover{border-color:#d9a9a9;background:#fff2f2;color:#a34b4b}
+.game-page.is-npc-chat .portal-charge-panel{display:none}
+
+/* 모든 맵의 좌측 HUD를 위치 카드 바로 아래에 연결한다. */
+.game-page .world-location-chip{top:20px;left:20px}
+.game-page .online:not(.is-collapsed),.game-page .online.is-nature-chapter{top:69px;left:20px}
+.game-page .online:not(.is-collapsed){border-top-left-radius:0;border-top-right-radius:0}
+.game-page .online.is-collapsed{top:69px;left:20px}
+@media(max-width:800px){
+  .game-page .world-location-chip{top:12px;left:12px}
+  .game-page .online:not(.is-collapsed),.game-page .online.is-nature-chapter{top:61px;left:12px}
+  .game-page .online.is-collapsed{top:61px;left:12px}
+}

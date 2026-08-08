@@ -6,6 +6,15 @@
   <meta name="referrer" content="strict-origin-when-cross-origin"/>
   <link rel="icon" type="image/png" href="/assets/brand/sejong-hanbakwi.png"/>
   <title>세종한바퀴</title>
+  <style>
+    /* 프로젝트실 공개 보드 필터는 첫 버튼부터 왼쪽에서 시작합니다. */
+    .project-room-tools nav {
+      justify-content: flex-start !important;
+      align-items: flex-start;
+      text-align: left;
+      width: 100%;
+    }
+  </style>
   <script>
     (() => {
       try {
@@ -78,7 +87,7 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260807-reviewops-origin-cache-bust-v210';
+      const buildId = '20260808-government-ground-profile-live-v1';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
       // The HTML itself is always served with no-cache and every asset has a
@@ -91,22 +100,22 @@
         void navigator.serviceWorker.getRegistrations().then(registrations => Promise.all(registrations.map(registration => registration.unregister())));
       }
       url.searchParams.set('_build', buildId);
-      url.searchParams.delete('_entry_retry');
       window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
     })();
   </script>
   <script>
   (() => {
-    const runtimeBuildId="20260807-reviewops-origin-cache-bust-v210";
-    const runtimeEntryPath="/auth/jochwon-assets/assets/index-Dl7keXMb.js";
+      const runtimeBuildId="20260808-government-ground-profile-live-v1";
+      const runtimeEntryPath="/assets/jochwon-app/assets/index-5JLOELzS.js";
     const pageUrl=new URL(window.location.href);
-    const entryRetry=pageUrl.searchParams.get('_entry_retry');
-    const currentRetry=entryRetry?.startsWith(`${runtimeBuildId}:`)??false;
     let recoveryStarted=false;
     const showFailure=()=>{
-      const root=document.getElementById('root');
-      if(!root)return;
-      root.innerHTML='<main style="min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#f4f7f5;font-family:SUIT,\"Noto Sans KR\",sans-serif;color:#183a32"><section style="width:min(440px,100%);padding:36px;border:1px solid #c9ded7;border-radius:24px;background:#fff;text-align:center;box-shadow:0 18px 48px rgba(25,73,61,.12)"><strong style="display:block;font-size:24px;margin-bottom:10px">화면을 다시 준비해 주세요</strong><p style="margin:0 0 22px;color:#657b75;line-height:1.6">최신 화면을 불러오는 중 문제가 발생했습니다.</p><button type="button" onclick="window.__retryJochwonRuntime()" style="border:0;border-radius:12px;padding:13px 22px;background:#087a62;color:#fff;font:inherit;font-weight:800;cursor:pointer">다시 불러오기</button></section></main>';
+      if(document.getElementById('jochwon-runtime-failure'))return;
+      const overlay=document.createElement('div');
+      overlay.id='jochwon-runtime-failure';
+      overlay.innerHTML='<main style="min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#f4f7f5;font-family:SUIT,\"Noto Sans KR\",sans-serif;color:#183a32"><section style="width:min(440px,100%);padding:36px;border:1px solid #c9ded7;border-radius:24px;background:#fff;text-align:center;box-shadow:0 18px 48px rgba(25,73,61,.12)"><strong style="display:block;font-size:24px;margin-bottom:10px">화면을 다시 준비해 주세요</strong><p style="margin:0 0 22px;color:#657b75;line-height:1.6">최신 화면을 불러오는 중 문제가 발생했습니다.</p><button type="button" onclick="window.__retryJochwonRuntime()" style="border:0;border-radius:12px;padding:13px 22px;background:#087a62;color:#fff;font:inherit;font-weight:800;cursor:pointer">다시 불러오기</button></section></main>';
+      overlay.style.cssText='position:fixed;inset:0;z-index:2147483647';
+      document.body.appendChild(overlay);
     };
     window.__retryJochwonRuntime=()=>{
       pageUrl.searchParams.set('_build',runtimeBuildId);
@@ -116,32 +125,17 @@
     const recover=async()=>{
       if(recoveryStarted)return;
       recoveryStarted=true;
-      if(currentRetry){
-        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showFailure,{once:true});
-        else showFailure();
-        return;
-      }
-      const cacheReset='caches' in window
-        ?caches.keys().then(keys=>Promise.all(keys.map(key=>caches.delete(key)))).catch(()=>undefined)
-        :Promise.resolve();
-      const workerReset='serviceWorker' in navigator
-        ?navigator.serviceWorker.getRegistrations().then(items=>Promise.all(items.map(item=>item.unregister()))).catch(()=>undefined)
-        :Promise.resolve();
-      await Promise.all([cacheReset,workerReset]);
-      pageUrl.searchParams.set('_build',runtimeBuildId);
-      pageUrl.searchParams.set('_entry_retry',`${runtimeBuildId}:${Date.now()}`);
-      window.location.replace(pageUrl.toString());
+      // 자동 location.replace는 실패한 엔트리에서 무한 새로고침을
+      // 만들 수 있으므로, 현재 문서에서 한 번만 안내합니다.
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showFailure,{once:true});
+      else showFailure();
     };
     window.__recoverJochwonRuntime=recover;
-    window.addEventListener('error',event=>{
-      const filename=typeof event.filename==='string'?event.filename:'';
-      if(filename.includes(runtimeEntryPath))void recover();
-    });
   })();
 </script>
-<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-l1NlVt5g.css" onerror="void window.__recoverJochwonRuntime?.()">
-<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-Dl7keXMb.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
-  <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-m-EpYe9t.js">
+<link rel="stylesheet" crossorigin href="/assets/jochwon-app/assets/index-l1NlVt5g.css" onerror="void window.__recoverJochwonRuntime?.()">
+<script type="module" crossorigin src="/assets/jochwon-app/assets/index-5JLOELzS.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
+  <link rel="modulepreload" crossorigin href="/assets/jochwon-app/assets/jsx-runtime-m-EpYe9t.js">
 
 </head>
 <body>

@@ -55,12 +55,14 @@ export interface AIProjectRecommendation{
 
 const PROJECTS_KEY='sejong-project-room-projects-v1';
 const APPLICATIONS_KEY='sejong-project-room-applications-v1';
+const GUEST_PROJECTS_KEY='sejong-trial-project-room-projects-v1';
 let socialMode=Boolean(typeof window!=='undefined'&&localStorage.getItem('jochiwon-kakao-user-id')?.trim());
 let activeNickname='';
 let memoryProjects:Project[]=[];
 let memoryApplications:ProjectApplication[]=[];
 let projectRefreshRequest:Promise<Project[]>|undefined;
 let applicationRefreshRequest:Promise<ProjectApplication[]>|undefined;
+const pendingProjectSyncs=new Map<string,Project>();
 
 const seedProjects:Project[]=[
   {id:'garden-photo',title:'수목원 사진 기록 프로젝트',summary:'계절별 식물과 풍경을 사진으로 기록해요.',description:'국립세종수목원을 함께 걸으며 대표 식물과 계절의 변화를 촬영하고 작은 온라인 도감을 완성합니다.',placeIds:['국립세종수목원'],activityTypes:['사진','자연','조사'],tags:['사진','자연','수목원','기록'],leaderId:'초록산책',memberIds:['초록산책','하늘여우'],applicantIds:[],maxMembers:5,startDate:'2026-08-08',deadline:'2026-08-05',preferredTraits:['사진 기록형','여유형','대화 중심'],status:'recruiting',thumbnail:'🌸',createdAt:'2026-07-20T09:00:00.000Z'},
@@ -76,7 +78,10 @@ function readArray<T>(key:string,fallback:T[]){
 }
 
 export function loadProjectRoomProjects(){
-  if(!socialMode)return memoryProjects.length?memoryProjects:seedProjects;
+  if(!socialMode){
+    const guest=readArray<Project>(GUEST_PROJECTS_KEY,[]);
+    return memoryProjects.length?memoryProjects:guest.length?guest:seedProjects;
+  }
   const saved=readArray<Project>(PROJECTS_KEY,[]);
   if(saved.length){
     let changed=false;
@@ -96,7 +101,11 @@ export function loadProjectRoomProjects(){
 
 export function saveProjectRoomProjects(projects:Project[]){
   memoryProjects=projects;
-  if((socialMode||typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com')))projects.filter(project=>project.leaderId===activeNickname).forEach(project=>void syncUnifiedProject({id:project.id,title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).catch(()=>undefined));
+  if(!socialMode)try{localStorage.setItem(GUEST_PROJECTS_KEY,JSON.stringify(projects))}catch{/* guest storage unavailable */}
+  // Keep an immediate local snapshot as a fallback while the shared WIZ
+  // record is being written. This also survives a kiosk panel remount.
+  if(socialMode)try{localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects))}catch{/* local snapshot unavailable */}
+  if((socialMode||typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com')))projects.filter(project=>project.leaderId===activeNickname).forEach(project=>{pendingProjectSyncs.set(project.id,project);void syncUnifiedProject({id:project.id,title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).then(()=>pendingProjectSyncs.delete(project.id)).catch(()=>undefined)});
   window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
 }
 
@@ -128,9 +137,16 @@ export function refreshProjectRoomProjects(){
       const related=projectApplications.filter(application=>application.projectId===project.id);
       return {...project,applicantIds:[...new Set([...project.applicantIds,...related.filter(item=>item.status==='pending').map(item=>item.applicantId)])],memberIds:[...new Set([...project.memberIds,...related.filter(item=>item.status==='accepted').map(item=>item.applicantId)])]};
     });
-    memoryProjects=projects;
+    const guestLocal=!socialMode?readArray<Project>(GUEST_PROJECTS_KEY,[]):[];
+    // A shared refresh may briefly return the previous server snapshot while
+    // the create request is still being committed. Keep the current owner's
+    // in-memory projects visible until the server includes them.
+    const localSaved=socialMode?readArray<Project>(PROJECTS_KEY,[]):[];
+    const localOwned=[...memoryProjects,...localSaved].filter(project=>project.leaderId===activeNickname).filter((project,index,items)=>items.findIndex(item=>item.id===project.id)===index);
+    const visible=[...projects,...localOwned.filter(project=>!projects.some(item=>item.id===project.id)),...guestLocal.filter(project=>!projects.some(item=>item.id===project.id)&&!localOwned.some(item=>item.id===project.id)),...[...pendingProjectSyncs.values()].filter(project=>!projects.some(item=>item.id===project.id)&&!guestLocal.some(item=>item.id===project.id)&&!localOwned.some(item=>item.id===project.id))];
+    memoryProjects=visible;
     window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
-    return projects;
+    return visible;
   }).finally(()=>{projectRefreshRequest=undefined}));
 }
 
@@ -153,7 +169,7 @@ export function saveProjectApplications(applications:ProjectApplication[]){
 }
 
 export function setProjectRoomProfileMode(authenticated:boolean,nickname:string){socialMode=authenticated;activeNickname=nickname;if(!authenticated){memoryProjects=[];memoryApplications=[];projectRefreshRequest=undefined}}
-export function resetGuestProjectRoomProfile(){if(!socialMode){memoryProjects=[];memoryApplications=[]}}
+export function resetGuestProjectRoomProfile(){if(!socialMode){memoryProjects=[];memoryApplications=[];pendingProjectSyncs.clear();try{localStorage.removeItem(GUEST_PROJECTS_KEY)}catch{/* guest storage unavailable */}}}
 
 function lakeRecord(){
   try{return JSON.parse(localStorage.getItem('sejong-lake-interest-profile-v1')??'null') as {savedContentIds?:unknown;activities?:unknown;likedCourseTitles?:unknown}|null}catch{return null}

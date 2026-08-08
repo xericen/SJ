@@ -91,26 +91,19 @@ const dataCards = [
     lines: ["세종호수공원", "학생회관", "정부청사", "국립세종수목원"],
   },
 ] as const;
-const routeStops = [
+type RouteStop = { name: string; category: string; reason: string };
+const fallbackRouteStops: RouteStop[] = [
   {
-    name: "정부청사",
-    reason: "세종의 행정과 도시 비전을 먼저 만나는 출발점입니다.",
+    name: "세종 로컬 맛집", category: "맛집",
+    reason: "최근 활동에서 확인된 미식·로컬 관심을 바탕으로 추천합니다.",
   },
   {
-    name: "학생회관",
-    reason: "협업 성향이 높아 프로젝트와 동아리 활동을 추천합니다.",
+    name: "세종 도시전망·도시체험", category: "세종도시",
+    reason: "프로젝트와 도시 탐험 활동을 좋아하는 성향에 맞는 장소입니다.",
   },
   {
-    name: "공동캠퍼스",
-    reason: "AI와 창업 관심을 이어갈 수 있는 교류 공간입니다.",
-  },
-  {
-    name: "국립세종수목원",
-    reason: "자연 선호도가 높아 여유로운 회복 시간을 추천합니다.",
-  },
-  {
-    name: "세종호수공원",
-    reason: "축제와 공연 경험을 연결해 여행을 마무리하기 좋습니다.",
+    name: "세종 감성 카페", category: "카페",
+    reason: "분석된 관심 키워드를 정리하며 쉬어갈 수 있는 장소입니다.",
   },
 ] as const;
 const logs = [
@@ -118,7 +111,7 @@ const logs = [
   "관심사 분석",
   "방문지역 분석",
   "프로젝트 활동 분석",
-  "성향 예측",
+  "성장 예측",
   "최적 일정 생성",
 ];
 
@@ -127,11 +120,13 @@ export function GovernmentAiRecommendationCenter({
   active,
   onOpenChange,
   onNotice,
+  onExit,
 }: {
   profile: UserProfile;
   active: boolean;
   onOpenChange: (open: boolean) => void;
   onNotice: (message: string) => void;
+  onExit: () => void;
 }) {
   const [nearby, setNearby] = useState(false),
     [running, setRunning] = useState(false),
@@ -139,7 +134,11 @@ export function GovernmentAiRecommendationCenter({
     [displayProgress, setDisplayProgress] = useState(0),
     [cardIndex, setCardIndex] = useState(0),
     [selectedStop, setSelectedStop] = useState<number | null>(null),
-    [saved, setSaved] = useState(false);
+    [saved, setSaved] = useState(false),
+    [recommendedStops, setRecommendedStops] = useState(fallbackRouteStops),
+    [recommendationSource, setRecommendationSource] = useState<"openai" | "fallback">("fallback"),
+    [recommendationLoading, setRecommendationLoading] = useState(false);
+  const routeStops = recommendedStops;
   const ai = useMemo(() => buildAiSejongProfile(profile), [profile]);
   const interests = ai.interests.length
     ? ai.interests.slice(0, 4)
@@ -165,6 +164,8 @@ export function GovernmentAiRecommendationCenter({
     setStage(0);
     setDisplayProgress(0);
     setCardIndex(0);
+    setRecommendedStops(fallbackRouteStops);
+    setRecommendationSource("fallback");
     gameEvents.emit("government-ai-center-mode-changed", true);
     gameEvents.emit("government-ai-center-stage-changed", 1);
   };
@@ -187,8 +188,8 @@ export function GovernmentAiRecommendationCenter({
   const startTrip = () => {
     if (!saved) saveRoute();
     close();
-    onNotice("첫 추천 장소인 정부청사에서 세종 여행을 시작합니다.");
-    window.setTimeout(() => gameEvents.emit("travel-to-map", "government"), 0);
+    onNotice("AI 여행 일정을 저장했어요. 홈 화면으로 이동합니다.");
+    window.setTimeout(onExit, 0);
   };
 
   useEffect(() => {
@@ -222,6 +223,47 @@ export function GovernmentAiRecommendationCenter({
     };
   }, [running, stage]);
   useEffect(() => {
+    if (!running || stage !== 5 || recommendationLoading || recommendationSource === "openai") return;
+    let cancelled = false;
+    const request = async () => {
+      setRecommendationLoading(true);
+      const activityRecords = ai.experienceProfiles.flatMap((fragment) => [...fragment.tags, fragment.summary]).slice(0, 20);
+      const candidates = fallbackRouteStops.map((stop, index) => ({
+        placeId: `sejong-ai-${index + 1}`, name: stop.name, category: stop.category,
+        address: "세종특별자치시", tags: [stop.category, ...interests.map((item) => item.label)].slice(0, 10),
+        isLocalBusiness: stop.category !== "세종도시", description: stop.reason, source: "admin" as const,
+      }));
+      try {
+        const response = await fetch("/api/ai/place-recommendations", {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requester: {
+              userId: profile.nickname || "guest", interests: interests.map((item) => item.label).slice(0, 20),
+              currentNeeds: [ai.oneLineAnalysis, `프로필 완성도 ${ai.completion}%`],
+              campusInterests: profile.preferredPlaceCategories.slice(0, 20),
+              plantProfile: { representativePlant: ai.representativePlant?.name, discoveredPlants: [], completionRate: ai.completion },
+              festivalProfile: { visitedFestivals: activityRecords, likedBooths: [], likedActivities: activityRecords },
+            },
+            conversationSummary: { sharedInterests: interests.map((item) => item.label).slice(0, 10), wantedActivities: [...activityRecords, ...profile.usagePurposes].slice(0, 20), avoidActivities: [], preferredMood: [ai.oneLineAnalysis] },
+            candidatePlaces: candidates,
+          }),
+        });
+        if (!response.ok) throw new Error("recommendation request failed");
+        const payload = await response.json() as { data?: { route?: Array<{ placeId: string; reason: string }> } };
+        const reasons = new Map((payload.data?.route ?? []).map((item) => [item.placeId, item.reason]));
+        if (!cancelled) {
+          setRecommendedStops(candidates.map((candidate) => ({ name: candidate.name, category: candidate.category, reason: reasons.get(candidate.placeId) ?? candidate.description })));
+          setRecommendationSource("openai");
+          onNotice("내 프로필과 최근 활동을 분석해 OpenAI 장소 추천을 완성했어요.");
+        }
+      } catch {
+        if (!cancelled) onNotice("OpenAI 연결이 지연되어 기본 장소 추천으로 이어갑니다.");
+      } finally { if (!cancelled) setRecommendationLoading(false); }
+    };
+    void request();
+    return () => { cancelled = true; };
+  }, [ai, interests, onNotice, onExit, profile, recommendationLoading, recommendationSource, running, stage]);
+  useEffect(() => {
     if (!running || stage !== 1) return;
     setCardIndex(0);
     const timer = window.setInterval(
@@ -249,17 +291,17 @@ export function GovernmentAiRecommendationCenter({
 
   const current = stages[stage],
     analysisScores = [
-      ["협업 성향", "92%"],
-      ["AI 관심", "95%"],
-      ["자연 선호", "88%"],
-      ["창업 관심", "82%"],
+      ["프로필 완성도", `${ai.completion}%`],
+      ["최근 활동 신호", `${Math.min(99, ai.experienceProfiles.length * 18 + ai.interests.length * 3)}%`],
+      ["관심 키워드 반영", `${Math.min(99, ai.interests.length * 8)}%`],
+      ["성장 예측 신뢰도", `${Math.min(99, 55 + ai.experienceProfiles.length * 8)}%`],
     ],
     activities = [
-      ["프로젝트", "3개"],
-      ["동아리", "2개"],
-      ["축제", "4회"],
-      ["식물도감", "완료"],
-      ["방문지역", "5곳"],
+      ["프로젝트", `${Math.max(0, ai.experienceProfiles.filter((item) => /project|프로젝트/i.test(item.source)).length)}개`],
+      ["최근 활동", `${ai.experienceProfiles.length}개 신호`],
+      ["관심 키워드", `${ai.interests.length}개`],
+      ["대표 성향", ai.oneLineAnalysis.slice(0, 12)],
+      ["추천 지역", "3곳"],
     ];
   return (
     <>

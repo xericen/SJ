@@ -61,9 +61,10 @@ async function requestExpress(path:string,init?:RequestInit){
 }
 
 async function requestWiz(action='',fields:Record<string,string>={}){
-  const form=new URLSearchParams(action?{action,...fields}:fields);
+  const query=new URLSearchParams(action?{action,...fields}:fields);
   let response:Response;
-  try{response=await fetch(WIZ_PERSONAL_FARM_API,{method:action?'POST':'GET',credentials:'include',headers:action?{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}:undefined,body:action?form.toString():undefined})}catch{throw new PersonalFarmApiError('NETWORK_ERROR')}
+  const url=query.toString()?`${WIZ_PERSONAL_FARM_API}?${query.toString()}`:WIZ_PERSONAL_FARM_API;
+  try{response=await fetch(url,{method:action?'POST':'GET',credentials:'include'})}catch{throw new PersonalFarmApiError('NETWORK_ERROR')}
   const body=await jsonResponse(response),data=body.data as Record<string,unknown>|undefined;
   if(!response.ok||body.code!==200){const code=typeof data?.errorCode==='string'?data.errorCode:'REQUEST_FAILED';throw new PersonalFarmApiError(code,typeof data?.message==='string'?data.message:undefined,response.status)}
   if(!isPersonalFarmProgressDto(data?.progress))throw new PersonalFarmApiError('INVALID_RESPONSE');

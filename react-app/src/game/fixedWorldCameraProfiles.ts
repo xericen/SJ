@@ -21,7 +21,9 @@ export const FIXED_WORLD_CAMERA_PROFILES={
   'recruitment-center':{mapId:'recruitment-center',characterHeight:142,cameraElevationDeg:29,cameraAzimuthDeg:0,cameraDistance:1300,cameraTargetHeight:75,cameraFov:46},
   'student-hall':{mapId:'student-hall',characterHeight:138,cameraElevationDeg:29,cameraAzimuthDeg:0,cameraDistance:1300,cameraTargetHeight:75,cameraFov:46},
   'club-street-festival':{mapId:'club-street-festival',characterHeight:150,cameraElevationDeg:34,cameraAzimuthDeg:180,cameraDistance:1750,cameraTargetHeight:75,cameraFov:46},
-  government:{mapId:'government',characterHeight:65,cameraElevationDeg:27,cameraAzimuthDeg:18,cameraDistance:770,cameraTargetHeight:55,cameraFov:47},
+  // Government plaza looked distant because both the avatar and follow
+  // camera were authored smaller/farther than the shared reference maps.
+  government:{mapId:'government',characterHeight:78,cameraElevationDeg:27,cameraAzimuthDeg:18,cameraDistance:650,cameraTargetHeight:60,cameraFov:47},
   'sejong-smart-city':{mapId:'sejong-smart-city',characterHeight:136,cameraElevationDeg:29,cameraAzimuthDeg:0,cameraDistance:1290,cameraTargetHeight:75,cameraFov:46},
 } as const satisfies Partial<Record<MapId,FixedWorldCameraProfile>>;
 

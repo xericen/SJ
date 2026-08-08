@@ -34,7 +34,7 @@ import {
 import type { UserProfile } from './types';
 import type { GameReturnState } from './game/gameReturnState';
 import type { MapId } from '../shared/socket-events';
-import { loadAccountProfile, saveAccountProfile, withdrawAccount } from './services/accountProfile';
+import { loadAccountProfile, loadAccountSession, saveAccountProfile, withdrawAccount } from './services/accountProfile';
 
 const CharacterTestPage=lazy(()=>import('./pages/CharacterTestPage').then(module=>({default:module.CharacterTestPage})));
 const CommunityPage=lazy(()=>import('./pages/CommunityPage').then(module=>({default:module.CommunityPage})));
@@ -565,6 +565,88 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (
+      searchParams.has('login') ||
+      browserSessionStorage()?.getItem(LOCAL_EXPERIENCE_MODE_KEY) === '1' ||
+      (
+        readStoredValue(KAKAO_USER_ID_KEY) &&
+        socialJourney.authenticated &&
+        socialJourney.membershipComplete
+      )
+    ) {
+      return;
+    }
+
+    let active = true;
+
+    const restoreKakaoSession = async () => {
+      let accountSession;
+      try {
+        accountSession = await loadAccountSession();
+      } catch {
+        return;
+      }
+      if (!active || !accountSession) return;
+
+      hydratedProfileUserIdRef.current = accountSession.userId;
+      writeStoredValue(KAKAO_USER_ID_KEY, accountSession.userId);
+      setLoginIdentity(accountSession.userId);
+      browserSessionStorage()?.removeItem(LOCAL_EXPERIENCE_MODE_KEY);
+      setExperienceMode('social');
+
+      let savedProfile: UserProfile | null = null;
+      try {
+        savedProfile = await loadAccountProfile();
+      } catch {
+        // A valid Kakao session must still continue to profile creation when
+        // the optional saved profile cannot be restored.
+      }
+      if (!active) return;
+
+      if (savedProfile) {
+        setSocialProfile({ ...defaultProfile, ...savedProfile });
+        setSocialJourney({
+          authenticated: true,
+          membershipComplete: true,
+          onboardingStep: 'character',
+        });
+        setPage('game');
+        return;
+      }
+
+      setSocialProfile({
+        ...defaultProfile,
+        nickname: accountSession.nickname || '카카오 사용자',
+      });
+
+      try {
+        await loadCreateProfilePage();
+      } catch {
+        if (active) {
+          setLoginError('프로필 생성 화면을 불러오지 못했습니다. 다시 시도해 주세요.');
+          setPage('login');
+        }
+        return;
+      }
+      if (!active) return;
+
+      setSocialJourney({
+        authenticated: false,
+        membershipComplete: false,
+        onboardingStep: 'profile',
+      });
+      setPage('create');
+    };
+
+    void restoreKakaoSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (
       experienceMode !== 'social' ||
       !hasLoginIdentity ||
@@ -884,6 +966,11 @@ export default function App() {
           setJourney({
             ...journey,
             authenticated: false,
+          });
+
+          void fetch('/wiz/api/page.home/logout', {
+            method: 'POST',
+            credentials: 'include',
           });
 
           setPage('landing');

@@ -25,6 +25,12 @@ export const SEJONG_ARTS_CENTER_NAVIGATION_PROFILE={
   movement:{walkSpeed:180,runSpeed:280},
 } as const;
 
+// 세종예술의전당에서 검증한 플레이어 이동 속도를 모든 맵이 공유한다.
+export const PLAYER_MOVEMENT_SPEED={
+  walk:SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.movement.walkSpeed,
+  run:SEJONG_ARTS_CENTER_NAVIGATION_PROFILE.movement.runSpeed,
+} as const;
+
 export const PERSONAL_FARM_CAMERA_PROFILE={
   distanceMultiplier:1.4,
   outdoorDistance:1820,
@@ -50,13 +56,13 @@ export const CAMPUS_NAVIGATION_PROFILE={
 } as const;
 
 export const BEAR_TREE_NAVIGATION_PROFILE={
-  cameraDistance:1200,
+  cameraDistance:1800,
   cameraFov:38,
   characterHeight:80,
 } as const;
 
 export const GOVERNMENT_NAVIGATION_PROFILE={
-  characterHeight:63,
+  characterHeight:78,
 } as const;
 
 const unifiedWorldMapIds=new Set<MapId>(UNIFIED_WORLD_MAP_IDS);

@@ -110,7 +110,7 @@ def _kakao_start():
         "state": state,
         # Always show Kakao account authentication even when a provider
         # session from an earlier visit is still active.
-        "prompt": "login",
+        # QR 인증을 포함한 카카오의 현재 로그인 세션을 그대로 사용한다.
     }
 
     scopes = getattr(secret_config, "KAKAO_LOGIN_SCOPES", "") or ""

@@ -1,13 +1,14 @@
 import Phaser from 'phaser';import type { UserProfile } from '../../types';import type { CharacterEmote,Direction,MapId,PlayerState } from '../../../shared/socket-events';import { createAvatar,animateAvatar,type AvatarContainer } from '../entities/createAvatar';import { gameEvents } from '../events';import { socket } from '../systems/socketClient';
 import { mapAssetManifest } from '../../data/mapAssetManifest';
 import { characterSettings } from '../character/characterSettings';
+import { PLAYER_MOVEMENT_SPEED } from '../worldNavigationProfile';
 import { directionFromMovement,directionYaw,jumpInputBlocked,motionState,movementInputBlocked,movementYaw,normalizedMovement,shortestAngleDelta } from '../character/characterMotion';
 import { BEAR_PLAY_ZONE_SPAWN,BEAR_TREE_PARK_SPAWN,CAMPUS_SPAWN,GARDEN_SPAWN,GOVERNMENT_CENTRAL_PLAZA_SPAWN,GOVERNMENT_OBSERVATORY_SPAWN,GOVERNMENT_SPAWN,LAKE_PARK_SPAWN,PROJECT_ROOM_SPAWN,PROJECT_ROOM_WORLD_HEIGHT,PROJECT_ROOM_WORLD_WIDTH,RECRUITMENT_CENTER_SPAWN,RECRUITMENT_CENTER_WORLD_HEIGHT,SEJONG_SMART_CITY_SPAWN,SEJONG_SMART_CITY_WORLD_HEIGHT,STUDENT_HALL_SPAWN,type VillageMapRenderer } from '../renderers/VillageMapRenderer';
 import type { GameReturnState } from '../gameReturnState';
 import { saveLocalPlayerResumeState } from '../playerResumeState';
 import { safeWorldEntrySpawn,worldPortalArrivalOverride } from '../worldPortalArrivals';
 import {loadSocialBlocks} from '../../services/socialSafety';
-import {buildAiSejongProfile} from '../../services/aiSejongProfile';
+import {buildProfileProgress} from '../../services/profileProgress';
 interface Remote { avatar:AvatarContainer; targetX:number; targetY:number; targetYaw:number; state:PlayerState;lastAnimationAt:number }
 interface SceneData {profile:UserProfile;mapId?:MapId;worldRenderers?:Partial<Record<MapId,VillageMapRenderer>>;ensureWorldRenderer?:(mapId:MapId)=>VillageMapRenderer|undefined;initialSpawn?:{x:number;z:number;yaw:number};previewOnly?:boolean}
 const labels:Record<MapId,string>={'personal-farm':'마이홈',town:'세종호수공원','arts-center':'세종예술의전당','festival-experience':'축제 부스','food-experience':'먹거리 부스','club-street-festival':'동아리 거리제','bear-tree-park':'베어트리파크','bear-play-zone':'곰 체험소',garden:'수목원',campus:'공동캠퍼스','student-hall':'학생회관','recruitment-center':'모집센터','project-room':'프로젝트실',government:'정부청사','government-central-plaza':'중앙광장','government-policy-hall':'정책 체험관','government-observatory':'전망대','sejong-smart-city':'세종 스마트시티 국가시범도시','jochwon-station':'조치원역','traditional-market':'세종전통시장','jochwon-park':'조치원공원','college-street':'대학로'};
@@ -59,7 +60,7 @@ export class WorldScene extends Phaser.Scene{
  destinationPin(x:number,y:number,label:string,destination:IllustratedDetailMapId){const pin=this.add.circle(x,y,34,0x294c49,.92).setStrokeStyle(5,0xffdf83).setInteractive({useHandCursor:true}).setData('destination',destination).setDepth(4500);this.add.text(pin.x,pin.y-54,label,{fontFamily:'Noto Sans KR, sans-serif',fontSize:'17px',fontStyle:'bold',color:'#173b36',backgroundColor:'#ffffffdd',padding:{x:9,y:5}}).setOrigin(.5).setDepth(4500);this.add.text(pin.x,pin.y,'입장',{fontSize:'11px',fontStyle:'bold',color:'#fff'}).setOrigin(.5).setDepth(4501)}
  showDevelopmentError(message:string){this.add.text(20,80,`맵 렌더링 오류\n${message}`,{fontFamily:'monospace',fontSize:'14px',color:'#ffffff',backgroundColor:'#9b2c2c',padding:{x:12,y:10},wordWrap:{width:620}}).setScrollFactor(0).setDepth(10000)}
  road(x:number,y:number,w:number,h:number){this.add.rectangle(x,y,w,h,0x768080).setStrokeStyle(8,0xe9dfbd);if(w>h)for(let px=x-w/2+60;px<x+w/2;px+=90)this.add.rectangle(px,y,42,5,0xfff3bf);else for(let py=y-h/2+60;py<y+h/2;py+=90)this.add.rectangle(x,py,5,42,0xfff3bf)}tree(x:number,y:number){this.add.rectangle(x,y+18,12,44,0x73513c);this.add.circle(x,y-12,32,0x4f9266).setStrokeStyle(4,0x87b879);this.obstacles.push(new Phaser.Geom.Rectangle(x-25,y-40,50,75))}
- onTravelToMap=(mapId:MapId,accept?:()=>void)=>{if(mapId==='government'&&buildAiSejongProfile(this.profile).completion<50){gameEvents.emit('government-access-blocked');return}void this.changeMap(mapId,accept)}
+ onTravelToMap=(mapId:MapId,accept?:()=>void)=>{if(mapId==='government'&&buildProfileProgress(this.profile).completion<50){gameEvents.emit('government-access-blocked');return}void this.changeMap(mapId,accept)}
  async changeMap(mapId:MapId,accept?:()=>void){
   if(this.transitioning||mapId===this.mapId)return;
   const sourceMapId=this.mapId;
@@ -98,7 +99,7 @@ export class WorldScene extends Phaser.Scene{
   this.isMoving=!!(movement.x||movement.y);const running=this.isMoving&&this.keys.SHIFT.isDown,state=motionState(movement,running);
   if(this.isMoving){
     this.targetYaw=movementYaw({x:worldMovement.x,y:worldMovement.z});this.direction=directionFromMovement(movement,this.direction);
-    const size=this.worldRenderer?movementSize(this.mapId):DETAIL,speed=running?characterSettings.runSpeed:characterSettings.walkSpeed,nextX=Phaser.Math.Clamp(this.player.x+worldMovement.x*speed*deltaSeconds,35,size.width-35),nextY=Phaser.Math.Clamp(this.groundY+worldMovement.z*speed*deltaSeconds,90,size.height-35);
+    const size=this.worldRenderer?movementSize(this.mapId):DETAIL,baseSpeed=running?PLAYER_MOVEMENT_SPEED.run:PLAYER_MOVEMENT_SPEED.walk,speed=this.mapId==='garden'?baseSpeed*1.5:this.mapId==='campus'?baseSpeed/1.5:baseSpeed,nextX=Phaser.Math.Clamp(this.player.x+worldMovement.x*speed*deltaSeconds,35,size.width-35),nextY=Phaser.Math.Clamp(this.groundY+worldMovement.z*speed*deltaSeconds,90,size.height-35);
     if(this.worldRenderer){this.player.x=nextX;this.groundY=nextY}else{if(this.jumpHeight>8||this.canMove(nextX,this.groundY))this.player.x=nextX;if(this.jumpHeight>8||this.canMove(this.player.x,nextY))this.groundY=nextY}
   }
   const focusedRemote=this.encounterPlayerId?this.remotes.get(this.encounterPlayerId):undefined;

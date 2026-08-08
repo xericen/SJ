@@ -15,7 +15,7 @@ const keyFor = (nickname: string) => `${PROFILE_VISITS_PREFIX}${nickname.trim().
 
 export type ProfileVisit = { mapId: MapId; visitedAt: string };
 export type ProfileZone = { id: string; label: string; maps: MapId[]; icon: string };
-export type ProfileRecord = { id: string; zone: string; title: string; note: string; point: number; at?: string; image: string; breakdown?: Array<{ label: string; point: number }> };
+export type ProfileRecord = { id: string; zone: string; title: string; note: string; point: number; at?: string; image: string; breakdown?: Array<{ label: string; point: number }>; profileScope?:'analysis'|'recent-only' };
 
 export const PROFILE_ZONES: ProfileZone[] = [
   { id: 'town', label: '세종호수공원', maps: ['town'], icon: '🌊' },
@@ -113,7 +113,8 @@ export function buildProfileProgress(profile: UserProfile) {
   );
   harnessHistory.forEach(activity => {
     const zone = MAP_LABELS[activity.mapId];
-    records.push({ id: `harness-${activity.id}`, zone, title: activity.title, note: activity.note, point: activity.point, breakdown: activity.breakdown, at: activity.recordedAt, image: imageForMap(activity.mapId) });
+    const recentOnly=['government-observatory','sejong-smart-city'].includes(activity.mapId)||(activity.mapId==='bear-tree-park'&&/포토|사진/.test(`${activity.title} ${activity.note}`));
+    records.push({ id: `harness-${activity.id}`, zone, title: activity.title, note: activity.note, point: activity.point, breakdown: activity.breakdown, at: activity.recordedAt, image: imageForMap(activity.mapId),profileScope:recentOnly?'recent-only':'analysis' });
   });
   if(festivalKeywords.length)records.push({
     id:'festival-keywords',
@@ -179,13 +180,13 @@ export function buildProfileProgress(profile: UserProfile) {
   bear.completedClues.forEach(id=>{const clue=BEAR_CLUES.find(item=>item.id===id),finding=bear.findings[id];records.push({id:`bear-${id}`,zone:'베어트리파크',title:clue?`${clue.title} 조사 완료`:'곰 생태 단서 조사 완료',note:[finding?.species&&`${finding.species}(으)로 판단`,finding?.evidence&&`근거: ${finding.evidence}`].filter(Boolean).join(' · ')||'관찰 결과와 판단 근거를 생태 조사 기록에 남겼어요',point:10,at:bear.completedAt,image:'/images/government-complex-diorama.png'});});
   const natureVisits = readJson<string[]>(`nature-discovery-visits-v1:${user}`, []);
   natureVisits.forEach((id,index)=>{const detail=NATURE_DISCOVERY_LABELS[id];if(detail)records.push({id:`nature-action-${id}-${index}`,zone:'베어트리파크',...detail,point:8,image:'/images/government-complex-diorama.png'});});
-  if (localStorage.getItem(`bear-tree-photo-completed-v1:${user}`) === 'true') records.push({ id: 'bear-photo', zone: '베어트리파크', title: '포토존 체험 완료', note: '베어트리파크 포토존에서 사진을 남겼어요', point: 12, image: '/images/government-complex-diorama.png' });
+  if (localStorage.getItem(`bear-tree-photo-completed-v1:${user}`) === 'true') records.push({ id: 'bear-photo', zone: '베어트리파크', title: '포토존 체험 완료', note: '베어트리파크 포토존에서 사진을 남겼어요', point: 12, image: '/images/government-complex-diorama.png',profileScope:'recent-only' });
   const governmentPlan = readJson<{title?:string;items?:Array<{placeName?:string}>;generatedAt?:number}|null>(`government-visit-plans:${profile.nickname}`, null);
   if (governmentPlan) {const places=governmentPlan.items?.map(item=>item.placeName).filter((name):name is string=>Boolean(name)).slice(0,4)??[];records.push({ id: 'government-plan', zone: '정부세종청사', title: governmentPlan.title?`${governmentPlan.title} 저장`:'나만의 세종 방문 계획 저장', note: places.length?`방문 순서: ${places.join(' → ')}`:'선택한 장소와 이동 조건으로 맞춤 코스를 완성했어요', point: 20,at:validDate(governmentPlan.generatedAt), image: '/images/government-complex-diorama.png' });}
   const smartCityResult = readJson<{completedAt?:number;visited?:string[];ratings?:Record<string,number>}|null>(`sejong-smart-city-experience-v2:${user}`, null);
   if(smartCityResult){
     const experienced=Array.isArray(smartCityResult.visited)?smartCityResult.visited.length:0;
-    records.push({id:'sejong-smart-city-experience',zone:'스마트시티 전시관',title:'세종 스마트 서비스 체험 완료',note:`자율주행 BRT·UAM·AI 교통관제·스마트 에너지·디지털 트윈·스마트 헬스케어 ${experienced}/6개 서비스를 체험했어요`,point:25,at:validDate(smartCityResult.completedAt),image:'/images/government-complex-diorama.png',breakdown:[{label:'스마트 서비스 체험',point:20},{label:'체험 결과 저장',point:5}]});
+    records.push({id:'sejong-smart-city-experience',zone:'스마트시티 전시관',title:'세종 스마트 서비스 체험 완료',note:`자율주행 BRT·UAM·AI 교통관제·스마트 에너지·디지털 트윈·스마트 헬스케어 ${experienced}/6개 서비스를 체험했어요`,point:25,at:validDate(smartCityResult.completedAt),image:'/images/government-complex-diorama.png',breakdown:[{label:'스마트 서비스 체험',point:20},{label:'체험 결과 저장',point:5}],profileScope:'recent-only'});
   }
   const applications = readJson<Array<{ id: string; applicantId: string; createdAt?: string }>>('sejong-project-room-applications-v1', []);
   applications.filter(item => item.applicantId === profile.nickname).forEach(item => records.push({ id: `project-${item.id}`, zone: '프로젝트실', title: '공동 프로젝트 지원', note: '세종 프로젝트에 참여 의사를 남겼어요', point: 15, at: item.createdAt, image: '/images/government-complex-diorama.png' }));
@@ -193,8 +194,9 @@ export function buildProfileProgress(profile: UserProfile) {
   if (habitat.result) records.push({ id: 'habitat', zone: '곰 체험소', title: '서식지 설계 완료', note: habitat.result.title, point: 25, at: habitat.result.completedAt, image: '/images/government-complex-diorama.png' });
 
   const sortedRecords = records.sort((a, b) => (b.at ? Date.parse(b.at) : 0) - (a.at ? Date.parse(a.at) : 0));
-  const experienceCount = sortedRecords.length;
-  const points = records.reduce((sum, item) => sum + item.point, 0);
+  const analysisRecords=sortedRecords.filter(item=>item.profileScope!=='recent-only');
+  const experienceCount = analysisRecords.length;
+  const points = analysisRecords.reduce((sum, item) => sum + item.point, 0);
   const visitedZoneCount = zones.filter(zone => zone.visited).length;
   const completion = Math.min(100, Math.round((visitedZoneCount / PROFILE_ZONES.length) * 45 + Math.min(1, experienceCount / 24) * 55));
   const performanceRecords = harnessHistory.filter(item => item.mapId === 'arts-center');
@@ -209,8 +211,8 @@ export function buildProfileProgress(profile: UserProfile) {
     culture: Math.min(100, zones.filter(z => ['arts-center', 'festival-experience'].includes(z.id) && z.visited).length * 12 + countArray(lake?.activities) * 8 + performancePoints * 3 + festivalSignal+campusAxes.culture),
     food: Math.min(100, foodSignal * 3 + (visitedIds.has('food-experience') ? 5 : 0)+campusAxes.food),
     relation: Math.min(100, zones.filter(z => ['campus', 'student-hall', 'project-room','club-street-festival'].includes(z.id) && z.visited).length * 6 + campus.length * 5+campusAxes.relation+harnessHistory.filter(item=>['campus','student-hall','recruitment-center','project-room','club-street-festival'].includes(item.mapId)).length*4),
-    record: Math.min(100, sortedRecords.filter(item=>!item.id.startsWith('campus-signal-')).length * 4 + greenhouse.memoryLeaves.length * 8 + performanceRecords.length * 5 + (festivalPlanning?6:0)+campusAxes.record),
-    explore: Math.min(100, visitedIds.size * 3 + (bearTravel.result ? 15 : 0) + performanceWatchCount * 6 + festivalKeywords.length*2 + (festivalPlanning?8:0) + Math.min(20,foodRecords.length*5+countArray(lake?.foodPlaceInterests)*3)+campusAxes.explore),
+    record: Math.min(100, analysisRecords.filter(item=>!item.id.startsWith('campus-signal-')).length * 4 + greenhouse.memoryLeaves.length * 8 + performanceRecords.length * 5 + (festivalPlanning?6:0)+campusAxes.record),
+    explore: Math.min(100, [...visitedIds].filter(id=>!['government-observatory','sejong-smart-city'].includes(id)).length * 3 + (bearTravel.result ? 15 : 0) + performanceWatchCount * 6 + festivalKeywords.length*2 + (festivalPlanning?8:0) + Math.min(20,foodRecords.length*5+countArray(lake?.foodPlaceInterests)*3)+campusAxes.explore),
   };
   return { visits, zones, records: sortedRecords, points, completion, visitedZoneCount, experienceCount, scores, lakeRecords, festivalKeywords, greenhouse, bear, campus, campusSignals };
 }

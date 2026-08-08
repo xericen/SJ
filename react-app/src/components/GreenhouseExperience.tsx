@@ -11,6 +11,7 @@ import { hasUsablePlantImage,plantGallery } from '../services/plantImages';
 import { loadPublicGreenhouseMemories,publishGreenhouseMemory,type PublicGreenhouseMemory } from '../services/publicGreenhouseMemories';
 import {flowerCatalogByFlowerId,flowerCatalogByPlantId} from '../services/flowerInterestProfile';
 import {analyzeMemoryTree,collectGardenFlower,getCachedPersonalFarmProgress,markGardenGuideSeen,PERSONAL_FARM_PROGRESS_CHANGED,personalFarmErrorMessage,toggleFavoriteGardenFlower} from '../services/personalFarmApi';
+import {recordExperienceAction} from '../services/experienceHarness';
 import './GreenhouseExperience.base.css';
 import './GreenhouseExperience.css';
 
@@ -91,6 +92,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
   },[]);
   const observePlant=useCallback(async(id:string)=>{
     const definition=greenhousePlantById.get(id);if(!definition)return;
+    recordExperienceAction({type:'greenhouse-observe',plantId:id,itemName:definition.displayName,category:definition.category,tags:definition.characteristics.slice(0,4),note:`${definition.displayName}의 특징과 관찰 포인트를 살펴봤어요.`});
     finishPlantInfoView();
     const tracked=service.recordPlantInfoOpen(service.load(),id);publish(tracked);
     const saved=tracked.collected.find(item=>item.plantId===id);
@@ -223,6 +225,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     setAnalysisStage(stage);setView('analyzing');
     const result=await requestGreenhouseAnalysis(next,stage);
     const analyzed=service.setAiAnalysis(next,{stage,source:result.source,generatedAt:new Date().toISOString(),analysis:result.analysis});
+    recordExperienceAction({type:'greenhouse-analysis',title:stage===5?'첫 자연 성향 발견':stage===10?'자연 성향 성장 분석':'자연 성향 완성',stage,tags:[result.analysis.frequentEmotion.title,result.analysis.natureValue.title,result.analysis.recordStyle.title],note:`${stage}종의 식물 관찰과 꽃말·특성을 충녕 AI가 분석했어요.`});
     window.dispatchEvent(new CustomEvent('sj-game-notice',{detail:'수목원 AI 자연 성향 분석이 완료되었습니다.'}));
     if(stage===14){
       const representativeId=rankGreenhouseProfilePlants(analyzed,1)[0]?.plantId;
@@ -236,6 +239,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     if(flowerCatalogEntry&&!(await collectCurrentFlower()))return;
     const base=finishPlantInfoView(),wasNew=!base.collected.some(item=>item.plantId===plant.id);
     const next=service.collectDiscovery(base,plant.id,message||createFallbackPlantMessage(plant));publish(next);
+    recordExperienceAction({type:'greenhouse-collect',plantId:plant.id,itemName:plant.displayName,category:plant.category,tags:plant.characteristics.slice(0,4),note:`${plant.displayName}을 채집해 나의 식물 기록에 저장했어요.`});
     const nextAnalysisStage=wasNew?nextGreenhouseAnalysisStage(base.collected.length,next.collected.length):null;
     if(nextAnalysisStage){await analyzeAndStore(next,nextAnalysisStage);return}
     close();
@@ -272,6 +276,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
       visibility:progress.recordVisibility
     };
     publish(existingLeaf?service.updateMemoryLeaf(progress,leaf):service.addMemoryLeaf(progress,leaf));setMemoryText('');setLetter('');setMemoryStep('write');setCreationStage(1);setExpandingLeafId(null);setSelectedLeaf(leaf);
+    recordExperienceAction({type:'greenhouse-memory',title:'기억나무 마음 기록',itemName:leaf.dominantEmotion||'자연의 기억',note:`기억나무에 “${leaf.originalText.slice(0,60)}” 기록을 남겼어요.`,tags:[leaf.dominantEmotion,leaf.natureType??''].filter(Boolean)});
     if(leaf.visibility==='public'){
       const representativePlant=progress.representativePlant?greenhousePlantById.get(progress.representativePlant.plantId)?.displayName:undefined;
       const plantNames=leaf.collectedPlantIds.map(id=>greenhousePlantById.get(id)?.displayName).filter((item):item is string=>Boolean(item));

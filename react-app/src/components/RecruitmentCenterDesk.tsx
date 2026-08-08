@@ -29,6 +29,7 @@ type CommunityRecruitmentPost={id:string;author:string;title:string;content:stri
 
 const GUIDE_ID='recruitment-center-guide-chungnyeong';
 const LOCAL_COMMUNITY_POSTS='sejong-community-posts-v1';
+const guestSession=()=>!localStorage.getItem('jochiwon-kakao-user-id')?.trim();
 const INITIAL_CHAT_MESSAGE='안녕하세요! 👋 저는 나의 관심사와 활동 기록을 바탕으로 돕는 개인 AI 충녕이예요. 함께할 사람을 찾거나, 모집글을 만들고, 신청 상태를 확인할 수 있어요.';
 
 const userId=(profile:UserProfile)=>profile.nickname.trim()||'anonymous';
@@ -106,9 +107,7 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
   useEffect(()=>{
     const show=()=>{const stored=loadProjectRoomProjects();setProjects(stored);void syncCommunityRecruitments(profile,stored).then(setProjects).catch(()=>setProjects(stored));setMode('chat');setLastApplied(null);setPendingApply(null);setRecruitmentComposer(false);setChatInput('');setChatError('');setChatMessages([{role:'assistant',text:INITIAL_CHAT_MESSAGE}]);setOpen(true)};
     gameEvents.on('recruitment-guide-open',show);
-    const leave=(mapId:string)=>{if(mapId!=='recruitment-center')recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'visit-complete',subject:'recruitment-center',title:'모집센터 방문 완료',note:'모집센터의 참여·작성 체험을 마치고 공동캠퍼스로 돌아왔어요',point:5,keywords:['모집 탐색','함께하기'],axes:{relation:2,explore:3}})};
-    gameEvents.on('map-travel-complete',leave);
-    return()=>{gameEvents.off('recruitment-guide-open',show);gameEvents.off('map-travel-complete',leave)};
+    return()=>{gameEvents.off('recruitment-guide-open',show)};
   },[profile.nickname]);
   useEffect(()=>onOpenChange(open),[onOpenChange,open]);
   useEffect(()=>{
@@ -139,7 +138,7 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
     return recruiting;
   },[projects,recommendations,sort]);
 
-  const close=()=>{recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'visit-complete',subject:'recruitment-center',title:'모집센터 방문 완료',note:'모집글을 살펴보고 참여·작성 체험을 확인했어요',point:5,keywords:['모집 탐색','함께하기'],axes:{relation:2,explore:3}});setOpen(false);setMode('chat');setLastApplied(null);setPendingApply(null)};
+  const close=()=>{setOpen(false);setMode('chat');setLastApplied(null);setPendingApply(null)};
   const openRecruitmentComposer=(draft?:RecruitmentDraft)=>{setRecruitmentForm({title:draft?.title??'',introduction:draft?.introduction??'',tags:draft?.tags??[],capacity:'5',date:'',place:''});setRecruitmentTagInput('');setRecruitmentComposer(true)};
   const addRecruitmentTag=()=>{const tag=recruitmentTagInput.trim().replace(/^#/,'');if(!tag)return;setRecruitmentForm(current=>current.tags.includes(tag)?current:{...current,tags:[...current.tags,tag].slice(0,8)});setRecruitmentTagInput('')};
   const removeRecruitmentTag=(tag:string)=>setRecruitmentForm(current=>({...current,tags:current.tags.filter(item=>item!==tag)}));
@@ -148,10 +147,12 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
     setRecruitmentSaving(true);
     const tags=recruitmentForm.tags,capacity=Math.min(100,Math.max(2,Number.parseInt(recruitmentForm.capacity,10)||2)),content=`${recruitmentForm.introduction.trim()}\n관심 태그: ${tags.join(', ')||'함께하기'}\n모집 인원: ${capacity}명\n모임 일정: ${recruitmentForm.date||'날짜 협의'}\n모이는 장소: ${recruitmentForm.place||'장소 협의'}\n참가 신청 시 모집자에게 프로필 카드가 전달됩니다.`;
     try{
-      const response=await fetch(`${API_BASE_URL}/community?action=create&payload=${encodeURIComponent(JSON.stringify({author:profile.nickname,title:recruitmentForm.title.trim(),content,category:'모임·행사'}))}`);
+      const postId=`recruitment-post-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      if(guestSession())throw new Error('guest-local-recruitment');
+      const response=await fetch(`${API_BASE_URL}/community?action=create&payload=${encodeURIComponent(JSON.stringify({id:postId,author:profile.nickname,title:recruitmentForm.title.trim(),content,category:'모임·행사',likes:0,likedBy:[],createdAt:new Date().toISOString()}))}`);
       if(!response.ok){const body=await response.json().catch(()=>({})) as {message?:string;error?:{message?:string}};throw new Error(body.error?.message??body.message??'모집글을 등록하지 못했어요.')}
       const body=await response.json() as CommunityRecruitmentPost[]|{data?:{items?:CommunityRecruitmentPost[]};items?:CommunityRecruitmentPost[]};
-      const post=Array.isArray(body)?body[0]:body.data?.items?.[0]??body.items?.[0],created=post?recruitmentPostToProject(post):null;
+      const post=Array.isArray(body)?body[0]:body.data?.items?.[0]??body.items?.[0]??(body as CommunityRecruitmentPost),created=post?.id?recruitmentPostToProject(post):null;
       if(created)setProjects(current=>{const next=[created,...current.filter(project=>project.id!==created.id)];saveProjectRoomProjects(next);return next});
       recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'create-recruitment',subject:created?.id??`local-post-${Date.now()}`,title:'모집글 작성 완료',note:`${recruitmentForm.title.trim()} 모집글을 작성해 내 모집 관리에 저장했어요`,point:12,keywords:['모집','주도적 참여',...tags],axes:{relation:5,record:6,explore:2}});
       setRecruitmentComposer(false);setChatMessages(current=>[...current,{role:'assistant',text:`“${recruitmentForm.title.trim()}” 모집글을 등록했어요. 이제 신청자가 오면 내 모집 관리에서 확인할 수 있어요.`,management:true}]);onNotice('새 모집글을 등록했어요.');
@@ -180,6 +181,8 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
   const applied=(project:Project)=>project.applicantIds.includes(userId(profile));
   const askChat=async(rawMessage:string)=>{
     const message=rawMessage.trim();if(!message||chatBusy)return;
+    const topic=inferCampusTopicProfile(message);
+    recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'ai-recruiter-chat',subject:message,title:'충녕 AI 리크루터와 대화',note:`“${message.slice(0,80)}”에 관해 모집 활동을 상담했어요`,point:5,keywords:['AI 리크루터','모집 상담',...topic.keywords],axes:{...topic.axes,relation:3,record:2}});
     if(/관심사|프로필/.test(message)&&/수정|변경/.test(message)){close();onEditInterests();return}
     setChatInput('');setChatError('');setChatMessages(current=>[...current,{role:'user',text:message}]);
     if(/참여할 모집|모집.*찾|모집.*보여/.test(message)){
@@ -201,6 +204,7 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
     if(action==='TRAVEL'){close();onTravelProjectRoom();return}
     if(card.type==='recruitment'){
       const project=projects.find(item=>item.id===card.id);
+      if(project){const topic=inferCampusTopicProfile(project.title,project.summary,...project.tags);recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'view-recruitment',subject:project.id,title:'모집글 상세 확인',note:`${project.title}의 활동 내용과 모집 조건을 살펴봤어요`,point:4,keywords:['모집 탐색',...project.tags,...topic.keywords],axes:{...topic.axes,relation:2,explore:3}})}
       if(action==='PROFILE_REQUEST'&&project){setPendingApply(project);return}
       setMode('join');return;
     }

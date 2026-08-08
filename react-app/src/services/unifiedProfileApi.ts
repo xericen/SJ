@@ -9,7 +9,7 @@ async function send(path:string,value:unknown){
   if(!response.ok)throw new Error(`Unified profile sync failed (${response.status})`);
 }
 async function sendWizProject(project:unknown){
-  const response=await fetch(WIZ_PROJECTS_ENDPOINT,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({resource:'projectRoomProjects',payload:JSON.stringify(project)})});
+  const response=await fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomProjects&payload=${encodeURIComponent(JSON.stringify(project))}`,{method:'POST',credentials:'include'});
   const body=await response.json() as {code?:number;data?:{message?:string}};
   if(!response.ok||body.code!==200)throw new Error(body.data?.message??`Project sync failed (${response.status})`);
 }
@@ -21,6 +21,10 @@ const sendWizShared=async(kind:string,value:unknown)=>{
 
 export const syncCampusProfileSignal=(signal:unknown)=>send('/campus-signal',signal);
 export const syncUnifiedProject=(project:unknown)=>useWizRuntime()?Promise.allSettled([sendWizProject(project),sendWizShared('project-room-project',project)]).then(results=>{if(results.every(result=>result.status==='rejected'))throw new Error('Project sync failed');}):send('/projects',project);
+export const deleteUnifiedProject=(project:Pick<{id:string;leaderId:string},'id'|'leaderId'>)=>useWizRuntime()?Promise.allSettled([
+  fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomProjects&action=delete`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({payload:JSON.stringify(project)})}).then(response=>{if(!response.ok)throw new Error('Project delete failed') }),
+  fetch(`${WIZ_SHARED_PROJECTS_ENDPOINT}?action=delete&payload=${encodeURIComponent(JSON.stringify(project))}`,{credentials:'include'}).then(response=>{if(!response.ok)throw new Error('Shared project delete failed') }),
+]).then(results=>{if(results.every(result=>result.status==='rejected'))throw new Error('Project delete failed');}):Promise.resolve();
 export const syncUnifiedProjectApplication=(application:unknown)=>useWizRuntime()?sendWizShared('project-room-application',application):send('/project-applications',application);
 
 export async function fetchUnifiedProjectApplications(){

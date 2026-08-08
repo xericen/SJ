@@ -3,6 +3,43 @@ type WithdrawResult = {
   kakaoUnlinked: boolean | null;
 };
 
+export type AccountSession = {
+  userId: string;
+  nickname: string;
+};
+
+export async function loadAccountSession(): Promise<AccountSession | null> {
+  const response = await fetch('/wiz/api/page.home/me', {
+    credentials: 'include',
+  });
+  const body = await response.json() as {
+    code?: number;
+    data?: {
+      user?: {
+        id?: unknown;
+        name?: unknown;
+      } | null;
+      message?: string;
+    };
+  };
+
+  if (!response.ok || body.code !== 200) {
+    throw new Error(body.data?.message || '로그인 정보를 확인하지 못했습니다.');
+  }
+
+  const userId = typeof body.data?.user?.id === 'string'
+    ? body.data.user.id.trim()
+    : '';
+  if (!userId) return null;
+
+  return {
+    userId,
+    nickname: typeof body.data?.user?.name === 'string'
+      ? body.data.user.name.trim()
+      : '',
+  };
+}
+
 export async function withdrawAccount(): Promise<WithdrawResult> {
   const response = await fetch('/wiz/api/page.home/withdraw', {
     method: 'POST',

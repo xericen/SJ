@@ -13,6 +13,7 @@ import {
   recommendProjects,
   saveProjectApplications,
   saveProjectRoomProjects,
+  resetGuestProjectRoomProfile,
   suggestProjectCopy,
   suggestProjectTraits,
   type AIProjectRecommendation,
@@ -25,7 +26,8 @@ import { loadTravelProjectDraft,saveTravelProjectDraft,type TravelIdea,type Trav
 import { API_BASE_URL } from '../config/api';
 import type { GovernmentCourse } from '../../shared/socket-events';
 import {clearClubProjectContext,loadClubProjectContext} from '../services/clubProjectBridge';
-import {syncUnifiedProjectApplication} from '../services/unifiedProfileApi';
+import {deleteUnifiedProject,syncUnifiedProjectApplication} from '../services/unifiedProfileApi';
+import {inferCampusTopicProfile,recordCampusProfileSignal} from '../services/campusProfileSignals';
 
 type Panel='kiosk-home'|'board'|'mine'|'recommendation'|'sejong-schedule'|'project-status'|'creation'|'course'|'door'|'detail'|'profile-send'|null;
 type PlaceSearchResult={id:string;name:string;category:string;address:string;roadAddress:string;externalUrl:string;longitude:number;latitude:number;source:'kakao'|'mock'};
@@ -66,6 +68,7 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
   const [filter,setFilter]=useState('전체');
   const [message,setMessage]=useState('');
   const [created,setCreated]=useState<Project|null>(null);
+  const [sessionCreatedProjects,setSessionCreatedProjects]=useState<Project[]>([]);
   const [creationSession,setCreationSession]=useState(0);
   const [kioskActive,setKioskActive]=useState(false);
   const [kioskScreenRect,setKioskScreenRect]=useState<{left:number;top:number;width:number;height:number}|null>(null);
@@ -73,7 +76,8 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
   const [activeProjectId,setActiveProjectId]=useState<string|null>(()=>localStorage.getItem(ACTIVE_PROJECT_ROOM_KEY));
   const panelRef=useRef<HTMLElement>(null);
   const aiProfile=useMemo(()=>buildAiSejongProfile(profile),[profile]);
-  const recommendations=useMemo(()=>recommendProjects(projects,profile),[profile,projects]);
+  const displayedProjects=useMemo(()=>[...projects,...sessionCreatedProjects.filter(project=>!projects.some(item=>item.id===project.id))],[projects,sessionCreatedProjects]);
+  const recommendations=useMemo(()=>recommendProjects(displayedProjects,profile),[profile,displayedProjects]);
 
   useEffect(()=>{
     setProjects(current=>{
@@ -133,8 +137,9 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
       gameEvents.off('project-room-instance-enter',projectInstance);
     };
   },[]);
-  useEffect(()=>{if(!active){setNearby(null);setNearbySeat(null);setPanel(null);setSelected(null);setActiveProjectId(null);localStorage.removeItem(ACTIVE_PROJECT_ROOM_KEY);setKioskActive(false);gameEvents.emit('project-room-focus-changed',undefined)}},[active]);
+  useEffect(()=>{if(!active){setNearby(null);setNearbySeat(null);setPanel(null);setSelected(null);setActiveProjectId(null);setSessionCreatedProjects([]);localStorage.removeItem(ACTIVE_PROJECT_ROOM_KEY);if(!localStorage.getItem('jochiwon-kakao-user-id')?.trim()){void Promise.all(projects.filter(project=>project.leaderId===profile.nickname).map(project=>deleteUnifiedProject(project)));resetGuestProjectRoomProfile();setProjects([]);setApplications([])}gameEvents.emit('project-room-focus-changed',undefined)}},[active,profile.nickname,projects]);
   useEffect(()=>{if(active)void Promise.all([refreshProjectRoomProjects(),refreshProjectApplications()]).then(([nextProjects,nextApplications])=>{setProjects(nextProjects);setApplications(nextApplications)}).catch(()=>undefined)},[active]);
+  useEffect(()=>{if(!active)return;const refresh=()=>{void Promise.all([refreshProjectRoomProjects(),refreshProjectApplications()]).then(([nextProjects,nextApplications])=>{setProjects(nextProjects);setApplications(nextApplications)}).catch(()=>undefined)};const timer=window.setInterval(refresh,2500);return()=>window.clearInterval(timer)},[active]);
   useEffect(()=>onOpenChange(panel!==null||kioskActive),[kioskActive,onOpenChange,panel]);
   useEffect(()=>{if(kioskActive)panelRef.current?.scrollTo({top:0,left:0})},[kioskActive,panel]);
   useEffect(()=>{
@@ -156,15 +161,15 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
     return()=>window.removeEventListener('keydown',escape);
   },[kioskActive,panel,returnPanel]);
 
-  const filtered=projects.filter(project=>project.status==='recruiting'&&project.visibility!=='private'&&project.leaderId!==profile.nickname&&!project.memberIds.includes(profile.nickname))
+  const filtered=displayedProjects.filter(project=>project.status==='recruiting'&&project.visibility!=='private'&&(project.leaderId===profile.nickname||!project.memberIds.includes(profile.nickname)))
     .filter(project=>filter==='전체'||project.tags.includes(filter)||project.activityTypes.includes(filter))
     .filter(project=>!query.trim()||[project.title,project.summary,...project.tags,...project.placeIds].join(' ').toLowerCase().includes(query.trim().toLowerCase()));
   const isSent=(project:Project)=>applications.some(item=>item.projectId===project.id&&item.applicantId===profile.nickname);
-  const myProjects=projects.filter(project=>project.leaderId===profile.nickname||project.memberIds.includes(profile.nickname));
+  const myProjects=displayedProjects.filter(project=>project.leaderId===profile.nickname||project.memberIds.includes(profile.nickname));
   const readyProjects=myProjects.filter(project=>project.memberIds.length>=project.maxMembers);
   const resolvedActiveProjectId=activeProjectId??(readyProjects.length===1?readyProjects[0].id:null);
-  const activeProject=projects.find(project=>project.id===resolvedActiveProjectId)??null;
-  const showDetail=(project:Project,from:'board'|'recommendation'|'creation')=>{setSelected(project);setReturnPanel(from);setPanel('detail')};
+  const activeProject=displayedProjects.find(project=>project.id===resolvedActiveProjectId)??null;
+  const showDetail=(project:Project,from:'board'|'recommendation'|'creation')=>{const topic=inferCampusTopicProfile(project.title,project.summary,...project.tags,...project.activityTypes);recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'view-project',subject:project.id,title:'프로젝트 상세 확인',note:`${project.title}의 활동·장소·역할 정보를 살펴봤어요`,point:4,keywords:['프로젝트 관심',...project.tags,...topic.keywords],axes:{...topic.axes,relation:2,explore:3}});setSelected(project);setReturnPanel(from);setPanel('detail')};
   const showProfileSend=(project:Project,from:'board'|'recommendation')=>{if(isSent(project))return;setSelected(project);setReturnPanel(from);setMessage('');setPanel('profile-send')};
   const sendProfile=()=>{
     if(!selected||isSent(selected))return;
@@ -172,7 +177,22 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
     setApplications(nextApplications);saveProjectApplications(nextApplications);
     const nextProjects=projects.map(project=>project.id===selected.id?{...project,applicantIds:[...new Set([...project.applicantIds,profile.nickname])]}:project);
     setProjects(nextProjects);saveProjectRoomProjects(nextProjects);
+    const topic=inferCampusTopicProfile(selected.title,selected.summary,...selected.tags,...selected.activityTypes);recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'apply-project',subject:selected.id,title:'관심 프로젝트 참여 신청',note:`${selected.title}에 관심을 표시하고 프로필을 전달했어요`,point:10,keywords:['프로젝트 참여',...selected.tags,...topic.keywords],axes:{...topic.axes,relation:7,explore:3}});
     setPanel(returnPanel);onNotice('프로필 전달 완료 · 팀장 확인 중');
+  };
+  const reviewApplication=(application:ProjectApplication,status:'accepted'|'rejected')=>{
+    if(!selected||selected.leaderId!==profile.nickname)return;
+    const nextApplications=applications.map(item=>item.id===application.id?{...item,status}:item);
+    const nextProjects=projects.map(project=>{
+      if(project.id!==selected.id)return project;
+      const memberIds=status==='accepted'?[...new Set([...project.memberIds,application.applicantId])]:project.memberIds;
+      return {...project,memberIds,applicantIds:project.applicantIds.filter(id=>id!==application.applicantId),status:memberIds.length>=project.maxMembers?'active':project.status};
+    });
+    setApplications(nextApplications);saveProjectApplications(nextApplications);setProjects(nextProjects);saveProjectRoomProjects(nextProjects);setSelected(nextProjects.find(project=>project.id===selected.id)??selected);onNotice(status==='accepted'?`${application.applicantId}님의 참여 신청을 수락했어요.`:`${application.applicantId}님의 참여 신청을 거절했어요.`);
+  };
+  const deleteProject=(project:Project)=>{
+    if(project.leaderId!==profile.nickname)return;
+    const next=projects.filter(item=>item.id!==project.id);setProjects(next);setSessionCreatedProjects(current=>current.filter(item=>item.id!==project.id));void deleteUnifiedProject(project).catch(()=>undefined);saveProjectRoomProjects(next);saveProjectApplications(applications.filter(item=>item.projectId!==project.id));setApplications(current=>current.filter(item=>item.projectId!==project.id));setSelected(null);setPanel(returnPanel==='mine'?'mine':'board');onNotice('프로젝트를 삭제했어요.');
   };
 
   return <>
@@ -196,7 +216,7 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
         {panel==='board'&&<>
           <PanelHeader eyebrow="PROJECT BOARD" icon="📌" title="프로젝트 둘러보기" copy="내 프로젝트를 제외한 공개 프로젝트를 확인하고 체험 프로필로 참가를 신청하세요."/>
           <div className="project-room-tools"><label><Search size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="모집글·장소·태그 검색"/></label><nav>{filters.map(item=><button type="button" className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</nav></div>
-          <div className="project-board-list">{filtered.map(project=><ProjectCard key={project.id} project={project} recommendation={recommendations.find(item=>item.projectId===project.id)} sent={isSent(project)} onDetail={()=>showDetail(project,'board')} onSend={()=>showProfileSend(project,'board')}/>)}</div>
+          <div className="project-board-list">{filtered.map(project=><ProjectCard key={project.id} project={project} recommendation={recommendations.find(item=>item.projectId===project.id)} sent={isSent(project)} canApply={project.leaderId!==profile.nickname&&!project.memberIds.includes(profile.nickname)} onDetail={()=>showDetail(project,'board')} onSend={()=>showProfileSend(project,'board')}/>)}</div>
           {!filtered.length&&<EmptyState text="검색 조건에 맞는 프로젝트가 없어요." hint="내가 만든 프로젝트와 참여 중인 프로젝트는 ‘내 프로젝트’에서 확인할 수 있어요."/>}
         </>}
 
@@ -218,9 +238,9 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
 
         {panel==='course'&&(activeProject?<CourseCollaborationTable key={activeProject.id} project={activeProject} profile={profile} onNotice={onNotice}/>:<section className="project-door-waiting"><Users/><b>선택된 프로젝트가 없습니다</b><p>팀 프로젝트를 선택해 내부 협업 공간으로 먼저 입장해 주세요.</p></section>)}
 
-        {panel==='creation'&&<ProjectCreationForm key={creationSession} profile={profile} onCreated={project=>{const next=[project,...projects];setProjects(next);saveProjectRoomProjects(next);setCreated(project);setPanel(kioskActive?'kiosk-home':null);onNotice('새 프로젝트를 모집 중으로 등록했어요.')}} onDetail={project=>showDetail(project,'creation')} created={created}/>}
+        {panel==='creation'&&<ProjectCreationForm key={creationSession} profile={profile} onCreated={project=>{const topic=inferCampusTopicProfile(project.title,project.summary,...project.tags,...project.activityTypes);recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'create-project',subject:project.id,title:'새 프로젝트 만들기',note:`${project.title} 프로젝트를 만들고 ${project.activityTypes.join(' · ')||'협업'} 활동을 계획했어요`,point:14,keywords:['프로젝트 기획','주도적 활동',...project.tags,...topic.keywords],axes:{...topic.axes,relation:5,record:7,explore:4}});const next=[project,...projects];setSessionCreatedProjects(current=>[project,...current.filter(item=>item.id!==project.id)]);setProjects(next);saveProjectRoomProjects(next);setCreated(project);setPanel(kioskActive?'kiosk-home':null);onNotice('새 프로젝트를 모집 중으로 등록했어요.')}} onDetail={project=>showDetail(project,'creation')} created={created}/>}
 
-        {panel==='detail'&&selected&&<ProjectDetail project={selected} sent={isSent(selected)} canApply={returnPanel!=='mine'} onBack={()=>setPanel(returnPanel)} onSend={()=>showProfileSend(selected,returnPanel==='recommendation'?'recommendation':'board')}/>}
+        {panel==='detail'&&selected&&<ProjectDetail project={selected} profile={profile} applications={applications.filter(item=>item.projectId===selected.id)} sent={isSent(selected)} canApply={selected.leaderId!==profile.nickname&&!selected.memberIds.includes(profile.nickname)} onBack={()=>setPanel(returnPanel)} onSend={()=>showProfileSend(selected,returnPanel==='recommendation'?'recommendation':'board')} onReview={reviewApplication} onDelete={deleteProject}/>}
 
         {panel==='profile-send'&&selected&&<section className="profile-send-modal">
           <PanelHeader eyebrow="PROFILE DELIVERY" icon="📨" title="내 체험 프로필 전달하기" copy="바로 가입되지 않으며, 팀장이 확인한 뒤 참여 여부를 결정합니다."/>
@@ -335,6 +355,7 @@ function CourseCollaborationTable({project,profile,onNotice}:{project:Project;pr
     if(!name)return;
     const emoji={place:'📍',theme:'✨',festival:'🎉',food:'🍑'}[ideaComposer];
     update({...draft,ideas:[...draft.ideas,{id:`idea-${Date.now()}`,name,category:ideaComposer,emoji,votes:1}],status:'draft'});
+    const topic=inferCampusTopicProfile(name,labels[ideaComposer]);recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'project-activity',subject:`${project.id}-${ideaComposer}-${name}`,title:'프로젝트 활동 아이디어 제안',note:`${project.title}에 ${name} 아이디어를 제안했어요`,point:5,keywords:['협업 활동',name,...topic.keywords],axes:{...topic.axes,relation:3,record:3,explore:2}});
     onNotice(`${labels[ideaComposer]} 아이디어 '${name}'을 추가했어요.`);
     setIdeaComposer(null);setIdeaInput('');
   };
@@ -357,7 +378,7 @@ function CourseCollaborationTable({project,profile,onNotice}:{project:Project;pr
     update({...draft,messages:[...(draft.messages??[]),{id:`message-${Date.now()}`,author:profile.nickname,text,createdAt:new Date().toISOString()}]});
     setChatInput('');
   };
-  const changeRole=(name:string,role:string)=>update({...draft,roles:draft.roles.map(member=>member.name===name?{...member,role}:member),status:'draft'});
+  const changeRole=(name:string,role:string)=>{update({...draft,roles:draft.roles.map(member=>member.name===name?{...member,role}:member),status:'draft'});recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'project-role',subject:`${project.id}-${name}`,title:'프로젝트 역할 정하기',note:`${project.title}에서 ${name}님의 역할을 ${role}(으)로 정했어요`,point:5,keywords:['역할 협업',role],axes:{relation:4,record:2}})};
   const requestReview=()=>{
     if(!draft.ideas.some(idea=>idea.category==='place')){setTab('ideas');onNotice('최종 검토 전에 장소를 하나 이상 추가해 주세요.');return}
     if(draft.roles.some(member=>member.role==='역할 미정')){setTab('roles');onNotice('최종 검토 전에 모든 팀원의 역할을 정해 주세요.');return}
@@ -472,14 +493,15 @@ function CourseSecondaryTab({tab,profile}:{tab:'roles'|'schedule'|'info';profile
   return <div className="course-secondary"><span>{content.icon}</span><h3>{content.title}</h3><p>{content.copy}</p><div>{content.items.map(item=><article key={item}><Check/><b>{item}</b></article>)}</div></div>;
 }
 
-function ProjectCard({project,recommendation,sent,onDetail,onSend}:{project:Project;recommendation?:AIProjectRecommendation;sent:boolean;onDetail:()=>void;onSend:()=>void}){
+function ProjectCard({project,recommendation,sent,canApply,onDetail,onSend}:{project:Project;recommendation?:AIProjectRecommendation;sent:boolean;canApply:boolean;onDetail:()=>void;onSend:()=>void}){
   const match=recommendation?.matchScore??Math.min(96,66+project.tags.length*5);
-  return <article className="project-board-card"><header><span style={{background:project.id.includes('garden')?'#5cae85':project.id.includes('festival')?'#8a6ad2':'#d38a53'}}>{project.thumbnail??'💡'}</span><div><small>{project.placeIds[0]} · 모집글</small><h3>{project.title}</h3><p>{project.summary}</p></div><strong>{match}%<small>적합도</small></strong></header><div className="project-tags">{project.tags.map(tag=><i key={tag}>#{tag}</i>)}</div><dl><div><Users size={14}/><span><dt>모집 현황</dt><dd>{project.memberIds.length}/{project.maxMembers}명</dd></span></div><div><CalendarDays size={14}/><span><dt>일정</dt><dd>{formatDate(project.startDate)}</dd></span></div><div><Sparkles size={14}/><span><dt>관심 태그</dt><dd>{project.tags.slice(0,2).join(' · ')}</dd></span></div></dl><p className="project-reason">추천 이유 · {recommendation?.reasons[0]??`${project.tags.slice(0,2).join('과 ')} 관심사가 잘 맞는 모집글이에요.`}</p><footer><button type="button" onClick={onDetail}>상세 보기 <ChevronRight size={13}/></button><button type="button" disabled={sent} onClick={onSend}>{sent?<><Check size={14}/> 승인 대기 중</>:<><Send size={14}/> 참가 신청</>}</button></footer></article>;
+  return <article className="project-board-card"><header><span style={{background:project.id.includes('garden')?'#5cae85':project.id.includes('festival')?'#8a6ad2':'#d38a53'}}>{project.thumbnail??'💡'}</span><div><small>{project.placeIds[0]} · 모집글</small><h3>{project.title}</h3><p>{project.summary}</p></div><strong>{match}%<small>적합도</small></strong></header><div className="project-tags">{project.tags.map(tag=><i key={tag}>#{tag}</i>)}</div><dl><div><Users size={14}/><span><dt>모집 현황</dt><dd>{project.memberIds.length}/{project.maxMembers}명</dd></span></div><div><CalendarDays size={14}/><span><dt>일정</dt><dd>{formatDate(project.startDate)}</dd></span></div><div><Sparkles size={14}/><span><dt>관심 태그</dt><dd>{project.tags.slice(0,2).join(' · ')}</dd></span></div></dl><p className="project-reason">추천 이유 · {recommendation?.reasons[0]??`${project.tags.slice(0,2).join('과 ')} 관심사가 잘 맞는 모집글이에요.`}</p><footer><button type="button" onClick={onDetail}>상세 보기 <ChevronRight size={13}/></button>{canApply?<button type="button" disabled={sent} onClick={onSend}>{sent?<><Check size={14}/> 승인 대기 중</>:<><Send size={14}/> 참가 신청</>}</button>:<span className="project-owner-badge">내 프로젝트 · 신청 불가</span>}</footer></article>;
 }
 
-function ProjectDetail({project,sent,canApply,onBack,onSend}:{project:Project;sent:boolean;canApply:boolean;onBack:()=>void;onSend:()=>void}){
-  const recruitment=isRecruitmentPost(project);
-  return <section className="project-detail-panel"><button type="button" className="project-detail-back" onClick={onBack}><ChevronRight/> 이전</button><PanelHeader eyebrow={recruitment?'RECRUITMENT DETAIL':'PROJECT DETAIL'} icon={project.thumbnail??'💡'} title={project.title} copy={project.summary}/><div className="project-detail-hero"><div><small>대표 장소</small><b><MapPin size={15}/>{project.placeIds.join(' · ')}</b></div><div><small>{recruitment?'모집 현황':'참여 현황'}</small><b><Users size={15}/>{project.memberIds.length}/{project.maxMembers}명</b></div><div><small>{recruitment?'모임 일정':'프로젝트 일정'}</small><b><CalendarDays size={15}/>{formatDate(project.startDate)}</b></div></div><article><small>{recruitment?'모집 내용':'프로젝트 목적'}</small><p>{project.description}</p></article><div className="project-detail-columns"><section><small>활동과 태그</small><div>{[...project.activityTypes,...project.tags].map(item=><span key={item}>#{item}</span>)}</div></section><section><small>{recruitment?'관심 태그':'팀장이 원하는 참여자'}</small><div>{(recruitment?project.tags:project.preferredTraits).map(item=><span key={item}>#{item}</span>)}</div></section></div><footer><p>{recruitment?'참가 신청 시 공개한 체험 프로필이 모집자에게 전달됩니다.':canApply?'참가 확정 전 체험 프로필을 팀장에게 전달합니다.':'현재 참여 중인 프로젝트의 상세 정보입니다.'}</p>{canApply&&<button type="button" disabled={sent} onClick={onSend}>{sent?'프로필 전달 완료 · 승인 대기 중':recruitment?'내 프로필로 참가 신청':'프로필 전달하기'}</button>}</footer></section>;
+function ProjectDetail({project,profile,applications,sent,canApply,onBack,onSend,onReview,onDelete}:{project:Project;profile:UserProfile;applications:ProjectApplication[];sent:boolean;canApply:boolean;onBack:()=>void;onSend:()=>void;onReview:(application:ProjectApplication,status:'accepted'|'rejected')=>void;onDelete:(project:Project)=>void}){
+  const recruitment=isRecruitmentPost(project),isOwner=project.leaderId===profile.nickname;
+  const pendingApplications=applications.filter(application=>application.status==='pending');
+  return <section className="project-detail-panel"><button type="button" className="project-detail-back" onClick={onBack}><ChevronRight/> 이전</button><PanelHeader eyebrow={recruitment?'RECRUITMENT DETAIL':'PROJECT DETAIL'} icon={project.thumbnail??'💡'} title={project.title} copy={project.summary}/><div className="project-detail-hero"><div><small>대표 장소</small><b><MapPin size={15}/>{project.placeIds.join(' · ')}</b></div><div><small>{recruitment?'모집 현황':'참여 현황'}</small><b><Users size={15}/>{project.memberIds.length}/{project.maxMembers}명</b></div><div><small>{recruitment?'모임 일정':'프로젝트 일정'}</small><b><CalendarDays size={15}/>{formatDate(project.startDate)}</b></div></div><article><small>{recruitment?'모집 내용':'프로젝트 목적'}</small><p>{project.description}</p></article><div className="project-detail-columns"><section><small>활동과 태그</small><div>{[...project.activityTypes,...project.tags].map(item=><span key={item}>#{item}</span>)}</div></section><section><small>{recruitment?'관심 태그':'팀장이 원하는 참여자'}</small><div>{(recruitment?project.tags:project.preferredTraits).map(item=><span key={item}>#{item}</span>)}</div></section></div>{isOwner&&<section className="project-detail-applicants"><header><div><b>참여 신청자</b><small>승인할 신청을 선택하세요</small></div><span>{pendingApplications.length}명 대기</span></header>{pendingApplications.length?pendingApplications.map(application=><article className="project-applicant-card" key={application.id}><div className="project-applicant-avatar">{application.applicantId.slice(0,1)}</div><div className="project-applicant-main"><b>{application.applicantId}</b><small>{application.profileSnapshot.travelStyle??'체험 프로필'} · 승인 대기</small>{application.profileSnapshot.introduction&&<p>{application.profileSnapshot.introduction}</p>}</div><footer><button type="button" className="applicant-reject" onClick={()=>onReview(application,'rejected')}>거절</button><button type="button" className="applicant-accept" onClick={()=>onReview(application,'accepted')}><Check size={14}/> 수락</button></footer></article>):<p className="project-applicant-empty">대기 중인 신청자가 없어요.</p>}</section>}{project.status==='active'&&<div className="project-complete-banner"><Check size={18}/><div><b>프로젝트 완성</b><small>팀 인원이 모두 모여 프로젝트실에 입장할 수 있어요.</small></div></div>}<footer><p>{isOwner?'내 프로젝트입니다. 신청자를 확인하고 참여를 승인할 수 있어요.':canApply?'참가 신청 시 공개한 체험 프로필이 모집자에게 전달됩니다.':'현재 참여 중인 프로젝트의 상세 정보입니다.'}</p>{isOwner?<button type="button" className="project-delete-button" onClick={()=>{if(window.confirm('이 프로젝트를 삭제할까요?'))onDelete(project)}}><Trash2 size={14}/> 프로젝트 삭제</button>:canApply&&<button type="button" disabled={sent} onClick={onSend}>{sent?'프로필 전달 완료 · 승인 대기 중':'프로필 전달하기'}</button>}</footer></section>;
 }
 
 function ProjectCreationForm({profile,onCreated,onDetail,created}:{profile:UserProfile;onCreated:(project:Project)=>void;onDetail:(project:Project)=>void;created:Project|null}){

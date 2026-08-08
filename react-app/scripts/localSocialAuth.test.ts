@@ -4,6 +4,7 @@ import test from 'node:test';
 import { clearAllAccountData } from '../src/services/accountData';
 import {
   loadAccountProfile,
+  loadAccountSession,
   saveAccountProfile,
 } from '../src/services/accountProfile';
 import { defaultProfile } from '../src/stores/profileStore';
@@ -62,6 +63,27 @@ test('소셜 프로필은 WIZ 계정 API에서 복원한다', async () => {
   try {
     const profile = await loadAccountProfile();
     assert.equal(profile?.nickname, '다시온사용자');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('카카오 콜백 URL이 사라져도 WIZ 세션에서 로그인을 복원한다', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    assert.equal(input, '/wiz/api/page.home/me');
+    return new Response(JSON.stringify({
+      code: 200,
+      data: { user: { id: 'server-user-id', name: '세션사용자' } },
+    }), { status: 200 });
+  };
+
+  try {
+    const session = await loadAccountSession();
+    assert.deepEqual(session, {
+      userId: 'server-user-id',
+      nickname: '세션사용자',
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }

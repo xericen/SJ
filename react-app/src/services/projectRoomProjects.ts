@@ -1,7 +1,7 @@
 import type { UserProfile } from '../types';
 import { buildAiSejongProfile } from './aiSejongProfile';
 import { analyzeBearTravel,loadBearTravelProgress } from './bearTravelStyle';
-import {fetchUnifiedProjects,syncUnifiedProject,syncUnifiedProjectApplication} from './unifiedProfileApi';
+import {fetchUnifiedProjectApplications,fetchUnifiedProjects,syncUnifiedProject,syncUnifiedProjectApplication} from './unifiedProfileApi';
 
 export interface Project{
   id:string;
@@ -60,6 +60,7 @@ let activeNickname='';
 let memoryProjects:Project[]=[];
 let memoryApplications:ProjectApplication[]=[];
 let projectRefreshRequest:Promise<Project[]>|undefined;
+let applicationRefreshRequest:Promise<ProjectApplication[]>|undefined;
 
 const seedProjects:Project[]=[
   {id:'garden-photo',title:'수목원 사진 기록 프로젝트',summary:'계절별 식물과 풍경을 사진으로 기록해요.',description:'국립세종수목원을 함께 걸으며 대표 식물과 계절의 변화를 촬영하고 작은 온라인 도감을 완성합니다.',placeIds:['국립세종수목원'],activityTypes:['사진','자연','조사'],tags:['사진','자연','수목원','기록'],leaderId:'초록산책',memberIds:['초록산책','하늘여우'],applicantIds:[],maxMembers:5,startDate:'2026-08-08',deadline:'2026-08-05',preferredTraits:['사진 기록형','여유형','대화 중심'],status:'recruiting',thumbnail:'🌸',createdAt:'2026-07-20T09:00:00.000Z'},
@@ -95,7 +96,7 @@ export function loadProjectRoomProjects(){
 
 export function saveProjectRoomProjects(projects:Project[]){
   memoryProjects=projects;
-  if(socialMode)projects.filter(project=>project.leaderId===activeNickname).forEach(project=>void syncUnifiedProject({id:project.id,title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).catch(()=>undefined));
+  if((socialMode||typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com')))projects.filter(project=>project.leaderId===activeNickname).forEach(project=>void syncUnifiedProject({id:project.id,title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).catch(()=>undefined));
   window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
 }
 
@@ -118,9 +119,15 @@ const storedProject=(value:unknown):Project|null=>{
   };
 };
 export function refreshProjectRoomProjects(){
-  if(!socialMode)return Promise.resolve(loadProjectRoomProjects());
-  return projectRefreshRequest??(projectRefreshRequest=fetchUnifiedProjects().then(values=>{
-    const projects=values.map(storedProject).filter((project):project is Project=>project!==null);
+  const wizRuntime=typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com');
+  if(!socialMode&&!wizRuntime)return Promise.resolve(loadProjectRoomProjects());
+  return projectRefreshRequest??(projectRefreshRequest=Promise.all([fetchUnifiedProjects(),fetchUnifiedProjectApplications()]).then(([values,applications])=>{
+    const projectApplications=applications.filter((value):value is ProjectApplication=>Boolean(value&&typeof value==='object'&&typeof (value as ProjectApplication).projectId==='string'&&typeof (value as ProjectApplication).applicantId==='string'));
+    memoryApplications=projectApplications;
+    const projects=values.map(storedProject).filter((project):project is Project=>project!==null).map(project=>{
+      const related=projectApplications.filter(application=>application.projectId===project.id);
+      return {...project,applicantIds:[...new Set([...project.applicantIds,...related.filter(item=>item.status==='pending').map(item=>item.applicantId)])],memberIds:[...new Set([...project.memberIds,...related.filter(item=>item.status==='accepted').map(item=>item.applicantId)])]};
+    });
     memoryProjects=projects;
     window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
     return projects;
@@ -130,6 +137,15 @@ export function refreshProjectRoomProjects(){
 export function loadProjectApplications(){
   if(!socialMode)return memoryApplications;
   return memoryApplications.length?memoryApplications:readArray<ProjectApplication>(APPLICATIONS_KEY,[]); // legacy UI read only
+}
+
+export function refreshProjectApplications(){
+  if(typeof window==='undefined'||!window.location.hostname.endsWith('.wizide.com'))return Promise.resolve(loadProjectApplications());
+  return applicationRefreshRequest??(applicationRefreshRequest=fetchUnifiedProjectApplications().then(values=>{
+    const applications=values.filter((value):value is ProjectApplication=>Boolean(value&&typeof value==='object'&&typeof (value as ProjectApplication).id==='string'&&typeof (value as ProjectApplication).projectId==='string'&&typeof (value as ProjectApplication).applicantId==='string'));
+    memoryApplications=applications;
+    return applications;
+  }).finally(()=>{applicationRefreshRequest=undefined}));
 }
 
 export function saveProjectApplications(applications:ProjectApplication[]){
@@ -192,7 +208,7 @@ export function createProjectApplication(project:Project,profile:UserProfile,mes
     status:'pending',
     createdAt:new Date().toISOString(),
   };
-  if(socialMode)void syncUnifiedProjectApplication({id:application.id,projectId:application.projectId,profileSnapshot:application.profileSnapshot,status:application.status,createdAt:application.createdAt}).catch(()=>undefined);
+  if(socialMode||typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com'))void syncUnifiedProjectApplication({id:application.id,projectId:application.projectId,applicantId:application.applicantId,projectLeaderId:project.leaderId,message:application.message,profileSnapshot:application.profileSnapshot,status:application.status,createdAt:application.createdAt}).catch(()=>undefined);
   return [application,...applications];
 }
 

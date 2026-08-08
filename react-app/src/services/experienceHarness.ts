@@ -4,6 +4,7 @@ import {gameEvents} from '../game/events';
 import {readOptionalJson} from './optionalJson';
 import {sejongDiningCodeDessertPlaces,sejongDiningCodeRestaurantPlaces} from '../data/sejongDiningCodePlaces';
 import {sejongLocalFoods} from '../data/sejongLocalFoods';
+import {clearAllAccountData} from './accountData';
 
 type HarnessMap=MapId;
 type Action={type:string;at?:number;[key:string]:unknown};
@@ -27,13 +28,14 @@ const userKey=(nickname:string)=>nickname.trim().toLowerCase()||'guest';
 let activeUserKey='guest';
 let remoteExperienceApiAvailable:boolean|undefined;
 let experienceSocialMode=Boolean(typeof window!=='undefined'&&localStorage.getItem('jochiwon-kakao-user-id')?.trim());
+let guestSessionInitialized=false;
 const guestExperienceMemory=new Map<string,string>();
 const memoryStorage={
   getItem:(key:string)=>guestExperienceMemory.get(key)??null,
   setItem:(key:string,value:string)=>{guestExperienceMemory.set(key,value)},
   removeItem:(key:string)=>{guestExperienceMemory.delete(key)},
 };
-const profileStorage=()=>experienceSocialMode?localStorage:memoryStorage;
+const profileStorage=()=>localStorage;
 
 async function requestExperienceJson<T>(path:string,init?:RequestInit):Promise<T|null>{
   if(!experienceSocialMode)return null;
@@ -51,8 +53,18 @@ async function requestExperienceJson<T>(path:string,init?:RequestInit):Promise<T
 }
 
 export function setActiveExperienceUser(nickname:string){activeUserKey=userKey(nickname)}
-export function setExperienceProfileMode(authenticated:boolean){experienceSocialMode=authenticated;if(!authenticated)guestExperienceMemory.clear()}
-export function resetGuestExperienceProfile(){if(!experienceSocialMode)guestExperienceMemory.clear()}
+export function setExperienceProfileMode(authenticated:boolean){
+  if(authenticated){experienceSocialMode=true;guestSessionInitialized=false;return}
+  if(!guestSessionInitialized){resetGuestExperienceProfile();guestSessionInitialized=true}
+  experienceSocialMode=false;
+}
+export function isExperienceProfileSocialMode(){return experienceSocialMode}
+export function resetGuestExperienceProfile(){
+  guestExperienceMemory.clear();
+  // Local/demo mode has no account to persist against. Remove data written by
+  // older builds as well, so a refresh cannot resurrect an earlier demo.
+  try{clearAllAccountData(localStorage)}catch{/* Storage may be blocked in an iframe. */}
+}
 const profileKey=()=>`${EXPERIENCE_PROFILE_KEY}:${activeUserKey}`;
 const fragmentsKey=(nickname=activeUserKey)=>`${EXPERIENCE_PROFILE_FRAGMENTS_KEY}:${userKey(nickname)}`;
 const savedInterestsKey=(nickname=activeUserKey)=>`${SAVED_EXPERIENCE_INTERESTS_KEY}:${userKey(nickname)}`;
@@ -64,6 +76,7 @@ function loadFestivalInterestEntries(nickname:string){
   try{const value=JSON.parse(profileStorage().getItem(festivalInterestKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is FestivalInterestEntry=>Boolean(item&&typeof item==='object'&&'id' in item&&'categories' in item)):[]}catch{return []}
 }
 export function loadFestivalKeywordInsights(nickname:string):FestivalKeywordInsight[]{
+  if(!experienceSocialMode)return [];
   const scores=new Map<string,{count:number;festivals:Set<string>}>();
   const themes:Array<[string,RegExp]>=[
     ['야간·감성',/야간|밤|낙화|불꽃|조명|야경/],
@@ -93,6 +106,7 @@ export function loadFestivalKeywordInsights(nickname:string):FestivalKeywordInsi
 }
 
 function trackFestivalInterest(action:Action){
+  if(!experienceSocialMode)return;
   if(!action.type.startsWith('festival-'))return;
   const booth=action.type==='festival-booth-complete'&&typeof action.booth==='string'?action.booth:undefined;
   const filter=action.type==='festival-filter'&&typeof action.filter==='string'&&action.filter!=='전체'?action.filter:undefined;
@@ -119,6 +133,7 @@ export function syncFestivalInterest(festival:{id:string;title:string;categories
 }
 
 function trackFoodRecentAction(action:Action){
+  if(!experienceSocialMode&&action.type==='food_save')return;
   const truck=typeof action.truck==='string'?action.truck:'';
   const truckLabels:Record<string,string>={local:'세종 로컬 맛집',street:'세종 특산물 상점',dessert:'세종 카페·디저트'};
   let record:ExperienceActivityRecord|undefined;
@@ -143,6 +158,12 @@ export function recordExperienceAction(action:Action){
   trackFestivalInterest(action);
   trackFoodRecentAction(action);
   trackSavedExperienceInterest(action);
+  if((experienceSocialMode&&action.type==='favorite'||action.type==='finish')&&typeof action.performanceId==='string'){
+    cacheLocalPerformanceActivity(activeUserKey,{mapId:'arts-center',sessionId:`immediate-${action.performanceId}`,events:[{type:'browse',performanceId:action.performanceId},action]});
+  }
+  if(action.type==='festival-booth-complete'){
+    cacheLocalFestivalActivity(activeUserKey,{mapId:'festival-experience',sessionId:`immediate-${Date.now()}`,events:[action]});
+  }
   if(action.type==='booth'&&typeof action.zone==='string'&&action.zone.startsWith('festival-filter:')){
     gameEvents.emit('experience-action',{type:'festival-filter',filter:action.zone.slice('festival-filter:'.length)});
     return;
@@ -151,7 +172,7 @@ export function recordExperienceAction(action:Action){
 }
 export function loadGeneratedExperienceProfile(){try{return JSON.parse(profileStorage().getItem(profileKey())??'null') as GeneratedExperienceProfile|null}catch{return null}}
 export function loadExperienceProfileFragments(nickname=activeUserKey){try{const value=JSON.parse(profileStorage().getItem(fragmentsKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is ExperienceProfileFragment=>Boolean(item&&typeof item==='object'&&'source' in item&&'tags' in item)):[]}catch{return []}}
-export function loadSavedExperienceInterests(nickname=activeUserKey){try{const value=JSON.parse(profileStorage().getItem(savedInterestsKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is SavedExperienceInterest=>Boolean(item&&typeof item==='object'&&'id' in item&&'domain' in item&&'title' in item)):[]}catch{return []}}
+export function loadSavedExperienceInterests(nickname=activeUserKey){if(!experienceSocialMode)return [];try{const value=JSON.parse(profileStorage().getItem(savedInterestsKey(nickname))??'[]') as unknown;return Array.isArray(value)?value.filter((item):item is SavedExperienceInterest=>Boolean(item&&typeof item==='object'&&'id' in item&&'domain' in item&&'title' in item)):[]}catch{return []}}
 function replaceSavedExperienceInterests(nickname:string,items:SavedExperienceInterest[]){profileStorage().setItem(savedInterestsKey(nickname),JSON.stringify(items.slice(0,100)))}
 function loadLegacySavedExperienceInterests(nickname:string):SavedExperienceInterest[]{
   const items:SavedExperienceInterest[]=[],now=new Date().toISOString();
@@ -161,6 +182,7 @@ function loadLegacySavedExperienceInterests(nickname:string):SavedExperienceInte
   return [...new Map(items.map(item=>[`${item.domain}:${item.id}`,item])).values()];
 }
 function trackSavedExperienceInterest(action:Action){
+  if(!experienceSocialMode)return;
   let domain:SavedExperienceInterest['domain']|undefined,id='',saved=true,title='',subtitle='',tags:string[]=[],placeCategories:string[]=[];
   if(action.type==='favorite'&&typeof action.performanceId==='string'){
     domain='performance';id=action.performanceId;saved=action.saved!==false;const performance=performanceNames[id]??{title:'세종예술의전당 공연',type:'공연'};title=performance.title;subtitle=performance.type;tags=[performance.type,'문화예술'];placeCategories=['문화시설'];
@@ -198,6 +220,8 @@ const GENERIC_ACTION_LABELS:Record<string,string>={
 };
 const meaningfulValue=(action:Action,keys:string[])=>keys.map(key=>action[key]).find(value=>typeof value==='string'&&value.trim());
 function genericActionCopy(action:Action){
+  if(action.type==='bear-experience-complete'&&typeof action.title==='string'&&action.title.trim())return {title:action.title.trim(),note:'곰 체험소에서 먹이 5개를 전달하고 체험을 완료했어요.'};
+  if(action.type==='garden-experience-complete'&&typeof action.title==='string'&&action.title.trim())return {title:action.title.trim(),note:'수목원에서 꽃을 선택하고 화단 체험을 완료했어요.'};
   const subject=String(meaningfulValue(action,['clubName','activityName','title','itemName','festivalTitle','placeName','projectName','label','name'])??'').trim();
   const tags=Array.isArray(action.tags)?action.tags.filter((value):value is string=>typeof value==='string').slice(0,4):[];
   const detail=String(meaningfulValue(action,['note','description','category','section','zone','booth','choice','role'])??'').trim();
@@ -226,7 +250,8 @@ const performanceNames:Record<string,{title:string;type:string}>={
 function cacheLocalPerformanceActivity(nickname:string,payload:{mapId:HarnessMap;sessionId:string;events:Action[]}){
   if(payload.mapId!=='arts-center')return;
   const events=payload.events,performanceId=String(events.find(event=>typeof event.performanceId==='string')?.performanceId??'');
-  const performance=performanceNames[performanceId]??{title:'세종예술의전당 공연',type:'공연'};
+  const performanceTitle=String([...events].reverse().find(event=>typeof event.performanceTitle==='string'&&event.performanceTitle.trim())?.performanceTitle??'');
+  const performance=performanceTitle?{title:performanceTitle,type:performanceNames[performanceId]?.type??'공연'}:performanceNames[performanceId]??{title:'세종예술의전당 공연',type:'공연'};
   const watched=Math.round(events.filter(event=>event.type==='watch').reduce((total,event)=>total+(typeof event.durationSeconds==='number'?event.durationSeconds:0),0));
   const breakdown:Array<{label:string;point:number}>=[];
   if(events.some(event=>event.type==='browse'))breakdown.push({label:'공연 탐색',point:2});
@@ -239,7 +264,7 @@ function cacheLocalPerformanceActivity(nickname:string,payload:{mapId:HarnessMap
   if(!breakdown.length)return;
   const finished=events.some(event=>event.type==='finish');
   const favorited=events.some(event=>event.type==='favorite'&&event.saved!==false);
-  const record:ExperienceActivityRecord={id:`${payload.mapId}:${payload.sessionId}`,mapId:payload.mapId,title:performance.title,note:finished?`${performance.title} 영상을 ${watched}초 동안 시청하고 끝까지 감상했어요.`:favorited?`${performance.title}을(를) 관심 공연으로 저장했어요. 장르: ${performance.type}`:watched?`${performance.title} 영상을 ${watched}초 감상했어요.`:`${performance.title} 공연 정보를 살펴봤어요. 장르: ${performance.type}`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date().toISOString()};
+  const record:ExperienceActivityRecord={id:`${payload.mapId}:performance:${performanceId}`,mapId:payload.mapId,title:performance.title,note:finished?`${performance.title} 영상을 ${watched}초 동안 시청하고 끝까지 감상했어요.`:favorited?`${performance.title}을(를) 관심 공연으로 저장했어요. 장르: ${performance.type}`:watched?`${performance.title} 영상을 ${watched}초 감상했어요.`:`${performance.title} 공연 정보를 살펴봤어요. 장르: ${performance.type}`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date().toISOString()};
   mergeExperienceActivities(nickname,[record]);
   window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{activityRecords:[record]}}));
 }
@@ -247,11 +272,12 @@ function cacheLocalFestivalActivity(nickname:string,payload:{mapId:HarnessMap;se
   if(payload.mapId!=='festival-experience')return;
   const completions=payload.events.filter(event=>event.type==='festival-booth-complete'&&typeof event.booth==='string');
   const booths=[...new Set(completions.map(event=>String(event.booth)))];
+  if(!experienceSocialMode&&!booths.length)return;
   const savedFestival=[...payload.events].reverse().find(event=>event.type==='festival-save'&&event.saved!==false&&typeof event.festivalTitle==='string');
   const viewedFestival=[...payload.events].reverse().find(event=>(event.type==='festival-close'||event.type==='festival-open')&&typeof event.festivalTitle==='string');
   if(!booths.length&&savedFestival){
     const title=String(savedFestival.festivalTitle),categories=Array.isArray(savedFestival.categories)?savedFestival.categories.map(String).slice(0,4):[];
-    const record:ExperienceActivityRecord={id:`${payload.mapId}:${payload.sessionId}`,mapId:payload.mapId,title:`${title} 관심 저장`,note:`${title}에 관심을 표시했어요.${categories.length?` 관심 키워드: ${categories.join(' · ')}`:''}`,point:5,breakdown:[{label:'관심 축제 저장',point:5}],recordedAt:new Date().toISOString()};
+    const record:ExperienceActivityRecord={id:`${payload.mapId}:saved:${String(savedFestival.festivalId)}`,mapId:payload.mapId,title:`${title} 관심 저장`,note:`${title}에 관심을 표시했어요.${categories.length?` 관심 키워드: ${categories.join(' · ')}`:''}`,point:5,breakdown:[{label:'관심 축제 저장',point:5}],recordedAt:new Date().toISOString()};
     mergeExperienceActivities(nickname,[record]);window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{activityRecords:[record],optimistic:true}}));return;
   }
   if(!booths.length&&viewedFestival){
@@ -267,13 +293,14 @@ function cacheLocalFestivalActivity(nickname:string,payload:{mapId:HarnessMap;se
   const breakdown=booths.map(booth=>({label:`${labels[booth]??'축제'} 완료`,point:booth==='performance'?15:12}));
   const selected=completions.flatMap(event=>Array.isArray(event.selectedCards)?event.selectedCards.map(String):[]);
   const names=booths.map(booth=>labels[booth]??booth);
-  const record:ExperienceActivityRecord={id:`${payload.mapId}:${payload.sessionId}`,mapId:payload.mapId,title:names.length===1?`${names[0]} 체험 완료`:'축제 부스 체험 완료',note:`${names.join(' · ')}${selected.length?`에서 ${selected.join(' · ')}을(를) 선택하고`:''} 축제 경험을 쌓았어요.`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date().toISOString()};
+  const record:ExperienceActivityRecord={id:`${payload.mapId}:complete:${booths.sort().join('-')}`,mapId:payload.mapId,title:'축제 부스 체험 완료',note:`${names.join(' · ')}${selected.length?`에서 ${selected.join(' · ')}을(를) 선택하고`:''} 축제 경험을 쌓았어요.`,point:breakdown.reduce((sum,item)=>sum+item.point,0),breakdown,recordedAt:new Date().toISOString()};
+  cacheExperienceActivities(nickname,loadExperienceActivityHistory(nickname).filter(item=>!(item.mapId==='festival-experience'&&item.id.startsWith('festival-experience:saved:'))));
   mergeExperienceActivities(nickname,[record]);
   window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{activityRecords:[record],optimistic:true}}));
 }
 function cacheLocalFoodActivity(nickname:string,payload:{mapId:HarnessMap;sessionId:string;events:Action[]}){
   if(payload.mapId!=='food-experience')return;
-  const meaningful=payload.events.filter(event=>['food_save','food_card_open','food_reopen','food_truck_complete'].includes(event.type));
+  const meaningful=payload.events.filter(event=>['food_save','food_card_open','food_reopen','food_truck_complete'].includes(event.type)&& (experienceSocialMode||event.type==='food_truck_complete'));
   if(!meaningful.length)return;
   const records:ExperienceActivityRecord[]=[];
   const savedItems=new Map<string,Action>();

@@ -30,11 +30,12 @@ const nullableDate=(value:unknown)=>value===null||typeof value==='string';
 
 export function isPersonalFarmProgressDto(value:unknown):value is PersonalFarmProgressDto{
   if(!value||typeof value!=='object')return false;
-  const root=value as Record<string,unknown>,garden=root.gardenMission,bear=root.bearMission,farm=root.farm,nature=root.natureChapter,visit=root.realVisit;
+  const root=value as Record<string,unknown>,garden=root.gardenMission,memory=root.memoryTree,bear=root.bearMission,farm=root.farm,nature=root.natureChapter,visit=root.realVisit;
   if(!garden||typeof garden!=='object'||!bear||typeof bear!=='object'||!farm||typeof farm!=='object'||!nature||typeof nature!=='object'||!visit||typeof visit!=='object')return false;
   const g=garden as Record<string,unknown>,b=bear as Record<string,unknown>,f=farm as Record<string,unknown>,n=nature as Record<string,unknown>,v=visit as Record<string,unknown>;
-  return strings(g.collectedFlowerIds,GARDEN_FLOWER_IDS)&&strings(g.plantedFlowerIds,GARDEN_FLOWER_IDS)&&strings(g.completedFlowerIds,GARDEN_FLOWER_IDS)&&typeof g.requiredFlowerCount==='number'&&typeof g.interestCompleted==='boolean'&&nullableDate(g.interestCompletedAt)&&typeof g.completed==='boolean'&&nullableDate(g.completedAt)
-    &&strings(b.collectedFeedIds,BEAR_FEED_IDS)&&strings(b.completedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&strings(b.fedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&typeof b.bearFed==='boolean'&&nullableDate(b.bearFedAt)&&typeof b.completed==='boolean'&&nullableDate(b.completedAt)
+  return typeof g.guideSeen==='boolean'&&strings(g.collectedFlowerIds,GARDEN_FLOWER_IDS)&&strings(g.favoriteFlowerIds,GARDEN_FLOWER_IDS)&&strings(g.plantedFlowerIds,GARDEN_FLOWER_IDS)&&Array.isArray(g.plantedFlowers)&&strings(g.completedFlowerIds,GARDEN_FLOWER_IDS)&&typeof g.requiredFlowerCount==='number'&&typeof g.interestCompleted==='boolean'&&nullableDate(g.interestCompletedAt)&&typeof g.completed==='boolean'&&nullableDate(g.completedAt)
+    &&!!memory&&typeof memory==='object'&&strings((memory as Record<string,unknown>).sourceFlowerIds,GARDEN_FLOWER_IDS)&&typeof (memory as Record<string,unknown>).analysisText==='string'&&nullableDate((memory as Record<string,unknown>).analyzedAt)
+    &&strings(b.collectedFeedIds,BEAR_FEED_IDS)&&strings(b.completedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&strings(b.fedFeedSpotIds,BEAR_FEED_SPOT_IDS)&&(b.repeatFeedSpotId===null||BEAR_FEED_SPOT_IDS.includes(b.repeatFeedSpotId as never))&&nullableDate(b.repeatFeedAvailableAt)&&typeof b.totalFeedCount==='number'&&typeof b.bearFed==='boolean'&&nullableDate(b.bearFedAt)&&typeof b.completed==='boolean'&&nullableDate(b.completedAt)
     &&typeof f.unlocked==='boolean'&&strings(f.unlockedRewardIds,FARM_REWARD_IDS)&&strings(f.activeRewardIds,FARM_REWARD_IDS)&&['locked','cub','young','adult'].includes(String(f.bearGrowthStage))
     &&typeof n.gardenCompleted==='boolean'&&typeof n.bearTreeCompleted==='boolean'&&typeof n.completed==='boolean'&&nullableDate(n.completedAt)&&typeof n.noticeShown==='boolean'
     &&typeof v.garden==='object'&&typeof v.bearTree==='object'&&typeof root.layoutVersion==='number'&&typeof root.createdAt==='string'&&typeof root.updatedAt==='string';
@@ -44,7 +45,7 @@ function publish(progress:PersonalFarmProgressDto){cachedProgress=progress;windo
 export const getCachedPersonalFarmProgress=()=>cachedProgress;
 export const clearPersonalFarmProgressCache=()=>{cachedProgress=undefined;refreshRequest=undefined};
 export function setPersonalFarmProgressUser(userKey:string){const next=userKey.trim().toLowerCase();if(next!==activeUserKey){activeUserKey=next;clearPersonalFarmProgressCache()}}
-export function setPersonalFarmProgressMode(authenticated:boolean){if(activeAuthenticated!==authenticated){activeAuthenticated=authenticated;clearPersonalFarmProgressCache();if(!authenticated)guestProgress.reset()}}
+export function setPersonalFarmProgressMode(authenticated:boolean){if(activeAuthenticated!==authenticated){activeAuthenticated=authenticated;clearPersonalFarmProgressCache()}}
 export function clearGuestPersonalFarmProgress(){if(!activeAuthenticated){guestProgress.reset();clearPersonalFarmProgressCache()}}
 export const personalFarmErrorMessage=(error:unknown)=>error instanceof PersonalFarmApiError?error.message:'서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.';
 
@@ -72,7 +73,18 @@ async function requestWiz(action='',fields:Record<string,string>={}){
 export const getMyPersonalFarmProgress=()=>activeAuthenticated?(useWizRuntime()?requestWiz():requestExpress('')):guestProgress.get().then(publish);
 export function refreshPersonalFarmProgress(){return refreshRequest??(refreshRequest=getMyPersonalFarmProgress().finally(()=>{refreshRequest=undefined}))}
 export const collectGardenFlower=(flowerId:GardenFlowerId)=>activeAuthenticated?(useWizRuntime()?requestWiz('collectFlower',{flowerId}):requestExpress(`/garden/collect/${encodeURIComponent(flowerId)}`,{method:'POST'})):guestProgress.collectFlower(flowerId).then(publish);
+export const markGardenGuideSeen=()=>activeAuthenticated?(useWizRuntime()?requestWiz('guideSeen'):requestExpress('/garden/guide-seen',{method:'PATCH'})):guestProgress.guideSeen().then(publish);
+export const toggleFavoriteGardenFlower=(flowerId:GardenFlowerId)=>activeAuthenticated?(useWizRuntime()?requestWiz('toggleFavoriteFlower',{flowerId}):requestExpress(`/garden/favorites/${encodeURIComponent(flowerId)}`,{method:'PATCH'})):guestProgress.toggleFavorite(flowerId).then(publish);
+export async function analyzeMemoryTree(){
+  if(activeAuthenticated)return useWizRuntime()?requestWiz('analyzeMemoryTree'):requestExpress('/memory-tree/analyze',{method:'POST'});
+  const progress=await guestProgress.get(),flowerIds=progress.gardenMission.favoriteFlowerIds;
+  if(flowerIds.length!==5)throw new PersonalFarmApiError('FIVE_FLOWERS_REQUIRED','먼저 마음에 드는 꽃 5개를 선택해 주세요.',409);
+  if(progress.memoryTree.analysisText&&flowerIds.every((id,index)=>progress.memoryTree.sourceFlowerIds[index]===id))return publish(progress);
+  const analysis='다섯 가지 꽃의 특징과 꽃말을 바탕으로 자연을 천천히 관찰하고, 마음에 남은 장면을 기록하는 체험을 완성했어요.';
+  return guestProgress.memoryTreeAnalysis(flowerIds,analysis).then(publish);
+}
 export const plantGardenFlower=(flowerId:GardenFlowerId)=>activeAuthenticated?(useWizRuntime()?requestWiz('plantFlower',{flowerId}):requestExpress(`/garden/plant/${encodeURIComponent(flowerId)}`,{method:'POST'})):guestProgress.plantFlower(flowerId).then(publish);
+export const plantGardenFlowerInSlot=(flowerId:GardenFlowerId,slot:1|2|3|4|5)=>activeAuthenticated?(useWizRuntime()?requestWiz('plantFlower',{flowerId,slot:String(slot)}):requestExpress(`/garden/slots/${slot}`,{method:'PUT',body:JSON.stringify({flowerId})})):guestProgress.plantFlowerInSlot(flowerId,slot).then(publish);
 export const removeGardenFlower=(flowerId:GardenFlowerId)=>activeAuthenticated?(useWizRuntime()?requestWiz('removeFlower',{flowerId}):requestExpress(`/garden/plant/${encodeURIComponent(flowerId)}`,{method:'DELETE'})):guestProgress.removeFlower(flowerId).then(publish);
 export const collectBearFeed=(feedId:BearFeedId)=>activeAuthenticated?(useWizRuntime()?requestWiz('collectFeed',{feedId}):requestExpress(`/bear/collect/${encodeURIComponent(feedId)}`,{method:'POST'})):guestProgress.collectFeed(feedId).then(publish);
 export const completeBearFeedSpot=(spotId:BearFeedSpotId)=>activeAuthenticated?(useWizRuntime()?requestWiz('completeFeedSpot',{spotId}):requestExpress(`/bear/feed/${encodeURIComponent(spotId)}`,{method:'POST'})):guestProgress.completeFeedSpot(spotId).then(publish);

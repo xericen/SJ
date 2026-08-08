@@ -93,7 +93,7 @@ export function SmartCityExperience({active,profile,onNotice,onOpenChange,wallLa
       localStorage.setItem(`sejong-smart-city-experience-v2:${user}`,JSON.stringify(result));
       window.dispatchEvent(new CustomEvent('sejong-profile-progress-updated',{detail:{mapId:'sejong-smart-city'}}));
       setShowResult(true);onNotice?.('오늘 체험한 세종 스마트 서비스를 프로필에 저장했어요.');
-    },TRANSITION_MS);
+    },0);
     return()=>window.clearTimeout(timer);
   },[visited,profile.nickname,onNotice]);
 

@@ -78,7 +78,7 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260807-reviewops-origin-cache-bust-v211';
+      const buildId = '20260807-reviewops-origin-cache-bust-v210';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
       // The HTML itself is always served with no-cache and every asset has a
@@ -97,8 +97,8 @@
   </script>
   <script>
   (() => {
-    const runtimeBuildId="20260807-reviewops-origin-cache-bust-v211";
-    const runtimeEntryPath="/auth/jochwon-assets/assets/index-Brq-JAy6.js";
+    const runtimeBuildId="20260807-reviewops-origin-cache-bust-v210";
+    const runtimeEntryPath="/auth/jochwon-assets/assets/index-y2tvrcsr.js";
     const pageUrl=new URL(window.location.href);
     const entryRetry=pageUrl.searchParams.get('_entry_retry');
     const currentRetry=entryRetry?.startsWith(`${runtimeBuildId}:`)??false;
@@ -139,40 +139,8 @@
     });
   })();
 </script>
-<script>
-  // Record the three lake experiences as soon as the map-entry request succeeds.
-  // The bundled booth widgets may be unavailable in offline/demo mode, so this
-  // keeps the recent-activity profile consistent with what the visitor opened.
-  (() => {
-    if (window.__sejongExperienceActivityBridge) return;
-    window.__sejongExperienceActivityBridge = true;
-    const originalFetch = window.fetch.bind(window);
-    window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
-      try {
-        const requestUrl = String(args[0]?.url || args[0] || '');
-        const match = requestUrl.match(/\/map_activity\?[^#]*\bmapId=([^&]+)/);
-        const mapId = match ? decodeURIComponent(match[1]) : '';
-        const records = {
-          'arts-center': ['sejong-festival-stage-video-v1', { maxProgress: 0.01 }],
-          'food-experience': ['sejong-lake-booth-completion-v1', { food: true }],
-          'festival-experience': ['sejong-festival-tent-engagement-v1', { blue: { interested: true, lastOpenedAt: Date.now() } }],
-        };
-        const record = records[mapId];
-        if (response.ok && record) {
-          const [key, value] = record;
-          const previous = JSON.parse(localStorage.getItem(key) || '{}');
-          localStorage.setItem(key, JSON.stringify({ ...previous, ...value }));
-          window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated', { detail: { mapId } }));
-        }
-      } catch {}
-      return response;
-    };
-  })();
-</script>
-<script type="module" src="/assets/jochwon-app/assets/experience-signal-bridge.js"></script>
 <link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-l1NlVt5g.css" onerror="void window.__recoverJochwonRuntime?.()">
-<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-Brq-JAy6.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
+<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-y2tvrcsr.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
   <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-m-EpYe9t.js">
 
 </head>

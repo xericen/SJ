@@ -47,9 +47,18 @@ export function CampusClubRoom({
   club:ClubRoomData;currentUser:{userId:string;name:string};onBack:()=>void;onOpenChat:()=>void;
   onNotice:(message:string)=>void;
 }){
+  const members=Array.isArray(club.members)?club.members:[];
+  const sourceBoard=club.activityBoard??emptyBoard();
+  const boardData:ClubActivityBoard={
+    placeVotes:Array.isArray(sourceBoard.placeVotes)?sourceBoard.placeVotes:emptyBoard().placeVotes,
+    topicVotes:Array.isArray(sourceBoard.topicVotes)?sourceBoard.topicVotes:emptyBoard().topicVotes,
+    themeIdeas:Array.isArray(sourceBoard.themeIdeas)?sourceBoard.themeIdeas:[],
+    placeCards:Array.isArray(sourceBoard.placeCards)?sourceBoard.placeCards:[],
+    introCopies:Array.isArray(sourceBoard.introCopies)?sourceBoard.introCopies:[],
+  };
   const [tab,setTab]=useState<RoomTab>('intro');
   const [focus,setFocus]=useState<ActivityFocus>('place');
-  const [board,setBoard]=useState<ClubActivityBoard>(club.activityBoard??emptyBoard());
+  const [board,setBoard]=useState<ClubActivityBoard>(boardData);
   const [saving,setSaving]=useState(false);
   const [themeIdea,setThemeIdea]=useState('');
   const [placeName,setPlaceName]=useState('');
@@ -113,7 +122,7 @@ export function CampusClubRoom({
   const voterCount=(items:ClubActivityBoard['placeVotes'])=>Math.max(1,...items.map(item=>item.voters.length));
 
   return <section className="campus-club-room" style={{'--club-room-color':club.color} as CSSProperties}>
-    <header><button type="button" onClick={onBack}><ChevronLeft size={15}/> 동아리 거리제</button><div><small>{club.category} · 동아리방</small><h2>{club.name}</h2><p>{club.description}</p></div><span><Users size={13}/> {club.members.length}명</span></header>
+    <header><button type="button" onClick={onBack}><ChevronLeft size={15}/> 동아리 거리제</button><div><small>{club.category} · 동아리방</small><h2>{club.name}</h2><p>{club.description}</p></div><span><Users size={13}/> {members.length}명</span></header>
     <nav aria-label="동아리방 메뉴">{tabs.map(item=><button type="button" key={item.id} className={tab===item.id?'active':''} onClick={()=>setTab(item.id)}>{item.label}</button>)}</nav>
     <div className={`campus-club-room-layout ${tab==='activities'?'is-activities':''}`}><main>
       {tab==='intro'&&<div className="club-room-intro"><span>☕</span><small>우리 동아리를 소개합니다</small><h3>{club.name}</h3><p>{club.description}</p><dl><div><dt>운영자</dt><dd>{club.ownerName}</dd></div><div><dt>주요 활동</dt><dd>{club.activity||'세종 곳곳을 함께 경험하고 기록하기'}</dd></div><div><dt>모임 정보</dt><dd>{club.location||'세종 공동캠퍼스'} · {club.schedule||'일정 협의'}</dd></div></dl></div>}
@@ -131,7 +140,7 @@ export function CampusClubRoom({
       {tab==='chat'&&<div className="club-room-chat"><MessageCircle size={34}/><h3>동아리 단체 채팅</h3><p>멤버들과 다음 활동과 장소를 실시간으로 이야기해요.</p><button type="button" onClick={()=>{recordCampusProfileSignal(currentUser.name,{mapId:'club-street-festival',zone:'동아리 거리제',action:'club-chat',subject:club.id,title:'동아리 대화 참여',note:`${club.name} 멤버들과 다음 활동을 이야기했어요`,point:5,keywords:['공동체형','대화에 열린'],axes:{relation:6}});onOpenChat()}}>단체 채팅방 열기 <Send size={14}/></button></div>}
       {tab==='album'&&<div className="club-room-album"><header><div><Image size={16}/><span><b>함께 만든 사진 앨범</b><small>활동의 순간을 차곡차곡 모아요.</small></span></div><button type="button" onClick={()=>setAlbumCount(count=>count+1)}><Camera size={13}/> 사진 업로드</button></header><div>{Array.from({length:albumCount},(_,index)=><figure key={index}><span>{['🌿','☕','🌙','📷'][index%4]}</span><figcaption>{['수목원 산책','감성 카페 탐방','야간축제 기록','새로운 활동 사진'][index%4]}</figcaption></figure>)}</div></div>}
       {tab==='board'&&<div className="club-room-board"><form onSubmit={submitPost}><input value={post} onChange={event=>setPost(event.target.value)} placeholder="동아리 멤버들과 나눌 이야기를 적어보세요."/><button>등록</button></form>{posts.map((item,index)=><article key={`${item}-${index}`}><b>{item}</b><small>{index===0?'방금 전':`${index+1}일 전`} · 댓글 {index+2}</small></article>)}</div>}
-      {tab==='members'&&<div className="club-room-members">{club.members.length?club.members.map((member,index)=><article key={member.userId}><span>{member.name.slice(0,1)}</span><div><b>{member.name}</b><small>{index===0?'운영자':'동아리 멤버'} · 현재 활동 중</small></div><i/></article>):<p>첫 멤버를 기다리고 있어요.</p>}</div>}
+      {tab==='members'&&<div className="club-room-members">{members.length?members.map((member,index)=><article key={member.userId}><span>{member.name.slice(0,1)}</span><div><b>{member.name}</b><small>{index===0?'운영자':'동아리 멤버'} · 현재 활동 중</small></div><i/></article>):<p>첫 멤버를 기다리고 있어요.</p>}</div>}
     </main><aside><small>함께하는 활동</small><h3>공동 활동</h3><p>투표하고 제안하며 다음 경험을 함께 만들어요.</p>{activityLinks.map(item=><button type="button" key={item.id} className={tab==='activities'&&focus===item.id?'selected':''} onClick={()=>openActivity(item.id)}><span>{item.emoji}</span><b>{item.label}</b><i>›</i></button>)}</aside></div>
   </section>;
 }

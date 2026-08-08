@@ -6,7 +6,7 @@ import { socket } from '../game/systems/socketClient';
 import { API_BASE_URL } from '../config/api';
 import {festivalImageUrl,festivalKakaoMapSearchUrl} from '../data/festivalMedia';
 import { analyzeLakeTaste,lakeTasteQuestions,type LakeTasteAnswers,type LakeTasteDomain,type LakeTasteInsights } from '../services/lakeTasteAnalysis';
-import {recordExperienceAction,syncFestivalInterest} from '../services/experienceHarness';
+import {isExperienceProfileSocialMode,recordExperienceAction,syncFestivalInterest} from '../services/experienceHarness';
 import {isYoutubeEmbedOrigin,YOUTUBE_POST_MESSAGE_TARGET} from '../services/youtubeMessaging';
 import './LakeParkExperiences.css';
 
@@ -184,6 +184,7 @@ function readBoothCompletion(profile:LakeInterestProfile):BoothCompletion{
 }
 
 export function LakeParkExperiences(){
+  const socialMode=isExperienceProfileSocialMode();
   const [location,setLocation]=useState('세종호수공원');
   const [onlineCount,setOnlineCount]=useState(1);
   const [nearby,setNearby]=useState<NearbyExperience|null>(null);
@@ -279,7 +280,7 @@ export function LakeParkExperiences(){
     socket.on('onlineUsersUpdated',updateOnline);
     return()=>{socket.off('onlineUsersUpdated',updateOnline)};
   },[]);
-  useEffect(()=>{localStorage.setItem(LAKE_INTEREST_KEY,JSON.stringify(profile));window.dispatchEvent(new CustomEvent('sejong-lake-interest-updated',{detail:profile}))},[profile]);
+  useEffect(()=>{if(!socialMode)return;localStorage.setItem(LAKE_INTEREST_KEY,JSON.stringify(profile));window.dispatchEvent(new CustomEvent('sejong-lake-interest-updated',{detail:profile}))},[profile,socialMode]);
   useEffect(()=>{
     if(!isFestivalExperience)return;
     festivals.filter(festival=>profile.savedContentIds.includes(festival.id)).forEach(festival=>{

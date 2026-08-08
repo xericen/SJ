@@ -339,3 +339,24 @@
 | 2026-08-07 | 069 | 동아리 거리제 GLB 경로 수정 및 세종 스마트시티 일반 GLB 미리보기 적용 | [상세](devlog/2026-08-07/069-fix-club-smartcity-glb-preview.md) |
 | 2026-08-08 | 001 | 부분 연결 맵의 의미 있는 체험을 프로필 harness에 보강 연결 | [상세](devlog/2026-08-08/001-bridge-partial-map-experiences.md) |
 | 2026-08-08 | 002 | model-viewer와 게임 번들의 Three.js 중복 경고 노출 차단 | [상세](devlog/2026-08-08/002-filter-three-duplicate-warning.md) |
+| 2026-08-08 | 003 | 대표 체험 완료 이벤트와 허브 프로필 요약 연결 | [상세](devlog/2026-08-08/003-representative-experience-hub-summary.md) |
+| 2026-08-08 | 004 | 곰·수목원 완료 marker 연결 및 운영 번들 누락 기능 조사 | [상세](devlog/2026-08-08/004-bear-garden-runtime-audit.md) |
+| 2026-08-08 | 005 | 원본 저장소의 곰 먹이·꽃 슬롯·기억나무 AI 체험 이식 | [상세](devlog/2026-08-08/005-port-bear-garden-upstream-experiences.md) |
+| 2026-08-08 | 006 | 예술 공연 즉시 활동 기록 및 축제 저장 중복 제거 | [상세](devlog/2026-08-08/006-fix-arts-festival-recent-activity.md) |
+| 2026-08-08 | 007 | experience signal bridge 구문 오류 수정 | [상세](devlog/2026-08-08/007-fix-experience-signal-syntax.md) |
+| 2026-08-08 | 008 | 운영 bridge 구문 오류 수정본 재배포 | [상세](devlog/2026-08-08/008-redeploy-experience-signal-syntax-fix.md) |
+| 2026-08-08 | 009 | 예술의전당 5개 포스터 활동 제목 연결 보강 | [상세](devlog/2026-08-08/009-fix-arts-center-poster-activity-mapping.md) |
+| 2026-08-08 | 010 | React 운영 dist 정적 자산 동기화 및 재배포 | [상세](devlog/2026-08-08/010-sync-react-runtime-assets.md) |
+| 2026-08-08 | 011 | 축제 관심 저장 최근활동 중복 제거 | [상세](devlog/2026-08-08/011-dedupe-festival-recent-activity.md) |
+| 2026-08-08 | 012 | 자연 체험 완료 기록·E 관찰·마이홈 포탈 동작 보강 | [상세](devlog/2026-08-08/012-fix-nature-experience-flow.md) |
+| 2026-08-08 | 013 | 모집센터·학생회관 완료 활동 및 모집 관리 보강 | [상세](devlog/2026-08-08/013-fix-campus-recruitment-profile-flow.md) |
+| 2026-08-08 | 014 | 축제 부스 완료 활동 즉시 저장 보강 | [상세](devlog/2026-08-08/014-fix-festival-completion-activity.md) |
+| 2026-08-08 | 015 | 체험용 곰 동상·꽃 슬롯 진행값 유지 보강 | [상세](devlog/2026-08-08/015-fix-guest-bear-statue-flower-persistence.md) |
+| 2026-08-08 | 016 | 체험용 축제 활동을 허브 최근활동에 유지 | [상세](devlog/2026-08-08/016-persist-guest-festival-activity.md) |
+| 2026-08-08 | 017 | 마이홈 꽃 슬롯·수목원 진행 표시·체험용 기억나무 보강 | [상세](devlog/2026-08-08/017-fix-garden-farm-guest-flow.md) |
+| 2026-08-08 | 018 | 최근활동·모집 저장·동아리 상세 오류 및 수목원 기록 노출 수정 | [상세](devlog/2026-08-08/018-reviewops-nature-community-fixes.md) |
+| 2026-08-08 | 019 | 체험용 새로고침 시 로컬 진행도·최근활동 초기화 | [상세](devlog/2026-08-08/019-reset-local-demo-on-refresh.md) |
+| 2026-08-08 | 020 | 체험용 축제 관심사 저장·최근활동 노출 차단 | [상세](devlog/2026-08-08/020-fix-guest-festival-interest-leak.md) |
+| 2026-08-08 | 021 | 최신 React 번들을 WIZ 운영 자산에 동기화·배포 | [상세](devlog/2026-08-08/021-deploy-latest-reviewops-bundle.md) |
+| 2026-08-08 | 022 | 프로젝트실 프로젝트 공유·참여 프로필 승인 및 맵 전환 오류 보강 | [상세](devlog/2026-08-08/022-fix-project-room-sharing-and-runtime-errors.md) |
+| 2026-08-08 | 023 | 축제 NPC 대화·모집 저장·정부청사 포탈·스마트시티 완료 흐름 수정 및 운영 배포 | [상세](devlog/2026-08-08/023-reviewops-festival-recruitment-government-smartcity.md) |

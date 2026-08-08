@@ -9,9 +9,8 @@ import { requestGreenhouseAnalysis } from '../services/greenhouseAi';
 import { analyzeGreenhouseDiscoveries,createFallbackGreenhouseAnalysis,createFallbackPlantMessage,createGreenhouseCompletionStory,dominantEmotion,GreenhouseProgressService,greenhouseCompletion,greenhouseInputLocked,memoryLeafNeedsGrowth,nextGreenhouseAnalysisStage,normalizeMemoryText,rankGreenhouseProfilePlants,representativePlantExplanation,type GreenhouseProgress,type MemoryLeaf } from '../services/greenhouseProgress';
 import { hasUsablePlantImage,plantGallery } from '../services/plantImages';
 import { loadPublicGreenhouseMemories,publishGreenhouseMemory,type PublicGreenhouseMemory } from '../services/publicGreenhouseMemories';
-import {flowerCatalogByPlantId} from '../services/flowerInterestProfile';
-import {collectGardenFlower,getCachedPersonalFarmProgress,PERSONAL_FARM_PROGRESS_CHANGED,personalFarmErrorMessage} from '../services/personalFarmApi';
-import {loadSavedExperienceInterests,recordExperienceAction} from '../services/experienceHarness';
+import {flowerCatalogByFlowerId,flowerCatalogByPlantId} from '../services/flowerInterestProfile';
+import {analyzeMemoryTree,collectGardenFlower,getCachedPersonalFarmProgress,markGardenGuideSeen,PERSONAL_FARM_PROGRESS_CHANGED,personalFarmErrorMessage,toggleFavoriteGardenFlower} from '../services/personalFarmApi';
 import './GreenhouseExperience.base.css';
 import './GreenhouseExperience.css';
 
@@ -30,7 +29,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
   const [progress,setProgress]=useState<GreenhouseProgress>(()=>service.load());
   const [farmProgress,setFarmProgress]=useState<PersonalFarmProgressDto|undefined>(()=>getCachedPersonalFarmProgress());
   const [collectionPending,setCollectionPending]=useState(false),[collectionNotice,setCollectionNotice]=useState('');
-  const [plantInterestSaved,setPlantInterestSaved]=useState(false);
+  const [memoryAnalysisPending,setMemoryAnalysisPending]=useState(false),[memoryAnalysisError,setMemoryAnalysisError]=useState('');
   const [plantId,setPlantId]=useState<string|null>(null);
   const [skipIntro,setSkipIntro]=useState(false);
   const [message,setMessage]=useState(''),[loadingMessage,setLoadingMessage]=useState(false);
@@ -67,7 +66,11 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     const next=service.recordPlantInfoDuration(service.load(),id,Date.now()-startedAt);publish(next);return next;
   },[publish,service]);
   const close=useCallback(()=>{finishPlantInfoView();memoryExpansionRunRef.current+=1;setView(null);setSelectedLeaf(null);setSelectedPublicMemory(null);setMemoryStep('write');setCreationStage(1);setExpandingLeafId(null);setLoadingLetter(false)},[finishPlantInfoView]);
-  const openMemoryTree=useCallback(()=>{setMemoryArea('mine');setSelectedPublicMemory(null);setView('memory')},[]);
+  const openMemoryTree=useCallback(()=>{
+    setMemoryArea('mine');setSelectedPublicMemory(null);setView('memory');setMemoryAnalysisError('');
+    const current=getCachedPersonalFarmProgress();
+    if(current?.gardenMission.favoriteFlowerIds.length===5){setMemoryAnalysisPending(true);void analyzeMemoryTree().then(next=>{setFarmProgress(next);window.dispatchEvent(new CustomEvent('sj-game-notice',{detail:'기억나무 AI 꽃 취향 분석이 완료되었습니다.'}))}).catch(error=>setMemoryAnalysisError(personalFarmErrorMessage(error))).finally(()=>setMemoryAnalysisPending(false))}
+  },[]);
   const growSavedMemory=useCallback(async(existingLeaf:MemoryLeaf)=>{
     const runId=++memoryExpansionRunRef.current;
     setMemoryArea('mine');setSelectedLeaf(null);setSelectedPublicMemory(null);
@@ -122,7 +125,9 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
       if(isGarden){
         const current=service.load();publish(current);
         setSkipIntro(false);
-        setView(current.introSeen?null:'intro');
+        const guideSeen=getCachedPersonalFarmProgress()?.gardenMission.guideSeen===true||current.introSeen;
+        setView(guideSeen?null:'intro');
+        if(!guideSeen)void markGardenGuideSeen().then(setFarmProgress).catch(()=>undefined);
       }else{finishNearby();setView(null)}
     };
     const nearbyChanged=(value:Nearby)=>{
@@ -185,31 +190,40 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     window.addEventListener('keydown',trap);return()=>window.removeEventListener('keydown',trap);
   },[modalOpen]);
 
-  useEffect(()=>{
-    setPlantInterestSaved(Boolean(plantId&&loadSavedExperienceInterests(userKey).some(item=>item.domain==='plant'&&item.id===plantId)));
-  },[plantId,userKey]);
   if(!active)return null;
   const existing=plantId?progress.collected.find(item=>item.plantId===plantId):undefined;
   const flowerCatalogEntry=plantId?flowerCatalogByPlantId.get(plantId):undefined;
   const flowerCollected=Boolean(flowerCatalogEntry&&farmProgress?.gardenMission.collectedFlowerIds.includes(flowerCatalogEntry.flowerId));
-  const togglePlantInterest=()=>{
-    if(!plant)return;
-    const saved=!plantInterestSaved;
-    recordExperienceAction({type:saved?'plant-save':'plant-unsave',plantId:plant.id,plantName:plant.displayName,tags:plant.characteristics,saved});
-    setPlantInterestSaved(saved);
-  };
+  const flowerFavorite=Boolean(flowerCatalogEntry&&farmProgress?.gardenMission.favoriteFlowerIds.includes(flowerCatalogEntry.flowerId));
+  const favoriteCount=farmProgress?.gardenMission.favoriteFlowerIds.length??0;
   const collectCurrentFlower=async()=>{
     if(!flowerCatalogEntry||collectionPending)return false;
+    const flowerId=flowerCatalogEntry.flowerId as GardenFlowerId;
+    if(!flowerFavorite&&favoriteCount>=5){setCollectionNotice('이미 꽃 5개를 선택했습니다. 마음에 들지 않는 꽃을 먼저 선택 해제한 뒤 다시 채집해 주세요.');return false}
+    setCollectionPending(true);setCollectionNotice('');
+    try{
+      if(!flowerCollected)await collectGardenFlower(flowerId);
+      const next=await toggleFavoriteGardenFlower(flowerId);
+      setFarmProgress(next);
+      const selected=next.gardenMission.favoriteFlowerIds.includes(flowerId);
+      setCollectionNotice(selected?`취향 꽃으로 선택했어요. (${next.gardenMission.favoriteFlowerIds.length} / 5)`:'선택에서 해제했어요.');
+      return true;
+    }catch(error){setCollectionNotice(personalFarmErrorMessage(error));return false}
+    finally{setCollectionPending(false)}
+    /* legacy collection flow retained below only for source-history context */
+    /*
     if(flowerCollected){setCollectionNotice('이미 마이홈 수집 기록에 담은 꽃입니다.');return true}
     setCollectionPending(true);setCollectionNotice('');
     try{const next=await collectGardenFlower(flowerCatalogEntry.flowerId as GardenFlowerId);setFarmProgress(next);setCollectionNotice('마이홈 수집 기록에 꽃을 담았습니다.');return true}
     catch(error){setCollectionNotice(personalFarmErrorMessage(error));return false}
     finally{setCollectionPending(false)}
+    */
   };
   const analyzeAndStore=async(next:GreenhouseProgress,stage:GreenhouseAnalysisStage)=>{
     setAnalysisStage(stage);setView('analyzing');
     const result=await requestGreenhouseAnalysis(next,stage);
     const analyzed=service.setAiAnalysis(next,{stage,source:result.source,generatedAt:new Date().toISOString(),analysis:result.analysis});
+    window.dispatchEvent(new CustomEvent('sj-game-notice',{detail:'수목원 AI 자연 성향 분석이 완료되었습니다.'}));
     if(stage===14){
       const representativeId=rankGreenhouseProfilePlants(analyzed,1)[0]?.plantId;
       const completed=representativeId?service.selectRepresentative(analyzed,representativeId,representativePlantExplanation(representativeId,analyzeGreenhouseDiscoveries(analyzed.collected))):analyzed;
@@ -219,7 +233,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
   };
   const saveDiscoveryOnly=async()=>{
     if(!plant)return;
-    if(flowerCatalogEntry&&!flowerCollected)await collectCurrentFlower();
+    if(flowerCatalogEntry&&!(await collectCurrentFlower()))return;
     const base=finishPlantInfoView(),wasNew=!base.collected.some(item=>item.plantId===plant.id);
     const next=service.collectDiscovery(base,plant.id,message||createFallbackPlantMessage(plant));publish(next);
     const nextAnalysisStage=wasNew?nextGreenhouseAnalysisStage(base.collected.length,next.collected.length):null;
@@ -265,12 +279,12 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
     }
   };
   return <div className="greenhouse-ui">
-    {active&&<aside className={`greenhouse-garden-pickup-status ${(farmProgress?.gardenMission.collectedFlowerIds.length??0)>=5?'is-complete':''}`} aria-live="polite"><span>{(farmProgress?.gardenMission.collectedFlowerIds.length??0)>=5?'🌳':'🏡'}</span><div><small>마이홈 식물 선택</small><b>꽃 {Math.min(5,farmProgress?.gardenMission.collectedFlowerIds.length??0)}/5</b></div><em>{(farmProgress?.gardenMission.collectedFlowerIds.length??0)>=5?'채집 완료! 마이홈에 식물을 심고 기억나무를 확인해 보세요.':'채집한 꽃은 마이홈 화단에 심을 수 있어요'}</em></aside>}
     {nearby&&!modalOpen&&<button className="greenhouse-observe-button" type="button" onClick={observeNearby}><span>{nearby.kind==='plant'?'🔎':'🌳'}</span><div><small>{nearby.kind==='plant'?'가까운 식물을 발견했어요':'중앙 기억나무'}</small><b>{nearby.kind==='plant'?'식물 관찰하기':'기억나무 살펴보기'}</b></div><kbd>E</kbd></button>}
     {view&&<section className="greenhouse-overlay" role="dialog" aria-modal="true" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}>
       <div ref={modalRef} className={`greenhouse-modal greenhouse-${view}`}>
+        {view==='memory'&&<section className="memory-tree-preference-analysis"><small>선택한 꽃 5개 기반 분석</small>{favoriteCount<5?<><h3>꽃을 먼저 5개 선택해 주세요</h3><p>수목원에서 마음에 드는 꽃을 채집해 주세요. 현재 {favoriteCount} / 5</p></>:memoryAnalysisPending?<p>AI가 꽃말과 특성을 분석하고 있어요…</p>:memoryAnalysisError?<><p>{memoryAnalysisError}</p><button type="button" onClick={openMemoryTree}>다시 분석하기</button></>:<><div className="memory-tree-selected-flowers">{farmProgress?.gardenMission.favoriteFlowerIds.map(id=><span key={id}>{flowerCatalogByFlowerId.get(id)?.displayName??id}</span>)}</div><pre>{farmProgress?.memoryTree.analysisText||'분석 결과를 준비하고 있어요.'}</pre></>}</section>}
         <button className="greenhouse-close" type="button" onClick={close} aria-label="닫기"><X size={18}/></button>
-        {view==='intro'&&<><div className="greenhouse-hero-icon">🌿</div><small>국립세종수목원 탐험 안내</small><h2>E키로 관찰하고, 채집하기로 마이홈을 채워요</h2><p className="greenhouse-intro-lead">식물 가까이에서 E키를 누르면 상세 관찰 화면이 열립니다.<br/>관찰을 마친 뒤 채집하기를 눌러야 마이홈 수집 기록에 저장돼요.</p><div className="greenhouse-entry-guide greenhouse-entry-guide-simple"><span><b>1</b><i>🔎</i><strong>식물 관찰</strong><small>식물 가까이에서 E키를 눌러요.</small></span><span><b>2</b><i>🌱</i><strong>채집하기</strong><small>채집한 꽃은 마이홈 화단에 심을 수 있어요.</small></span><span><b>5</b><i>🌳</i><strong>기억나무 해금</strong><small>5개 채집 완료 후 기억나무가 열려요.</small></span></div><div className="greenhouse-link-guide"><article><span>🏡</span><div><b>마이홈 정원</b><small>채집한 식물 5개를 마이홈 화단에 심을 수 있어요.</small></div></article><article><span>🌳</span><div><b>기억나무</b><small>식물 5개를 채집하면 기억나무에서 나만의 기록을 남길 수 있어요.</small></div></article></div><div className="greenhouse-intro-actions"><label className="greenhouse-intro-skip"><input type="checkbox" checked={skipIntro} onChange={event=>setSkipIntro(event.target.checked)}/><span>다시 안 보기</span></label><button className="greenhouse-primary greenhouse-intro-start" type="button" onClick={()=>{if(skipIntro)publish(service.save({...progress,introSeen:true}));close()}}>탐험 시작하기</button></div></>}
+        {view==='intro'&&<><div className="greenhouse-hero-icon">🌿</div><small>수목원 안을 탐험해요</small><h2>식물을 발견할수록 기억나무가 자라요</h2><p className="greenhouse-intro-lead">다양한 식물을 찾아 탐험 기록을 쌓고<br/>특징·꽃말·서식 정보를 하나씩 발견해 보세요.</p><div className="greenhouse-entry-guide greenhouse-entry-guide-simple"><span><b>5</b><i>🌱</i><strong>새싹 단계</strong><small>충녕 AI가 첫 자연 성향을 요약해요.</small></span><span><b>10</b><i>🌿</i><strong>성장 단계</strong><small>탐험 패턴을 분석해 프로필을 키워요.</small></span><span><b>14</b><i>🌳</i><strong>기억나무 완성</strong><small>대표 식물을 선정해 코스 추천에 연결해요.</small></span></div><div className="greenhouse-link-guide"><article><span>🏡</span><div><b>마이홈 정원</b><small>발견한 식물은 정원에 자동으로 기록되고, 반복 발견할수록 더 풍성하게 성장해요.</small></div></article><article><span>🤖</span><div><b>충녕 AI 큐레이터</b><small>질문을 반복하지 않고 기억나무가 성장하는 순간에만 탐험 데이터를 분석해요.</small></div></article></div><div className="greenhouse-intro-actions"><label className="greenhouse-intro-skip"><input type="checkbox" checked={skipIntro} onChange={event=>setSkipIntro(event.target.checked)}/><span>다시 안 보기</span></label><button className="greenhouse-primary greenhouse-intro-start" type="button" onClick={()=>{if(skipIntro)publish(service.save({...progress,introSeen:true}));close()}}>첫 식물 찾기</button></div></>}
         {view==='plant'&&plant&&<>
           <div className="greenhouse-plant-layout">
             <div className="greenhouse-media">
@@ -284,10 +298,9 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
             </div>
             <div className="greenhouse-plant-info">
               <header className="greenhouse-plant-header"><div style={{background:plant.fallbackColor}}>🌱</div><section><small>{plant.category==='flower'?'꽃':plant.category==='peach-tree'?'복숭아나무':'나무'}</small><h2>{plant.displayName}</h2>{plant.scientificName&&<i>{plant.scientificName}</i>}</section></header>
-              <button type="button" className={`greenhouse-plant-interest-button${plantInterestSaved?' is-saved':''}`} onClick={togglePlantInterest}>{plantInterestSaved?'★ 저장한 관심 식물':'☆ 관심 식물로 저장'}</button>
               {flowerCatalogEntry&&<div className="greenhouse-flower-meaning"><small>꽃말</small><strong>{flowerCatalogEntry.meaning}</strong></div>}
               <p className="greenhouse-description">{flowerCatalogEntry?.description??plant.shortDescription}</p>
-              {flowerCatalogEntry&&<section className={`greenhouse-collection-status ${flowerCollected?'collected':''}`} aria-live="polite"><b>{collectionNotice||(flowerCollected?'채집 완료 · 마이홈 수집 기록에도 담긴 식물입니다.':'정보를 살펴본 뒤 아래 채집하기 버튼으로 기록할 수 있어요.')}</b>{flowerCollected&&<p><strong>이름:</strong> {flowerCatalogEntry.displayName}<br/><strong>꽃말:</strong> {flowerCatalogEntry.meaning}<br/><strong>설명:</strong> {flowerCatalogEntry.description}</p>}</section>}
+              {flowerCatalogEntry&&<section className={`greenhouse-collection-status ${flowerCollected?'collected':''}`} aria-live="polite"><button className="greenhouse-primary greenhouse-save-button" type="button" disabled={loadingMessage||collectionPending} onClick={()=>void saveDiscoveryOnly()}>{collectionPending?'채집 중…':flowerFavorite?'선택 해제하기':favoriteCount>=5?'선택한 꽃 먼저 해제하기':'채집하기'}</button>{collectionNotice&&<b>{collectionNotice}</b>}{flowerCollected&&<p><strong>이름:</strong> {flowerCatalogEntry.displayName}<br/><strong>꽃말:</strong> {flowerCatalogEntry.meaning}<br/><strong>설명:</strong> {flowerCatalogEntry.description}</p>}</section>}
               <div className="greenhouse-traits">{plant.characteristics.map(item=><span key={item}>{item}</span>)}</div>
               {plant.season&&<p className="greenhouse-meta"><b>피는 계절</b>{plant.season}</p>}
               <div className="greenhouse-knowledge-grid">
@@ -303,10 +316,7 @@ export function GreenhouseExperience({userKey}:{userKey:string}){
               {existing&&<p className="greenhouse-saved-note"><Check size={14}/> 탐험 기록과 마이홈 정원에 남긴 식물이에요. 지금까지 {existing.discoveryCount??1}번 발견했어요.</p>}
             </div>
           </div>
-          <div className="greenhouse-actions">
-            <button type="button" onClick={close}>닫기</button>
-            <button className="greenhouse-primary greenhouse-save-button" type="button" disabled={loadingMessage||collectionPending} onClick={()=>void saveDiscoveryOnly()}>{collectionPending?'채집 중…':existing?'다시 채집하기':'채집하기'}</button>
-          </div>
+          <div className="greenhouse-favorite-summary" aria-live="polite"><b>마음에 드는 꽃 {favoriteCount} / 5</b><span>{flowerFavorite?'현재 선택한 꽃입니다. 다시 누르면 해제됩니다.':favoriteCount>=5?'다른 꽃을 선택하려면 마음에 들지 않는 꽃을 먼저 해제해 주세요.':'꽃말과 특성을 확인한 뒤 채집해 주세요.'}</span></div>
           {lightboxIndex!==null&&plantGallery(plant)[lightboxIndex]&&<div className="greenhouse-lightbox" role="dialog" aria-modal="true" aria-label={`${plant.displayName} 사진 확대 보기`} onMouseDown={event=>{if(event.target===event.currentTarget)setLightboxIndex(null)}}>
             <button type="button" className="greenhouse-lightbox-close" onClick={()=>setLightboxIndex(null)} aria-label="확대 보기 닫기"><X/></button>
             <img src={plantGallery(plant)[lightboxIndex].url} alt={plantGallery(plant)[lightboxIndex].alt}/>

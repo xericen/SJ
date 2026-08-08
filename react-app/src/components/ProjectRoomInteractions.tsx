@@ -8,6 +8,7 @@ import {
   createProjectApplication,
   loadProjectApplications,
   loadProjectRoomProjects,
+  refreshProjectApplications,
   refreshProjectRoomProjects,
   recommendProjects,
   saveProjectApplications,
@@ -24,6 +25,7 @@ import { loadTravelProjectDraft,saveTravelProjectDraft,type TravelIdea,type Trav
 import { API_BASE_URL } from '../config/api';
 import type { GovernmentCourse } from '../../shared/socket-events';
 import {clearClubProjectContext,loadClubProjectContext} from '../services/clubProjectBridge';
+import {syncUnifiedProjectApplication} from '../services/unifiedProfileApi';
 
 type Panel='kiosk-home'|'board'|'mine'|'recommendation'|'sejong-schedule'|'project-status'|'creation'|'course'|'door'|'detail'|'profile-send'|null;
 type PlaceSearchResult={id:string;name:string;category:string;address:string;roadAddress:string;externalUrl:string;longitude:number;latitude:number;source:'kakao'|'mock'};
@@ -132,7 +134,7 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
     };
   },[]);
   useEffect(()=>{if(!active){setNearby(null);setNearbySeat(null);setPanel(null);setSelected(null);setActiveProjectId(null);localStorage.removeItem(ACTIVE_PROJECT_ROOM_KEY);setKioskActive(false);gameEvents.emit('project-room-focus-changed',undefined)}},[active]);
-  useEffect(()=>{if(active)void refreshProjectRoomProjects().then(setProjects).catch(()=>undefined)},[active]);
+  useEffect(()=>{if(active)void Promise.all([refreshProjectRoomProjects(),refreshProjectApplications()]).then(([nextProjects,nextApplications])=>{setProjects(nextProjects);setApplications(nextApplications)}).catch(()=>undefined)},[active]);
   useEffect(()=>onOpenChange(panel!==null||kioskActive),[kioskActive,onOpenChange,panel]);
   useEffect(()=>{if(kioskActive)panelRef.current?.scrollTo({top:0,left:0})},[kioskActive,panel]);
   useEffect(()=>{

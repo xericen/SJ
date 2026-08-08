@@ -29,6 +29,7 @@ const ALBUM_IMAGES=['/images/festivals/spring-flower-2026.jpg','/images/festival
 const DEFAULT_PROJECTS:LinkedProject[]=[{id:'archive',icon:'📷',name:'세종 풍경 아카이빙',status:'활동 완료 · 후기 8개'},{id:'night',icon:'🌙',name:'정부청사 야경 기록',status:'진행 중 · 동아리원 6명 참여'}];
 const iconFor=(club:Club)=>club.category.includes('사진')?'📸':club.category.includes('환경')?'🌱':club.category.includes('카페')?'☕':club.category.includes('꽃')?'🌸':'🎪';
 const userIdFor=(name:string)=>`community-user-${name.trim().toLowerCase().replace(/\s+/g,'-')||'anonymous'}`;
+const normalizeClub=(value:Partial<Club>):Club=>({...value,members:Array.isArray(value.members)?value.members:[],tags:Array.isArray(value.tags)?value.tags:[]} as Club);
 const readError=async(response:Response)=>{try{return (await response.json() as {message?:string}).message||'요청을 처리하지 못했어요.'}catch{return '요청을 처리하지 못했어요.'}};
 const seedFeed=(club:BoothClub):FeedItem[]=>club.category.includes('사진')?[
  {id:'photo-1',author:'민주',title:'수목원 사진을 업로드했어요',detail:'비 온 뒤 더 선명해진 여름 정원을 기록했습니다. · 사진 12장',likes:12,comments:3},
@@ -46,7 +47,7 @@ export function ClubStreetExperience({active,profile,onNotice}:{active:boolean;p
  const [boothPickerTarget,setBoothPickerTarget]=useState<number|null>(null),[addedBooths,setAddedBooths]=useState<Record<number,BoothClub>>({});
  const openCreator=()=>{setCreateError('');setCreatorOpen(true)};
  useEffect(()=>{const changed=(value:BoothScreenPosition[])=>setPositions(value);gameEvents.on('club-booth-card-screen-positions',changed);return()=>{gameEvents.off('club-booth-card-screen-positions',changed)}},[]);
- useEffect(()=>{if(!active){setSelected(null);setCreatorOpen(false);return}const controller=new AbortController();fetch(`${API_BASE_URL}/clubs`,{signal:controller.signal}).then(response=>response.ok?response.json():[]).then(value=>setClubs(Array.isArray(value)?value:(value?.data?.items??[]))).catch(()=>undefined);return()=>controller.abort()},[active]);
+ useEffect(()=>{if(!active){setSelected(null);setCreatorOpen(false);return}const controller=new AbortController();fetch(`${API_BASE_URL}/clubs`,{signal:controller.signal}).then(response=>response.ok?response.json():[]).then(value=>setClubs((Array.isArray(value)?value:(value?.data?.items??[])).map(normalizeClub))).catch(()=>undefined);return()=>controller.abort()},[active]);
  const boothClubs=useMemo(()=>clubs.slice(0,INITIAL_CLUB_COUNT).map(club=>({...club,icon:iconFor(club),recentActivity:club.activity||club.location||'첫 활동 준비 중',interests:(club.tags?.length?club.tags:[club.category]).slice(0,2)})),[clubs]);
  const myBoothClubs=useMemo(()=>clubs.filter(club=>club.ownerId===userId).map(club=>({...club,icon:iconFor(club),recentActivity:club.activity||club.location||'첫 활동 준비 중',interests:(club.tags?.length?club.tags:[club.category]).slice(0,2)})).filter(club=>!Object.values(addedBooths).some(added=>added.id===club.id)),[clubs,userId,addedBooths]);
  const placeMyClub=(club:BoothClub)=>{if(boothPickerTarget===null)return;setAddedBooths(current=>({...current,[boothPickerTarget]:club}));setBoothPickerTarget(null);onNotice(`${club.name}을 선택한 부스에 올렸어요.`)};

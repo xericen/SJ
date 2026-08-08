@@ -7,6 +7,7 @@ import {
   createProjectApplication,
   loadProjectApplications,
   loadProjectRoomProjects,
+  refreshProjectApplications,
   recommendProjects,
   saveProjectApplications,
   saveProjectRoomProjects,
@@ -17,6 +18,7 @@ import { inferCampusTopicProfile,recordCampusProfileSignal } from '../services/c
 import { chatWithChungnyeong,sendChungnyeongProfileRequest } from '../services/chungnyeong';
 import { COMMUNITY_API_BASE_URL as API_BASE_URL } from '../config/api';
 import './RecruitmentCenterDesk.css';
+import {syncUnifiedProjectApplication} from '../services/unifiedProfileApi';
 
 type DeskMode='chat'|'join';
 type SortMode='모집 중'|'인기'|'최신'|'내 관심사';
@@ -104,7 +106,9 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
   useEffect(()=>{
     const show=()=>{const stored=loadProjectRoomProjects();setProjects(stored);void syncCommunityRecruitments(profile,stored).then(setProjects).catch(()=>setProjects(stored));setMode('chat');setLastApplied(null);setPendingApply(null);setRecruitmentComposer(false);setChatInput('');setChatError('');setChatMessages([{role:'assistant',text:INITIAL_CHAT_MESSAGE}]);setOpen(true)};
     gameEvents.on('recruitment-guide-open',show);
-    return()=>{gameEvents.off('recruitment-guide-open',show)};
+    const leave=(mapId:string)=>{if(mapId!=='recruitment-center')recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'visit-complete',subject:'recruitment-center',title:'모집센터 방문 완료',note:'모집센터의 참여·작성 체험을 마치고 공동캠퍼스로 돌아왔어요',point:5,keywords:['모집 탐색','함께하기'],axes:{relation:2,explore:3}})};
+    gameEvents.on('map-travel-complete',leave);
+    return()=>{gameEvents.off('recruitment-guide-open',show);gameEvents.off('map-travel-complete',leave)};
   },[profile.nickname]);
   useEffect(()=>onOpenChange(open),[onOpenChange,open]);
   useEffect(()=>{
@@ -135,7 +139,7 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
     return recruiting;
   },[projects,recommendations,sort]);
 
-  const close=()=>{setOpen(false);setMode('chat');setLastApplied(null);setPendingApply(null)};
+  const close=()=>{recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'visit-complete',subject:'recruitment-center',title:'모집센터 방문 완료',note:'모집글을 살펴보고 참여·작성 체험을 확인했어요',point:5,keywords:['모집 탐색','함께하기'],axes:{relation:2,explore:3}});setOpen(false);setMode('chat');setLastApplied(null);setPendingApply(null)};
   const openRecruitmentComposer=(draft?:RecruitmentDraft)=>{setRecruitmentForm({title:draft?.title??'',introduction:draft?.introduction??'',tags:draft?.tags??[],capacity:'5',date:'',place:''});setRecruitmentTagInput('');setRecruitmentComposer(true)};
   const addRecruitmentTag=()=>{const tag=recruitmentTagInput.trim().replace(/^#/,'');if(!tag)return;setRecruitmentForm(current=>current.tags.includes(tag)?current:{...current,tags:[...current.tags,tag].slice(0,8)});setRecruitmentTagInput('')};
   const removeRecruitmentTag=(tag:string)=>setRecruitmentForm(current=>({...current,tags:current.tags.filter(item=>item!==tag)}));
@@ -146,8 +150,10 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
     try{
       const response=await fetch(`${API_BASE_URL}/community?action=create&payload=${encodeURIComponent(JSON.stringify({author:profile.nickname,title:recruitmentForm.title.trim(),content,category:'모임·행사'}))}`);
       if(!response.ok){const body=await response.json().catch(()=>({})) as {message?:string;error?:{message?:string}};throw new Error(body.error?.message??body.message??'모집글을 등록하지 못했어요.')}
-      const body=await response.json() as {data?:{items?:CommunityRecruitmentPost[]}},post=body.data?.items?.[0],created=post?recruitmentPostToProject(post):null;
+      const body=await response.json() as CommunityRecruitmentPost[]|{data?:{items?:CommunityRecruitmentPost[]};items?:CommunityRecruitmentPost[]};
+      const post=Array.isArray(body)?body[0]:body.data?.items?.[0]??body.items?.[0],created=post?recruitmentPostToProject(post):null;
       if(created)setProjects(current=>{const next=[created,...current.filter(project=>project.id!==created.id)];saveProjectRoomProjects(next);return next});
+      recordCampusProfileSignal(profile.nickname,{mapId:'recruitment-center',zone:'모집센터',action:'create-recruitment',subject:created?.id??`local-post-${Date.now()}`,title:'모집글 작성 완료',note:`${recruitmentForm.title.trim()} 모집글을 작성해 내 모집 관리에 저장했어요`,point:12,keywords:['모집','주도적 참여',...tags],axes:{relation:5,record:6,explore:2}});
       setRecruitmentComposer(false);setChatMessages(current=>[...current,{role:'assistant',text:`“${recruitmentForm.title.trim()}” 모집글을 등록했어요. 이제 신청자가 오면 내 모집 관리에서 확인할 수 있어요.`,management:true}]);onNotice('새 모집글을 등록했어요.');
     }catch(error){
       const localPost={id:`local-post-${Date.now()}`,author:profile.nickname,title:recruitmentForm.title.trim(),content,category:'모임·행사',likes:0,likedBy:[],comments:[],createdAt:new Date().toISOString()};
@@ -243,7 +249,7 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
           </section>
         </main>
         {pendingApply&&<aside className="recruitment-application-result is-confirm"><UserRound/><div><small>프로필 전달 확인</small><b>{recruitmentTitle(pendingApply.title)}에 내 공개 프로필을 전달할까요?</b><p>담당자에게는 닉네임과 공개한 관심사·활동 기록만 전달됩니다.</p></div><button type="button" className="cancel" disabled={profileRequestBusy} onClick={()=>setPendingApply(null)}>취소</button><button type="button" disabled={profileRequestBusy} onClick={()=>void apply(pendingApply)}>{profileRequestBusy?'전달 중…':'확인하고 전달'}</button></aside>}
-        {lastApplied&&!pendingApply&&<aside className="recruitment-application-result"><Check/><div><small>모집글 참가 신청 완료</small><b>확인한 공개 프로필 전달 → 모집자 승인 대기</b><p>승인되면 모집자와 약속한 활동을 이어갈 수 있어요.</p></div><button type="button" onClick={close}>모집센터로 돌아가기</button></aside>}
+        {lastApplied&&!pendingApply&&<aside className="recruitment-application-result"><Check/><div><small>모집글 참가 신청 완료</small><b>확인한 공개 프로필 전달 → 모집자 승인 대기</b><p>승인되면 모집자와 약속한 활동을 이어갈 수 있어요.</p></div></aside>}
         {recruitmentComposer&&<div className="chungnyeong-recruitment-composer" role="dialog" aria-modal="true" aria-label="새 모집글 작성"><form onSubmit={submitRecruitment}><header><div><small>NEW RECRUITMENT</small><h3>새 모집글 작성</h3><p>함께하고 싶은 활동을 직접 작성해 주세요. 모든 내용은 등록 전까지 자유롭게 수정할 수 있어요.</p></div><button type="button" onClick={()=>setRecruitmentComposer(false)} aria-label="모집글 작성 닫기"><X/></button></header><label className="wide">모집 제목<input autoFocus value={recruitmentForm.title} onChange={event=>setRecruitmentForm(current=>({...current,title:event.target.value}))} maxLength={80} placeholder="어떤 사람을 모집하고 싶은지 제목을 작성해 주세요" required/></label><label className="wide">소개글<textarea value={recruitmentForm.introduction} onChange={event=>setRecruitmentForm(current=>({...current,introduction:event.target.value}))} maxLength={500} placeholder="함께할 활동과 원하는 분위기 등을 자유롭게 소개해 주세요" required/></label><label>추천 태그<div className="chungnyeong-tag-editor"><div className="chungnyeong-tag-list">{recruitmentForm.tags.map(tag=><button type="button" key={tag} onClick={()=>removeRecruitmentTag(tag)} title="태그 삭제">#{tag}<X/></button>)}</div><div className="chungnyeong-tag-input"><input value={recruitmentTagInput} onChange={event=>setRecruitmentTagInput(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();addRecruitmentTag()}}} maxLength={20} placeholder="태그 단어 입력"/><button type="button" onClick={addRecruitmentTag} disabled={!recruitmentTagInput.trim()} aria-label="태그 추가"><Plus/></button></div></div><small className="chungnyeong-field-help">단어 입력 후 + 또는 Enter · 태그를 누르면 삭제</small></label><label>모집 인원<input type="number" inputMode="numeric" min="2" max="100" step="1" value={recruitmentForm.capacity} onChange={event=>setRecruitmentForm(current=>({...current,capacity:event.target.value}))} onBlur={()=>setRecruitmentForm(current=>({...current,capacity:String(Math.min(100,Math.max(2,Number.parseInt(current.capacity,10)||2)))}))} placeholder="직접 인원 입력" required/></label><label>모임 일정<input type="datetime-local" value={recruitmentForm.date} onChange={event=>setRecruitmentForm(current=>({...current,date:event.target.value}))}/></label><label>모이는 장소<input value={recruitmentForm.place} onChange={event=>setRecruitmentForm(current=>({...current,place:event.target.value}))} placeholder="예: 수목원 입구"/></label><footer><button type="button" onClick={()=>setRecruitmentComposer(false)}>취소</button><button type="submit" disabled={recruitmentSaving||!recruitmentForm.title.trim()||!recruitmentForm.introduction.trim()}>{recruitmentSaving?'등록 중…':'모집글 등록'}</button></footer></form></div>}
       </>:<>
         <button type="button" className="recruitment-desk-close" onClick={close} aria-label="모집센터 안내 닫기"><X/></button>
@@ -252,7 +258,7 @@ export function RecruitmentCenterDesk({profile,players,onOpenChange,onNotice,onP
           {mode==='join'&&<section><KioskTitle icon="📌" title="모집글 참가하기" copy="공개 모집글을 살펴보고 확인 후 내 프로필로 참가를 신청하세요."/><nav className="recruitment-sort-tabs">{(['모집 중','인기','최신','내 관심사'] as SortMode[]).map(item=><button type="button" className={sort===item?'active':''} onClick={()=>setSort(item)} key={item}>{item==='인기'?'★★★★★ 인기':item}</button>)}</nav><ProjectList projects={sortedProjects} recommendations={recommendations} applied={applied} onApply={setPendingApply}/></section>}
         </main>
         {pendingApply&&<aside className="recruitment-application-result is-confirm"><UserRound/><div><small>프로필 전달 확인</small><b>{recruitmentTitle(pendingApply.title)}에 내 공개 프로필을 전달할까요?</b><p>담당자에게는 닉네임과 공개한 관심사·활동 기록만 전달됩니다.</p></div><button type="button" className="cancel" disabled={profileRequestBusy} onClick={()=>setPendingApply(null)}>취소</button><button type="button" disabled={profileRequestBusy} onClick={()=>void apply(pendingApply)}>{profileRequestBusy?'전달 중…':'확인하고 전달'}</button></aside>}
-        {lastApplied&&!pendingApply&&<aside className="recruitment-application-result"><Check/><div><small>모집글 참가 신청 완료</small><b>확인한 공개 프로필 전달 → 모집자 승인 대기</b><p>승인되면 모집자와 약속한 활동을 이어갈 수 있어요.</p></div><button type="button" onClick={close}>모집센터로 돌아가기</button></aside>}
+        {lastApplied&&!pendingApply&&<aside className="recruitment-application-result"><Check/><div><small>모집글 참가 신청 완료</small><b>확인한 공개 프로필 전달 → 모집자 승인 대기</b><p>승인되면 모집자와 약속한 활동을 이어갈 수 있어요.</p></div></aside>}
         <footer className="recruitment-flow"><span className="done">충녕이 안내</span><i>→</i><span className="done">키오스크 실행</span><i>→</i><span className={lastApplied?'done':''}>프로필 전달</span><i>→</i><span>참가 승인</span><i>→</i><span>프로젝트실</span></footer>
       </>}
     </section>
@@ -263,9 +269,11 @@ function ManagementCard({projects,profile,onNotice,onProjectsChange}:{projects:P
   const mine=projects.filter(project=>project.leaderId===userId(profile));
   const [applications,setApplications]=useState(loadProjectApplications);
   const [selectedProjectId,setSelectedProjectId]=useState<string|null>(null);
+  useEffect(()=>{void refreshProjectApplications().then(setApplications).catch(()=>undefined)},[]);
   const review=(project:Project,application:ReturnType<typeof loadProjectApplications>[number],status:'accepted'|'rejected')=>{
     if(status==='accepted'&&!project.memberIds.includes(application.applicantId)&&project.memberIds.length>=project.maxMembers){onNotice('모집 인원이 모두 찼어요.');return}
     const nextApplications=applications.map(item=>item.id===application.id?{...item,status}:item);setApplications(nextApplications);saveProjectApplications(nextApplications);
+    void syncUnifiedProjectApplication({id:application.id,projectId:application.projectId,applicantId:application.applicantId,projectLeaderId:project.leaderId,message:application.message,profileSnapshot:application.profileSnapshot,status,createdAt:application.createdAt}).catch(()=>undefined);
     const nextProjects=projects.map(item=>item.id!==project.id?item:{...item,memberIds:status==='accepted'?[...new Set([...item.memberIds,application.applicantId])]:item.memberIds.filter(member=>member!==application.applicantId),applicantIds:item.applicantIds.filter(id=>id!==application.applicantId)});saveProjectRoomProjects(nextProjects);onProjectsChange(nextProjects);onNotice(status==='accepted'?`${application.applicantId}님의 신청을 승인했어요.`:`${application.applicantId}님의 신청을 거절했어요.`);
   };
   return <div className="chungnyeong-management-card"><header><span>👑</span><div><small>내 모집 관리</small><b>{mine.length}개의 모집</b></div></header>{mine.length?mine.map(project=>{const applicants=applications.filter(item=>item.projectId===project.id),pending=applicants.filter(item=>item.status==='pending').length,expanded=selectedProjectId===project.id;return <Fragment key={project.id}><article><div><b>{project.title}</b><small>대기 신청자 {pending}명 · {project.memberIds.length}/{project.maxMembers}명 참여</small></div><button type="button" className={expanded?'active':''} onClick={()=>setSelectedProjectId(expanded?null:project.id)}>{expanded?'목록 닫기':'신청자 보기'}</button></article>{expanded&&<section className="chungnyeong-applicant-list"><header><div><small>APPLICANT PROFILES</small><b>{project.title} 신청자</b></div><span>{applicants.length}명</span></header>{applicants.length?applicants.map(application=><article className="chungnyeong-applicant-card" key={application.id}><header><span>{application.applicantId.slice(0,1)||'신'}</span><div><b>{application.applicantId}</b><small>{application.profileSnapshot.travelStyle||'활동 성향 정보 없음'}</small></div><i className={application.status}>{application.status==='pending'?'승인 대기':application.status==='accepted'?'승인 완료':'거절됨'}</i></header>{application.profileSnapshot.introduction&&<p>{application.profileSnapshot.introduction}</p>}<div className="chungnyeong-applicant-tags">{[...application.profileSnapshot.activities,...application.profileSnapshot.preferredPlaces].slice(0,5).map((tag,index)=><span key={`${tag}-${index}`}>#{tag}</span>)}</div>{application.message&&<blockquote>“{application.message}”</blockquote>}<footer><button type="button" disabled={application.status!=='pending'} onClick={()=>review(project,application,'rejected')}><X/> 거절</button><button type="button" disabled={application.status!=='pending'} onClick={()=>review(project,application,'accepted')}><Check/> 승인</button></footer></article>):<div className="chungnyeong-applicant-empty"><UserRound/><b>아직 도착한 신청이 없어요</b><p>신청자가 프로필 전달에 동의하면 이곳에서 확인할 수 있어요.</p></div>}</section>}</Fragment>}):<p>아직 내가 만든 모집이 없어요. “새 모집 시작하기”를 눌러 충녕이와 초안을 만들어 보세요.</p>}</div>;

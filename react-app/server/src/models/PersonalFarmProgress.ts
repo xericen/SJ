@@ -17,8 +17,9 @@ export interface PersonalFarmProgress {
   _id:string;
   id:string;
   userId:string;
-  gardenMission:{collectedFlowerIds:GardenFlowerId[];plantedFlowerIds:GardenFlowerId[];completed:boolean;completedAt?:StoredDate;completedFlowerIds:string[];requiredFlowerCount:number;interestCompleted:boolean;interestCompletedAt?:StoredDate};
-  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];fedFeedSpotIds:BearFeedSpotId[];bearFed:boolean;bearFedAt?:StoredDate;completed:boolean;completedAt?:StoredDate};
+  gardenMission:{guideSeen:boolean;collectedFlowerIds:GardenFlowerId[];favoriteFlowerIds:GardenFlowerId[];plantedFlowerIds:GardenFlowerId[];plantedFlowers:Array<{slot:1|2|3|4|5;flowerId:GardenFlowerId;plantedAt:StoredDate}>;completed:boolean;completedAt?:StoredDate;completedFlowerIds:string[];requiredFlowerCount:number;interestCompleted:boolean;interestCompletedAt?:StoredDate};
+  memoryTree:{sourceFlowerIds:GardenFlowerId[];analysisText:string;analyzedAt?:StoredDate};
+  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];fedFeedSpotIds:BearFeedSpotId[];repeatFeedSpotId?:BearFeedSpotId;repeatFeedAvailableAt?:StoredDate;totalFeedCount:number;bearFed:boolean;bearFedAt?:StoredDate;completed:boolean;completedAt?:StoredDate};
   farm:{unlocked:boolean;unlockedRewardIds:FarmRewardId[];activeRewardIds:FarmRewardId[];bearGrowthStage:BearGrowthStage};
   natureChapter:{gardenCompleted:boolean;bearTreeCompleted:boolean;completed:boolean;completedAt?:StoredDate;noticeShown:boolean};
   realVisit:{garden:VisitMissionRecord;bearTree:VisitMissionRecord};
@@ -35,7 +36,7 @@ const visitDefaults=(value:Partial<VisitMissionRecord>|undefined):VisitMissionRe
   status:'locked',...value,metadata:{...(value?.metadata??{})},
 });
 const bearMissionDefaults=(value:Partial<PersonalFarmProgress['bearMission']>|undefined)=>{
-  const mission={collectedFeedIds:[],completedFeedSpotIds:[],fedFeedSpotIds:[],bearFed:false,completed:false,...value} as PersonalFarmProgress['bearMission'];
+  const mission={collectedFeedIds:[],completedFeedSpotIds:[],fedFeedSpotIds:[],totalFeedCount:0,bearFed:false,completed:false,...value} as PersonalFarmProgress['bearMission'];
   if(mission.bearFed&&!mission.fedFeedSpotIds.length)mission.fedFeedSpotIds=[...mission.completedFeedSpotIds];
   return mission;
 };
@@ -45,7 +46,8 @@ export const PersonalFarmProgressModel=createMysqlJsonModel('personal_farm_progr
   _id:String(input.userId??input._id),
   id:String(input.userId??input.id??input._id),
   userId:String(input.userId??input._id),
-  gardenMission:{collectedFlowerIds:[],plantedFlowerIds:[],completed:false,completedFlowerIds:[],requiredFlowerCount:5,interestCompleted:false,...input.gardenMission},
+  gardenMission:{guideSeen:false,collectedFlowerIds:[],favoriteFlowerIds:[],plantedFlowerIds:[],plantedFlowers:[],completed:false,completedFlowerIds:[],requiredFlowerCount:5,interestCompleted:false,...input.gardenMission},
+  memoryTree:{sourceFlowerIds:[],analysisText:'',...input.memoryTree},
   bearMission:bearMissionDefaults(input.bearMission),
   farm:{unlocked:false,unlockedRewardIds:[],activeRewardIds:[],bearGrowthStage:'locked',...input.farm},
   natureChapter:{gardenCompleted:false,bearTreeCompleted:false,completed:false,noticeShown:false,...input.natureChapter},

@@ -52,7 +52,7 @@ export function ArtsCenterPosterKiosk(){
     const wasSaved=favorites.includes(focus.index),next=toggleArtsCenterFavorite(favorites,focus.index);
     setFavorites(next);
     try{localStorage.setItem(ARTS_CENTER_FAVORITES_STORAGE_KEY,JSON.stringify(next))}catch{/* UI state remains available when storage is blocked. */}
-    recordExperienceAction({type:'favorite',performanceId:String(focus.index),saved:!wasSaved});
+    recordExperienceAction({type:'favorite',performanceId:String(focus.index),performanceTitle:performance.title,saved:!wasSaved});
   };
   const openDetail=(event:React.MouseEvent<HTMLButtonElement>)=>{event.preventDefault();event.stopPropagation();setDetailOpen(true)};
   const saved=favorites.includes(focus.index);

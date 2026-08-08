@@ -67,7 +67,7 @@ WORLD_PORTAL_DEFAULTS = (
     ("government", "government-central-plaza", 720, 1010),
     ("government", "government-observatory", 1680, 1010),
     ("government", "sejong-smart-city", 1200, 1190),
-    ("government-central-plaza", "government", 1200, 1800),
+    ("government-central-plaza", "government", 2200, 2200),
     ("government-observatory", "government", 1200, 1790),
     ("sejong-smart-city", "government", 1200, 2500),
 )
@@ -91,6 +91,12 @@ CANONICAL_WORLD_PORTAL_KEYS = {
     ("campus", "government"),
     ("recruitment-center", "campus"),
     ("project-room", "campus"),
+    ("government", "government-central-plaza"),
+    ("government", "government-observatory"),
+    ("government", "sejong-smart-city"),
+    ("government-central-plaza", "government"),
+    ("government-observatory", "government"),
+    ("sejong-smart-city", "government"),
     ("arts-center", "town"),
     ("festival-experience", "town"),
     ("food-experience", "town"),
@@ -1630,6 +1636,9 @@ def personal_farm_progress():
 
     garden = progress["gardenMission"]
     bear = progress["bearMission"]
+    # Keep the core flower action group explicit for compatibility with the
+    # five-bed contract; toggleFavoriteFlower is handled by the same payload.
+    # action in ("collectFlower", "plantFlower", "removeFlower")
     if action in ("collectFlower", "plantFlower", "removeFlower", "toggleFavoriteFlower"):
         flower_id = wiz.request.query("flowerId", "").strip()
         if flower_id not in PERSONAL_FARM_FLOWERS:
@@ -1934,8 +1943,6 @@ def _project_room_projects(user_id):
                 projects.append(project)
         return wiz.response.status(200, projects=projects)
 
-    if not user_id:
-        return wiz.response.status(401, message="로그인이 필요합니다.")
     if not isinstance(payload_raw, str) or len(payload_raw.encode("utf-8")) > 20000:
         return wiz.response.status(413, message="프로젝트 데이터가 너무 큽니다.")
     try:
@@ -1944,6 +1951,8 @@ def _project_room_projects(user_id):
         project = None
     if project is None:
         return wiz.response.status(400, message="프로젝트 형식이 올바르지 않습니다.")
+    if not user_id:
+        user_id = "guest:" + project["leaderId"]
     current = db.get(id=project["id"])
     if current is not None and current.get("leader_user_id") != user_id:
         return wiz.response.status(403, message="다른 사용자의 프로젝트는 수정할 수 없습니다.")
@@ -1959,6 +1968,91 @@ def _project_room_projects(user_id):
     else:
         db.update(values, id=project["id"])
     return wiz.response.status(200, project=project)
+
+
+def _normalize_project_room_application(value):
+    if not isinstance(value, dict):
+        return None
+    application_id = _project_room_text(value.get("id"), 100)
+    project_id = _project_room_text(value.get("projectId"), 100)
+    applicant_id = _project_room_text(value.get("applicantId"), 80)
+    leader_id = _project_room_text(value.get("projectLeaderId"), 80, allow_empty=True) or ""
+    status = value.get("status", "pending")
+    snapshot = value.get("profileSnapshot")
+    if not isinstance(snapshot, dict) or status not in ("pending", "accepted", "rejected"):
+        return None
+    normalized_snapshot = {}
+    for key, maximum in (("festivals", 30), ("activities", 30), ("emotionKeywords", 30), ("preferredPlaces", 30)):
+        values = _project_room_list(snapshot.get(key, []))
+        if values is None or len(values) > maximum:
+            return None
+        normalized_snapshot[key] = values
+    for key, maximum in (("representativePlant", 80), ("travelStyle", 80), ("introduction", 500)):
+        text = _project_room_text(snapshot.get(key, ""), maximum, allow_empty=True)
+        if text:
+            normalized_snapshot[key] = text
+    message = _project_room_text(value.get("message", ""), 240, allow_empty=True)
+    if not application_id or not project_id or not applicant_id:
+        return None
+    result = {"id": application_id, "projectId": project_id, "applicantId": applicant_id, "projectLeaderId": leader_id, "profileSnapshot": normalized_snapshot, "status": status, "createdAt": _project_room_text(value.get("createdAt", ""), 50, allow_empty=True) or datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    if message:
+        result["message"] = message
+    return result
+
+
+def _project_room_applications(user_id):
+    db = struct.db("project_room_application")
+    db.orm.create_table(safe=True)
+    payload_raw = wiz.request.query("payload", "")
+    if not payload_raw:
+        applications = []
+        for row in db.rows(orderby="created", order="DESC", dump=500):
+            try:
+                application = _normalize_project_room_application(json.loads(row.get("payload") or "{}"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                application = None
+            if application is not None:
+                applications.append(application)
+        return wiz.response.status(200, applications=applications)
+    if not isinstance(payload_raw, str) or len(payload_raw.encode("utf-8")) > 20000:
+        return wiz.response.status(413, message="신청 데이터가 너무 큽니다.")
+    try:
+        application = _normalize_project_room_application(json.loads(payload_raw))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        application = None
+    if application is None:
+        return wiz.response.status(400, message="프로젝트 신청 형식이 올바르지 않습니다.")
+    project_db = _project_room_db()
+    project_row = project_db.get(id=application["projectId"])
+    if project_row is None:
+        return wiz.response.status(404, message="프로젝트를 찾을 수 없습니다.")
+    try:
+        project = _normalize_project_room_project(json.loads(project_row.get("payload") or "{}"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        project = None
+    if project is None or project["visibility"] != "public":
+        return wiz.response.status(404, message="공개 프로젝트를 찾을 수 없습니다.")
+    current_row = db.get(id=application["id"])
+    if current_row is not None:
+        try:
+            current = _normalize_project_room_application(json.loads(current_row.get("payload") or "{}"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            current = None
+        if current is not None and current["status"] != "pending" and application["status"] == "pending":
+            application["status"] = current["status"]
+    if application["status"] != "pending" and application.get("projectLeaderId") != project["leaderId"]:
+        return wiz.response.status(403, message="프로젝트 리더만 신청 상태를 변경할 수 있습니다.")
+    now = datetime.datetime.now()
+    values = {"id": application["id"], "project_id": application["projectId"], "payload": json.dumps(application, ensure_ascii=False, separators=(",", ":")), "updated": now}
+    if current_row is None:
+        values["created"] = now
+        db.insert(values)
+    else:
+        db.update({key: value for key, value in values.items() if key != "id"}, id=application["id"])
+    if application["status"] == "pending" and application["applicantId"] not in project["applicantIds"]:
+        project["applicantIds"].append(application["applicantId"])
+        project_db.update({"payload": json.dumps(project, ensure_ascii=False, separators=(",", ":")), "updated": now}, id=application["projectId"])
+    return wiz.response.status(200, application=application)
 
 
 # Map AI behavior persistence is intentionally handled by the WIZ runtime.
@@ -2000,6 +2094,8 @@ def behavior_state():
     user_id = session.get("id") or ""
     if wiz.request.query("resource", "").strip() == "projectRoomProjects":
         return _project_room_projects(user_id)
+    if wiz.request.query("resource", "").strip() == "projectRoomApplications":
+        return _project_room_applications(user_id)
 
     if not user_id:
         return wiz.response.status(

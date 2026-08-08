@@ -27,6 +27,9 @@ export type FarmRewardId=typeof FARM_REWARD_IDS[number];
 export type BearGrowthStage='locked'|'cub'|'young'|'adult';
 export type VisitMissionStatus='locked'|'available'|'submitted'|'verified'|'rejected';
 export type VisitPlaceId='garden'|'bearTree';
+export type FlowerSlot=1|2|3|4|5;
+export interface PlantedFlowerDto {slot:FlowerSlot;flowerId:GardenFlowerId;plantedAt:string}
+export interface MemoryTreeDto {sourceFlowerIds:GardenFlowerId[];analysisText:string;analyzedAt:string|null}
 
 export interface VisitMissionDto {
   status:VisitMissionStatus;
@@ -37,8 +40,9 @@ export interface VisitMissionDto {
 }
 
 export interface PersonalFarmProgressDto {
-  gardenMission:{collectedFlowerIds:GardenFlowerId[];plantedFlowerIds:GardenFlowerId[];completed:boolean;completedAt:string|null;completedFlowerIds:string[];requiredFlowerCount:number;interestCompleted:boolean;interestCompletedAt:string|null};
-  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];fedFeedSpotIds:BearFeedSpotId[];bearFed:boolean;bearFedAt:string|null;completed:boolean;completedAt:string|null};
+  gardenMission:{guideSeen:boolean;collectedFlowerIds:GardenFlowerId[];favoriteFlowerIds:GardenFlowerId[];plantedFlowerIds:GardenFlowerId[];plantedFlowers:PlantedFlowerDto[];completed:boolean;completedAt:string|null;completedFlowerIds:string[];requiredFlowerCount:number;interestCompleted:boolean;interestCompletedAt:string|null};
+  memoryTree:MemoryTreeDto;
+  bearMission:{collectedFeedIds:BearFeedId[];completedFeedSpotIds:BearFeedSpotId[];fedFeedSpotIds:BearFeedSpotId[];repeatFeedSpotId:BearFeedSpotId|null;repeatFeedAvailableAt:string|null;totalFeedCount:number;bearFed:boolean;bearFedAt:string|null;completed:boolean;completedAt:string|null};
   farm:{unlocked:boolean;unlockedRewardIds:FarmRewardId[];activeRewardIds:FarmRewardId[];bearGrowthStage:BearGrowthStage};
   natureChapter:{gardenCompleted:boolean;bearTreeCompleted:boolean;completed:boolean;completedAt:string|null;noticeShown:boolean};
   realVisit:{garden:VisitMissionDto;bearTree:VisitMissionDto};

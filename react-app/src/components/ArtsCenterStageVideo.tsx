@@ -67,7 +67,7 @@ export function ArtsCenterStageVideo(){
       const state=data&&typeof data==='object'&&'info' in data?(data as {info?:{playerState?:number}}).info?.playerState:undefined;
       if(state===1&&watchStartedAt.current===null){if(!startedCurrentViewing.current){const count=playCounts.current.get(selectedIndex)??0;if(count)recordExperienceAction({type:'rewatch',performanceId:String(selectedIndex)});playCounts.current.set(selectedIndex,count+1);startedCurrentViewing.current=true}watchStartedAt.current=Date.now()}
       else if(state===2)finishSegment('pause');
-      else if(state===0){finishSegment('finish');recordExperienceAction({type:'finish',performanceId:String(selectedIndex)});gameEvents.emit('experience-analysis-request')}
+      else if(state===0){finishSegment('finish');recordExperienceAction({type:'finish',performanceId:String(selectedIndex),performanceTitle:ARTS_CENTER_PERFORMANCES[selectedIndex]?.title});gameEvents.emit('experience-analysis-request')}
     };
     window.addEventListener('message',receive);
     const listen=()=>iframeRef.current?.contentWindow?.postMessage(JSON.stringify({event:'listening',id:'arts-center-stage'}),'*');listen();

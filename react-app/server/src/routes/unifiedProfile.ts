@@ -40,8 +40,18 @@ export function createUnifiedProfileRouter(auth:RequestHandler=requireAuthentica
   });
   router.post('/me/unified-profile/projects',async(req,res)=>{
     const parsed=projectSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({success:false,error:{code:'INVALID_PROJECT',message:parsed.error.issues[0]?.message??'프로젝트 정보가 올바르지 않습니다.'}});
-    const userId=res.locals.authenticatedUserId,project=await ProjectModel.findOneAndUpdate({id:parsed.data.id},{$set:{...parsed.data,leaderUserId:userId,memberUserIds:[userId],memberNicknames:parsed.data.memberNicknames?.length?parsed.data.memberNicknames:[parsed.data.leaderNickname??userId]}},{upsert:true,returnDocument:'after'});
+    const userId=res.locals.authenticatedUserId,existing=await ProjectModel.findOne({id:parsed.data.id}).lean();
+    if(existing&&existing.leaderUserId!==userId)return res.status(403).json({success:false,error:{code:'PROJECT_LEADER_REQUIRED',message:'프로젝트 팀장만 프로젝트를 수정할 수 있습니다.'}});
+    const project=await ProjectModel.findOneAndUpdate({id:parsed.data.id},{$set:{...parsed.data,leaderUserId:userId,memberUserIds:existing?.memberUserIds?.length?existing.memberUserIds:[userId],memberNicknames:parsed.data.memberNicknames?.length?parsed.data.memberNicknames:[parsed.data.leaderNickname??userId]}},{upsert:true,returnDocument:'after'});
     return res.status(201).json({success:true,data:{project:project?.toJSON?.()??project}});
+  });
+  router.patch('/me/unified-profile/projects/:projectId/members/:memberId/role',async(req,res)=>{
+    const userId=res.locals.authenticatedUserId,project=await ProjectModel.findOne({id:req.params.projectId});
+    if(!project)return res.status(404).json({success:false,error:{code:'PROJECT_NOT_FOUND',message:'프로젝트를 찾을 수 없습니다.'}});
+    if(project.leaderUserId!==userId)return res.status(403).json({success:false,error:{code:'PROJECT_LEADER_REQUIRED',message:'프로젝트 팀장만 역할을 변경할 수 있습니다.'}});
+    if(!project.memberUserIds.includes(req.params.memberId))return res.status(404).json({success:false,error:{code:'PROJECT_MEMBER_NOT_FOUND',message:'프로젝트 팀원을 찾을 수 없습니다.'}});
+    const role=typeof req.body?.role==='string'?req.body.role.trim().slice(0,50):'';if(!role)return res.status(400).json({success:false,error:{code:'INVALID_ROLE',message:'역할을 입력해 주세요.'}});
+    project.memberRoles={...(project.memberRoles??{}),[req.params.memberId]:role};await project.save();return res.json({success:true,data:{memberRoles:project.memberRoles}});
   });
   router.post('/me/unified-profile/project-applications',async(req,res)=>{
     const parsed=applicationSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({success:false,error:{code:'INVALID_PROJECT_APPLICATION',message:parsed.error.issues[0]?.message??'프로젝트 지원 정보가 올바르지 않습니다.'}});

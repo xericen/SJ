@@ -25,7 +25,8 @@ export const SEJONG_PLACE_RECOMMENDATION_SYSTEM_PROMPT = `당신은 세종 지�
 15. 모든 사용자 표시 문구는 간결하고 자연스러운 한국어로 작성합니다.
 16. route는 최대 4곳이며 order는 1부터 연속되어야 합니다.
 17. totalEstimatedMinutes는 recommendedMinutes의 합계여야 합니다.
-18. conversationStarters는 최대 3개입니다.`;
+18. conversationStarters는 최대 3개입니다.
+19. additionalConditions에 밥집·카페·세종도시 각 1곳이 지정되면 route는 반드시 정확히 3곳으로 만들고 각 category에서 1곳씩 선택합니다.`;
 
 export function buildSejongPlaceRecommendationInput(input: PlaceRecommendationInput): string {
   return JSON.stringify({
@@ -33,4 +34,3 @@ export function buildSejongPlaceRecommendationInput(input: PlaceRecommendationIn
     ...input,
   });
 }
-

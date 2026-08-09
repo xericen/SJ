@@ -8,6 +8,25 @@
   <title>세종한바퀴</title>
   <script>
     (() => {
+      // Chromium extensions can leave a rejected messaging promise behind
+      // when their background worker closes. It is not an application error,
+      // so silence only this exact browser-extension rejection.
+      const closedExtensionChannel = /A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received|The message port closed before a response was received/i;
+      const getRejectionMessage = reason => {
+        if (typeof reason === 'string') return reason;
+        if (!reason || typeof reason !== 'object') return '';
+        if (typeof reason.message === 'string') return reason.message;
+        if (reason.reason) return getRejectionMessage(reason.reason);
+        return '';
+      };
+      window.addEventListener('unhandledrejection', event => {
+        const message = getRejectionMessage(event.reason);
+        if (closedExtensionChannel.test(message)) event.preventDefault();
+      });
+    })();
+  </script>
+  <script>
+    (() => {
       try {
         window.localStorage.getItem('__storage_probe__');
       } catch {

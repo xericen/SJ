@@ -24,14 +24,41 @@ class FakeSession:
 
 
 class FakeWiz:
+    shared_tables = {}
     def __init__(self, user_id, project_path):
         self.user_id = user_id
         self.project = SimpleNamespace(
             fs=lambda: SimpleNamespace(abspath=lambda: project_path)
         )
 
-    def model(self, _path):
+    def model(self, path):
+        if path == "struct":
+            return SimpleNamespace(db=lambda name: FakeDb(self.shared_tables.setdefault(name, {})))
         return FakeSession(self.user_id)
+
+
+class FakeDb:
+    def __init__(self, values):
+        self.values = values
+        self.orm = SimpleNamespace(create_table=lambda safe=True: None)
+
+    def get(self, **where):
+        return self.values.get(where.get("id"))
+
+    def insert(self, value):
+        self.values[value["id"]] = dict(value)
+
+    def update(self, value, **where):
+        self.values[where["id"]].update(value)
+
+    def delete(self, **where):
+        self.values.pop(where["id"], None)
+
+    def rows(self, orderby=None, order=None, dump=None):
+        rows = list(self.values.values())
+        if orderby:
+            rows.sort(key=lambda item: item.get(orderby, 0), reverse=order == "DESC")
+        return rows[:dump] if dump else rows
 
 
 class FakeIo:

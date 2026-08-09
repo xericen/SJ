@@ -8,6 +8,25 @@
   <title>세종한바퀴</title>
   <script>
     (() => {
+      // Chromium extensions can leave a rejected messaging promise behind
+      // when their background worker closes. It is not an application error,
+      // so silence only this exact browser-extension rejection.
+      const closedExtensionChannel = /A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received|The message port closed before a response was received/i;
+      const getRejectionMessage = reason => {
+        if (typeof reason === 'string') return reason;
+        if (!reason || typeof reason !== 'object') return '';
+        if (typeof reason.message === 'string') return reason.message;
+        if (reason.reason) return getRejectionMessage(reason.reason);
+        return '';
+      };
+      window.addEventListener('unhandledrejection', event => {
+        const message = getRejectionMessage(event.reason);
+        if (closedExtensionChannel.test(message)) event.preventDefault();
+      });
+    })();
+  </script>
+  <script>
+    (() => {
       try {
         window.localStorage.getItem('__storage_probe__');
       } catch {
@@ -78,7 +97,7 @@
   </script>
   <script>
     (() => {
-      const buildId = '20260809-club-approval-recruitment-v18';
+      const buildId = '20260809-sejongpark-source-v6';
       const url = new URL(window.location.href);
       if (url.searchParams.get('_build') === buildId) return;
       // The HTML itself is always served with no-cache and every asset has a
@@ -97,8 +116,8 @@
   </script>
   <script>
   (() => {
-    const runtimeBuildId="20260809-club-approval-recruitment-v18";
-    const runtimeEntryPath="/auth/jochwon-assets/assets/index-CS-RKkHn.js";
+    const runtimeBuildId="20260809-sejongpark-source-v6";
+    const runtimeEntryPath="/auth/jochwon-assets/assets/index-DILAkjCG.js";
     const pageUrl=new URL(window.location.href);
     const entryRetry=pageUrl.searchParams.get('_entry_retry');
     const currentRetry=entryRetry?.startsWith(`${runtimeBuildId}:`)??false;
@@ -139,8 +158,8 @@
     });
   })();
 </script>
-<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-BI1N1yve.css" onerror="void window.__recoverJochwonRuntime?.()">
-<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-CS-RKkHn.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
+<link rel="stylesheet" crossorigin href="/auth/jochwon-assets/assets/index-UbRQ9k0Z.css" onerror="void window.__recoverJochwonRuntime?.()">
+<script type="module" crossorigin src="/auth/jochwon-assets/assets/index-DILAkjCG.js" onerror="void window.__recoverJochwonRuntime?.()"></script>
   <link rel="modulepreload" crossorigin href="/auth/jochwon-assets/assets/jsx-runtime-m-EpYe9t.js">
 
 </head>

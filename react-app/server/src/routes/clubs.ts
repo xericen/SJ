@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { ClubModel } from '../models/Club.js';
+import { requireAuthenticatedUser } from '../middleware/authenticatedUser.js';
 
 type ClubMember = {
   userId: string;
@@ -41,6 +42,7 @@ type Club = {
   tags?: string[];
   activityBoard?: ClubActivityBoard;
   createdAt: string;
+  boothIndex?: number;
 };
 
 const router = Router();
@@ -124,7 +126,7 @@ router.get('/', async (_request, response) => {
   }
 });
 
-router.post('/', async (request, response) => {
+router.post('/', requireAuthenticatedUser, async (request, response) => {
   try {
     const {
       name,
@@ -176,7 +178,7 @@ router.post('/', async (request, response) => {
       return;
     }
 
-    const creatorId = ownerId?.trim() || 'anonymous-user';
+    const creatorId = response.locals.authenticatedUserId as string;
     const creatorName = ownerName?.trim() || '익명';
 
     const newClub: Club = {
@@ -222,7 +224,7 @@ router.post('/', async (request, response) => {
   }
 });
 
-router.post('/:clubId/join', async (request, response) => {
+router.post('/:clubId/join', requireAuthenticatedUser, async (request, response) => {
   try {
     const { clubId } = request.params;
 
@@ -234,7 +236,7 @@ router.post('/:clubId/join', async (request, response) => {
       userName?: string;
     };
 
-    const currentUserId = userId?.trim() || 'anonymous-user';
+    const currentUserId = response.locals.authenticatedUserId as string;
     const currentUserName = userName?.trim() || '익명';
 
     const clubs = await readClubs();
@@ -286,10 +288,10 @@ router.post('/:clubId/join', async (request, response) => {
   }
 });
 
-router.patch('/:clubId/members/:memberId/role', async (request, response) => {
+router.patch('/:clubId/members/:memberId/role', requireAuthenticatedUser, async (request, response) => {
   try {
     const { clubId, memberId } = request.params;
-    const { actorId, role } = request.body as { actorId?: string; role?: 'executive' | 'member' };
+    const { role } = request.body as { role?: 'executive' | 'member' };
     if (role !== 'executive' && role !== 'member') {
       response.status(400).json({ message: '임원 또는 부원 역할만 지정할 수 있어요.' });
       return;
@@ -300,7 +302,7 @@ router.patch('/:clubId/members/:memberId/role', async (request, response) => {
       response.status(404).json({ message: '동아리를 찾을 수 없어요.' });
       return;
     }
-    if (!actorId?.trim() || club.ownerId !== actorId.trim()) {
+    if (club.ownerId !== response.locals.authenticatedUserId) {
       response.status(403).json({ message: '회장만 구성원의 역할을 변경할 수 있어요.' });
       return;
     }
@@ -320,6 +322,30 @@ router.patch('/:clubId/members/:memberId/role', async (request, response) => {
     console.error('[Clubs] 역할 변경 실패:', error);
     response.status(500).json({ message: '역할을 변경하지 못했어요.' });
   }
+});
+
+const memberContent = (kind: 'activities' | 'photos') => async (request: Parameters<typeof requireAuthenticatedUser>[0], response: any) => {
+  const clubs = await readClubs();
+  const club = clubs.find((item) => item.id === request.params.clubId);
+  if (!club) return response.status(404).json({ message: '동아리를 찾을 수 없어요.' });
+  const userId = response.locals.authenticatedUserId as string;
+  if (!club.members.some((member) => member.userId === userId)) return response.status(403).json({ message: '동아리에 가입한 회원만 볼 수 있습니다.' });
+  const feed = Array.isArray((club as Club & {feed?:unknown[]}).feed) ? (club as Club & {feed?:unknown[]}).feed! : [];
+  return response.json(kind === 'photos' ? feed.filter((item:any) => Boolean(item?.photo)) : feed);
+};
+router.get('/:clubId/activities', requireAuthenticatedUser, memberContent('activities') as any);
+router.get('/:clubId/photos', requireAuthenticatedUser, memberContent('photos') as any);
+
+router.patch('/:clubId/booth', async (request, response) => {
+  try {
+    const {clubId}=request.params,{ownerId,boothIndex}=request.body as {ownerId?:string;boothIndex?:number};
+    const clubs=await readClubs(),club=clubs.find(item=>item.id===clubId);
+    if(!club)return response.status(404).json({message:'동아리를 찾을 수 없어요.'});
+    if(!ownerId?.trim()||club.ownerId!==ownerId.trim())return response.status(403).json({message:'동아리 회장만 부스를 지정할 수 있어요.'});
+    if(!Number.isInteger(boothIndex)||boothIndex!<3||boothIndex!>9)return response.status(400).json({message:'지정할 수 없는 부스예요.'});
+    if(clubs.some(item=>item.id!==club.id&&item.boothIndex===boothIndex))return response.status(409).json({message:'다른 동아리가 이미 사용 중인 부스예요.'});
+    club.boothIndex=boothIndex;await saveClubs(clubs);return response.json(club);
+  }catch(error){console.error('[Clubs] 부스 지정 실패:',error);return response.status(500).json({message:'부스 위치를 저장하지 못했어요.'})}
 });
 
 router.post('/:clubId/leave', async (request, response) => {

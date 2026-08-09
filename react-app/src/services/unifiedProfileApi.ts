@@ -25,20 +25,28 @@ export const deleteUnifiedProject=(project:Pick<{id:string;leaderId:string},'id'
   fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomProjects&action=delete`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({payload:JSON.stringify(project)})}).then(response=>{if(!response.ok)throw new Error('Project delete failed') }),
   fetch(`${WIZ_SHARED_PROJECTS_ENDPOINT}?action=delete&payload=${encodeURIComponent(JSON.stringify(project))}`,{credentials:'include'}).then(response=>{if(!response.ok)throw new Error('Shared project delete failed') }),
 ]).then(results=>{if(results.every(result=>result.status==='rejected'))throw new Error('Project delete failed');}):Promise.resolve();
-export const syncUnifiedProjectApplication=(application:unknown)=>useWizRuntime()?sendWizProjectApplication(application):send('/project-applications',application);
-
-async function sendWizProjectApplication(application:unknown){
-  const response=await fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomApplications&payload=${encodeURIComponent(JSON.stringify(application))}`,{method:'POST',credentials:'include'});
-  const body=await response.json() as {code?:number;data?:{message?:string}};
-  if(!response.ok||body.code!==200)throw new Error(body.data?.message??`Project application sync failed (${response.status})`);
-}
+export const syncUnifiedProjectApplication=(application:unknown)=>useWizRuntime()?sendWizShared('project-room-application',application):send('/project-applications',application);
+export type ProjectConsensus={requestId:string;status:'pending'|'rejected'|'confirmed';requestedAt:string;course:Array<{id:string;name:string;time:string;duration:number}>;decisions:Record<string,'accepted'|'rejected'>;confirmedAt?:string};
+export type ProjectCollaboration={roles:Record<string,string>;consensus:ProjectConsensus|null;finalCourse:Array<{id:string;name:string;time:string;duration:number}>|null;draft?:unknown};
+const projectCollaborationRequest=async(action:string,payload:Record<string,unknown>)=>{
+  const response=await fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomProjects&action=${encodeURIComponent(action)}&payload=${encodeURIComponent(JSON.stringify(payload))}`,{credentials:'include'});
+  const body=await response.json() as {code:number;data?:{message?:string;collaboration?:ProjectCollaboration;projectStatus?:string}};
+  if(body.code>=400||!body.data?.collaboration)throw new Error(body.data?.message??'프로젝트 협업 정보를 처리하지 못했어요.');
+  return body.data;
+};
+export const fetchProjectCollaboration=(projectId:string)=>projectCollaborationRequest('collaboration',{projectId});
+export const saveProjectCollaborationDraft=(projectId:string,draft:unknown)=>projectCollaborationRequest('saveDraft',{projectId,draft});
+export const updateProjectMemberRole=(projectId:string,memberName:string,role:string)=>projectCollaborationRequest('updateRole',{projectId,memberName,role});
+export const requestProjectConsensus=(projectId:string,course:ProjectConsensus['course'])=>projectCollaborationRequest('requestConsensus',{projectId,course});
+export const respondProjectConsensus=(projectId:string,decision:'accepted'|'rejected')=>projectCollaborationRequest('respondConsensus',{projectId,decision});
+export const confirmProjectConsensus=(projectId:string)=>projectCollaborationRequest('confirmConsensus',{projectId});
 
 export async function fetchUnifiedProjectApplications(){
-  const response=await fetch(useWizRuntime()?`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomApplications`:endpoint('/project-applications'),{credentials:'include'});
-  const body=await response.json() as {code?:number;data?:{applications?:unknown[]};success?:boolean};
-  const values=body.data?.applications;
+  const response=await fetch(useWizRuntime()?WIZ_SHARED_PROJECTS_ENDPOINT:endpoint('/project-applications'),{credentials:'include'});
+  const body=await response.json() as {code?:number;data?:{items?:unknown[];applications?:unknown[]};success?:boolean};
+  const values=useWizRuntime()?body.data?.items:body.data?.applications;
   if(!response.ok||!Array.isArray(values)||(useWizRuntime()?body.code!==200:body.success!==true))throw new Error(`Project application load failed (${response.status})`);
-  return values;
+  return values.filter((item:unknown)=>Boolean(item&&typeof item==='object'&&(item as {kind?:unknown}).kind==='project-room-application'));
 }
 
 export async function fetchUnifiedProjects(){

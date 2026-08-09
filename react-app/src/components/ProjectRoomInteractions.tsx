@@ -13,7 +13,6 @@ import {
   recommendProjects,
   saveProjectApplications,
   saveProjectRoomProjects,
-  resetGuestProjectRoomProfile,
   suggestProjectCopy,
   suggestProjectTraits,
   type AIProjectRecommendation,
@@ -26,7 +25,7 @@ import { loadTravelProjectDraft,saveTravelProjectDraft,type TravelIdea,type Trav
 import { API_BASE_URL } from '../config/api';
 import type { GovernmentCourse } from '../../shared/socket-events';
 import {clearClubProjectContext,loadClubProjectContext} from '../services/clubProjectBridge';
-import {deleteUnifiedProject,syncUnifiedProjectApplication} from '../services/unifiedProfileApi';
+import {confirmProjectConsensus,deleteUnifiedProject,fetchProjectCollaboration,requestProjectConsensus,respondProjectConsensus,saveProjectCollaborationDraft,syncUnifiedProject,syncUnifiedProjectApplication,updateProjectMemberRole,type ProjectCollaboration} from '../services/unifiedProfileApi';
 import {inferCampusTopicProfile,recordCampusProfileSignal} from '../services/campusProfileSignals';
 
 type Panel='kiosk-home'|'board'|'mine'|'recommendation'|'sejong-schedule'|'project-status'|'creation'|'course'|'door'|'detail'|'profile-send'|null;
@@ -75,7 +74,6 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
   const [nearbySeat,setNearbySeat]=useState<{id:string;seated?:boolean}|null>(null);
   const [activeProjectId,setActiveProjectId]=useState<string|null>(()=>localStorage.getItem(ACTIVE_PROJECT_ROOM_KEY));
   const panelRef=useRef<HTMLElement>(null);
-  const sessionCreatedProjectsRef=useRef<Project[]>([]);
   const aiProfile=useMemo(()=>buildAiSejongProfile(profile),[profile]);
   const displayedProjects=useMemo(()=>[...projects,...sessionCreatedProjects.filter(project=>!projects.some(item=>item.id===project.id))],[projects,sessionCreatedProjects]);
   const recommendations=useMemo(()=>recommendProjects(displayedProjects,profile),[profile,displayedProjects]);
@@ -138,11 +136,11 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
       gameEvents.off('project-room-instance-enter',projectInstance);
     };
   },[]);
-  useEffect(()=>{if(!active){setNearby(null);setNearbySeat(null);setPanel(null);setSelected(null);setActiveProjectId(null);localStorage.removeItem(ACTIVE_PROJECT_ROOM_KEY);if(!localStorage.getItem('jochiwon-kakao-user-id')?.trim()){const created=sessionCreatedProjectsRef.current;sessionCreatedProjectsRef.current=[];setSessionCreatedProjects([]);if(created.length){void Promise.all(created.map(project=>deleteUnifiedProject(project))).catch(()=>undefined);setProjects(current=>current.filter(project=>!created.some(item=>item.id===project.id)))}resetGuestProjectRoomProfile()}gameEvents.emit('project-room-focus-changed',undefined)}},[active]);
+  useEffect(()=>{if(!active){setNearby(null);setNearbySeat(null);setPanel(null);setSelected(null);setActiveProjectId(null);setSessionCreatedProjects([]);localStorage.removeItem(ACTIVE_PROJECT_ROOM_KEY);gameEvents.emit('project-room-focus-changed',undefined)}},[active]);
   useEffect(()=>{if(active)void Promise.all([refreshProjectRoomProjects(),refreshProjectApplications()]).then(([nextProjects,nextApplications])=>{setProjects(nextProjects);setApplications(nextApplications)}).catch(()=>undefined)},[active]);
   useEffect(()=>{if(!active)return;const refresh=()=>{void Promise.all([refreshProjectRoomProjects(),refreshProjectApplications()]).then(([nextProjects,nextApplications])=>{setProjects(nextProjects);setApplications(nextApplications)}).catch(()=>undefined)};const timer=window.setInterval(refresh,2500);return()=>window.clearInterval(timer)},[active]);
   useEffect(()=>onOpenChange(panel!==null||kioskActive),[kioskActive,onOpenChange,panel]);
-  useEffect(()=>{if(kioskActive){panelRef.current?.scrollTo({top:0,left:0});if(panel==='board')panelRef.current?.querySelector<HTMLElement>('.project-room-tools nav')?.scrollTo({left:0,behavior:'instant'})}},[kioskActive,panel]);
+  useEffect(()=>{if(kioskActive)panelRef.current?.scrollTo({top:0,left:0})},[kioskActive,panel]);
   useEffect(()=>{
     if(!kioskActive)gameEvents.emit('project-room-focus-changed',panel==='creation'?'project-kiosk':undefined);
   },[kioskActive,panel]);
@@ -189,11 +187,11 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
       const memberIds=status==='accepted'?[...new Set([...project.memberIds,application.applicantId])]:project.memberIds;
       return {...project,memberIds,applicantIds:project.applicantIds.filter(id=>id!==application.applicantId),status:memberIds.length>=project.maxMembers?'active':project.status};
     });
-    const reviewed=nextApplications.find(item=>item.id===application.id);if(reviewed)void syncUnifiedProjectApplication(reviewed).catch(()=>undefined);setApplications(nextApplications);saveProjectApplications(nextApplications);setProjects(nextProjects);saveProjectRoomProjects(nextProjects);setSelected(nextProjects.find(project=>project.id===selected.id)??selected);onNotice(status==='accepted'?`${application.applicantId}님의 참여 신청을 수락했어요.`:`${application.applicantId}님의 참여 신청을 거절했어요.`);
+    setApplications(nextApplications);saveProjectApplications(nextApplications);setProjects(nextProjects);saveProjectRoomProjects(nextProjects);setSelected(nextProjects.find(project=>project.id===selected.id)??selected);onNotice(status==='accepted'?`${application.applicantId}님의 참여 신청을 수락했어요.`:`${application.applicantId}님의 참여 신청을 거절했어요.`);
   };
   const deleteProject=(project:Project)=>{
     if(project.leaderId!==profile.nickname)return;
-    const next=projects.filter(item=>item.id!==project.id);setProjects(next);sessionCreatedProjectsRef.current=sessionCreatedProjectsRef.current.filter(item=>item.id!==project.id);setSessionCreatedProjects(current=>current.filter(item=>item.id!==project.id));void deleteUnifiedProject(project).catch(()=>undefined);saveProjectRoomProjects(next);saveProjectApplications(applications.filter(item=>item.projectId!==project.id));setApplications(current=>current.filter(item=>item.projectId!==project.id));setSelected(null);setPanel(returnPanel==='mine'?'mine':'board');onNotice('프로젝트를 삭제했어요.');
+    const next=projects.filter(item=>item.id!==project.id);setProjects(next);setSessionCreatedProjects(current=>current.filter(item=>item.id!==project.id));void deleteUnifiedProject(project).catch(()=>undefined);saveProjectRoomProjects(next);saveProjectApplications(applications.filter(item=>item.projectId!==project.id));setApplications(current=>current.filter(item=>item.projectId!==project.id));setSelected(null);setPanel(returnPanel==='mine'?'mine':'board');onNotice('프로젝트를 삭제했어요.');
   };
 
   return <>
@@ -216,7 +214,7 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
 
         {panel==='board'&&<>
           <PanelHeader eyebrow="PROJECT BOARD" icon="📌" title="프로젝트 둘러보기" copy="내 프로젝트를 제외한 공개 프로젝트를 확인하고 체험 프로필로 참가를 신청하세요."/>
-          <div className="project-room-tools"><label><Search size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="프로젝트·장소·태그 검색"/></label><nav>{filters.map(item=><button type="button" className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</nav></div>
+          <div className="project-room-tools"><label><Search size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="모집글·장소·태그 검색"/></label><nav>{filters.map(item=><button type="button" className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</nav></div>
           <div className="project-board-list">{filtered.map(project=><ProjectCard key={project.id} project={project} recommendation={recommendations.find(item=>item.projectId===project.id)} sent={isSent(project)} canApply={project.leaderId!==profile.nickname&&!project.memberIds.includes(profile.nickname)} onDetail={()=>showDetail(project,'board')} onSend={()=>showProfileSend(project,'board')}/>)}</div>
           {!filtered.length&&<EmptyState text="검색 조건에 맞는 프로젝트가 없어요." hint="내가 만든 프로젝트와 참여 중인 프로젝트는 ‘내 프로젝트’에서 확인할 수 있어요."/>}
         </>}
@@ -239,7 +237,7 @@ export function ProjectRoomInteractions({profile,active,onOpenChange,onNotice}:{
 
         {panel==='course'&&(activeProject?<CourseCollaborationTable key={activeProject.id} project={activeProject} profile={profile} onNotice={onNotice}/>:<section className="project-door-waiting"><Users/><b>선택된 프로젝트가 없습니다</b><p>팀 프로젝트를 선택해 내부 협업 공간으로 먼저 입장해 주세요.</p></section>)}
 
-        {panel==='creation'&&<ProjectCreationForm key={creationSession} profile={profile} onCreated={project=>{const topic=inferCampusTopicProfile(project.title,project.summary,...project.tags,...project.activityTypes);recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'create-project',subject:project.id,title:'새 프로젝트 만들기',note:`${project.title} 프로젝트를 만들고 ${project.activityTypes.join(' · ')||'협업'} 활동을 계획했어요`,point:14,keywords:['프로젝트 기획','주도적 활동',...project.tags,...topic.keywords],axes:{...topic.axes,relation:5,record:7,explore:4}});const next=[project,...projects];sessionCreatedProjectsRef.current=[project,...sessionCreatedProjectsRef.current.filter(item=>item.id!==project.id)];setSessionCreatedProjects(current=>[project,...current.filter(item=>item.id!==project.id)]);setProjects(next);saveProjectRoomProjects(next);setCreated(project);setPanel(kioskActive?'kiosk-home':null);onNotice('새 프로젝트를 모집 중으로 등록했어요.')}} onDetail={project=>showDetail(project,'creation')} created={created}/>}
+        {panel==='creation'&&<ProjectCreationForm key={creationSession} profile={profile} onCreated={project=>{const topic=inferCampusTopicProfile(project.title,project.summary,...project.tags,...project.activityTypes);recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'create-project',subject:project.id,title:'새 프로젝트 만들기',note:`${project.title} 프로젝트를 만들고 ${project.activityTypes.join(' · ')||'협업'} 활동을 계획했어요`,point:14,keywords:['프로젝트 기획','주도적 활동',...project.tags,...topic.keywords],axes:{...topic.axes,relation:5,record:7,explore:4}});const next=[project,...projects];setSessionCreatedProjects(current=>[project,...current.filter(item=>item.id!==project.id)]);setProjects(next);saveProjectRoomProjects(next);setCreated(project);setPanel(kioskActive?'kiosk-home':null);onNotice('새 프로젝트를 모집 중으로 등록했어요.')}} onDetail={project=>showDetail(project,'creation')} created={created}/>}
 
         {panel==='detail'&&selected&&<ProjectDetail project={selected} profile={profile} applications={applications.filter(item=>item.projectId===selected.id)} sent={isSent(selected)} canApply={selected.leaderId!==profile.nickname&&!selected.memberIds.includes(profile.nickname)} onBack={()=>setPanel(returnPanel)} onSend={()=>showProfileSend(selected,returnPanel==='recommendation'?'recommendation':'board')} onReview={reviewApplication} onDelete={deleteProject}/>}
 
@@ -326,18 +324,23 @@ function CourseCollaborationTable({project,profile,onNotice}:{project:Project;pr
   const [selectedPlace,setSelectedPlace]=useState<PlaceSearchResult|null>(null);
   const [placeSearchLoading,setPlaceSearchLoading]=useState(false);
   const [placeSearchError,setPlaceSearchError]=useState('');
-  const [aiLoading,setAiLoading]=useState(false);
-  const [aiPlaces,setAiPlaces]=useState<Array<{name:string;reason:string;tags:string[]}>>([]);
-  const update=(next:TravelProjectDraft)=>{setDraft(next);saveTravelProjectDraft(next,project.id)};
+  const [collaboration,setCollaboration]=useState<ProjectCollaboration|null>(null);
+  const isLeader=project.leaderId===profile.nickname;
+  const consensus=collaboration?.consensus??null;
+  const decisions=consensus?.decisions??{};
+  const myDecision=decisions[profile.nickname];
+  const allAccepted=project.memberIds.length>0&&project.memberIds.every(name=>decisions[name]==='accepted');
+  useEffect(()=>{let mounted=true;const refresh=()=>void fetchProjectCollaboration(project.id).then(({collaboration:next})=>{if(!mounted||!next)return;setCollaboration(next);setDraft(current=>{const shared=next.draft as TravelProjectDraft|undefined,base=shared&&String(shared.updatedAt)>String(current.updatedAt)?shared:current;return {...base,roles:base.roles.map(member=>next.roles[member.name]?{...member,role:next.roles[member.name]}:member)}})}).catch(()=>undefined);refresh();const timer=window.setInterval(refresh,2000);return()=>{mounted=false;window.clearInterval(timer)}},[project.id]);
+  const update=(value:TravelProjectDraft)=>{const next={...value,updatedAt:new Date().toISOString()};setDraft(next);saveTravelProjectDraft(next,project.id);void saveProjectCollaborationDraft(project.id,next).catch(()=>undefined)};
   const vote=(id:string)=>update({...draft,ideas:draft.ideas.map(idea=>idea.id===id?{...idea,votes:idea.votes+1}:idea),status:'draft'});
   const searchSejongPlaces=async(rawQuery:string)=>{
     const query=rawQuery.trim();if(!query)return;
     setPlaceSearchLoading(true);setPlaceSearchError('');setSelectedPlace(null);
     try{
-      const response=await fetch(`${API_BASE_URL}/places/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:`세종 ${query}`,longitude:127.289,latitude:36.5,radius:20000,size:15})});
+      const response=await fetch(import.meta.env.PROD?`/api/sejong-place-search?query=${encodeURIComponent(query)}`:`${API_BASE_URL}/places/search`,import.meta.env.PROD?{credentials:'include'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:`세종 ${query}`,longitude:127.289,latitude:36.5,radius:20000,size:15})});
       if(!response.ok)throw new Error();
-      const result=await response.json() as {places?:PlaceSearchResult[]};
-      const sejongPlaces=(result.places??[]).filter(place=>`${place.address} ${place.roadAddress}`.includes('세종'));
+      const result=await response.json() as {data?:{places?:PlaceSearchResult[]};places?:PlaceSearchResult[]};
+      const sejongPlaces=(result.data?.places??result.places??[]).filter(place=>`${place.address} ${place.roadAddress}`.includes('세종'));
       setPlaceResults(sejongPlaces);
       if(!sejongPlaces.length)setPlaceSearchError('세종시 안에서 일치하는 장소를 찾지 못했어요. 다른 검색어를 입력해 보세요.');
     }catch{setPlaceResults([]);setPlaceSearchError('장소 검색에 실패했어요. 서버와 카카오 Local API 설정을 확인해 주세요.')}finally{setPlaceSearchLoading(false)}
@@ -360,40 +363,29 @@ function CourseCollaborationTable({project,profile,onNotice}:{project:Project;pr
     onNotice(`${labels[ideaComposer]} 아이디어 '${name}'을 추가했어요.`);
     setIdeaComposer(null);setIdeaInput('');
   };
-  const addSuggestedPlace=(name:string)=>{
-    if(draft.ideas.some(idea=>idea.category==='place'&&idea.name===name)){onNotice('이미 장소 보드에 있는 장소예요.');return}
-    update({...draft,ideas:[...draft.ideas,{id:`idea-${Date.now()}`,name,category:'place',emoji:'📍',votes:1}],status:'draft'});
-    setAiPlaces(current=>current.filter(place=>place.name!==name));onNotice(`${name}을 장소 아이디어로 추가했어요.`);
-  };
-  const recommendPlaces=async()=>{
-    setAiLoading(true);
-    try{
-      const response=await fetch(`${API_BASE_URL}/project-room/place-suggestions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:project.title,summary:project.summary,description:project.description,tags:project.tags,activities:project.activityTypes,existingPlaces:draft.ideas.filter(idea=>idea.category==='place').map(idea=>idea.name)})});
-      if(!response.ok)throw new Error();
-      const result=await response.json() as {places?:Array<{name:string;reason:string;tags:string[]}>;source?:string};
-      setAiPlaces(result.places??[]);onNotice(result.source==='openai'?'GPT가 프로젝트에 맞는 장소를 추천했어요.':'기본 장소 추천을 불러왔어요.');
-    }catch{onNotice('장소 추천을 불러오지 못했어요. 서버 연결을 확인해 주세요.')}finally{setAiLoading(false)}
-  };
   const sendChat=()=>{
     const text=chatInput.trim();if(!text)return;
     update({...draft,messages:[...(draft.messages??[]),{id:`message-${Date.now()}`,author:profile.nickname,text,createdAt:new Date().toISOString()}]});
     setChatInput('');
   };
-  const changeRole=(name:string,role:string)=>{update({...draft,roles:draft.roles.map(member=>member.name===name?{...member,role}:member),status:'draft'});recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'project-role',subject:`${project.id}-${name}`,title:'프로젝트 역할 정하기',note:`${project.title}에서 ${name}님의 역할을 ${role}(으)로 정했어요`,point:5,keywords:['역할 협업',role],axes:{relation:4,record:2}})};
-  const requestReview=()=>{
+  const changeRole=async(name:string,role:string)=>{if(!isLeader){onNotice('프로젝트 팀장만 역할을 배정할 수 있어요.');return}try{const result=await updateProjectMemberRole(project.id,name,role);setCollaboration(result.collaboration!);update({...draft,roles:draft.roles.map(member=>member.name===name?{...member,role}:member),status:'draft'});recordCampusProfileSignal(profile.nickname,{mapId:'project-room',zone:'프로젝트실',action:'project-role',subject:`${project.id}-${name}`,title:'프로젝트 역할 정하기',note:`${project.title}에서 ${name}님의 역할을 ${role}(으)로 정했어요`,point:5,keywords:['역할 협업',role],axes:{relation:4,record:2}})}catch(error){onNotice(error instanceof Error?error.message:'역할을 저장하지 못했어요.')}};
+  const requestReview=async()=>{
+    if(!isLeader){onNotice('프로젝트 팀장만 최종 합의 검토를 요청할 수 있어요.');return}
     if(!draft.ideas.some(idea=>idea.category==='place')){setTab('ideas');onNotice('최종 검토 전에 장소를 하나 이상 추가해 주세요.');return}
     if(draft.roles.some(member=>member.role==='역할 미정')){setTab('roles');onNotice('최종 검토 전에 모든 팀원의 역할을 정해 주세요.');return}
     if(!(draft.courseOrder?.length)){setTab('course');onNotice('최종 검토 전에 프로젝트 코스를 만들어 주세요.');return}
-    update({...draft,status:'review-requested'});onNotice(`${project.title}의 최종 합의 검토를 요청했어요.`)
+    const course=(draft.courseOrder??[]).flatMap(id=>{const place=draft.ideas.find(idea=>idea.id===id&&idea.category==='place');return place?[{id:place.id,name:place.name,time:draft.courseTimes?.[id]??'시간 협의',duration:draft.courseDurations?.[id]??90}]:[]});
+    try{const result=await requestProjectConsensus(project.id,course);setCollaboration(result.collaboration!);update({...draft,status:'review-requested'});onNotice(`${project.title}의 모든 참가자에게 최종 합의 검토를 요청했어요.`)}catch(error){onNotice(error instanceof Error?error.message:'최종 검토를 요청하지 못했어요.')}
   };
-  const completeCourse=()=>{
+  const respondReview=async(decision:'accepted'|'rejected')=>{if(!consensus)return;try{const result=await respondProjectConsensus(project.id,decision);setCollaboration(result.collaboration!);if(decision==='rejected'){update({...draft,status:'draft'});onNotice('최종 합의를 거절했어요. 팀이 다시 수정할 수 있습니다.')}else onNotice('최종 합의를 수락했어요. 다른 팀원의 응답을 기다립니다.')}catch(error){onNotice(error instanceof Error?error.message:'합의 응답을 저장하지 못했어요.')}};
+  const completeCourse=async()=>{
     const coursePlaces=(draft.courseOrder??[]).flatMap(id=>{const place=draft.ideas.find(idea=>idea.id===id&&idea.category==='place');return place?[place]:[]});
     if(!coursePlaces.length){setTab('course');onNotice('완성할 프로젝트 코스가 없어요.');return}
     const course:GovernmentCourse={id:`project-course-${project.id}-${Date.now()}`,title:`${project.title} 방문 코스`,summary:project.summary,generatedAt:Date.now(),source:'맞춤 규칙',items:coursePlaces.map((place,index)=>{const activityNames=(draft.courseActivityMap?.[place.id]??[]).flatMap(id=>{const idea=draft.ideas.find(item=>item.id===id);return idea?[idea.name]:[]});return {id:`visit-${place.id}-${index}`,time:draft.courseTimes?.[place.id]??(index===0?draft.courseStartTime??'14:00':'시간 협의'),placeId:place.id,placeName:place.name,category:'프로젝트 장소',durationMinutes:draft.courseDurations?.[place.id]??90,reason:activityNames.length?`${activityNames.join(' · ')} 활동을 진행하는 팀 프로젝트 방문지예요.`:project.summary}})};
     const next={...draft,status:'approved' as const,courseConfirmed:true};
     saveTravelProjectDraft(next,project.id);saveTravelProjectDraft(next);
     localStorage.setItem('government-project-course-handoff-v1',JSON.stringify({projectId:project.id,projectTitle:project.title,course,createdAt:Date.now()}));
-    setDraft(next);onNotice('프로젝트 코스를 완성했어요. 실제 방문 준비를 위해 정부청사로 이동합니다.');gameEvents.emit('travel-to-map','government');
+    try{const result=await confirmProjectConsensus(project.id);setCollaboration(result.collaboration!);setDraft(next);onNotice('전원 합의를 확인해 최종 코스를 확정했어요. 이제 정부청사로 이동할 수 있습니다.')}catch(error){onNotice(error instanceof Error?error.message:'최종 코스를 확정하지 못했어요.')}
   };
   const groups=[
     {key:'theme',title:'가고 싶은 활동',tone:'purple'},
@@ -418,16 +410,16 @@ function CourseCollaborationTable({project,profile,onNotice}:{project:Project;pr
     </nav>
     {tab==='ideas'?<div className="idea-planning-board">
       <aside className="idea-chat"><h3>프로젝트 채팅</h3>{(draft.messages??[]).length?(draft.messages??[]).map(message=><p key={message.id}><b>{message.author}</b>{message.text}</p>):<p><b>시스템</b>첫 의견을 남겨 팀 회의를 시작해 보세요.</p>}<div><input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')sendChat()}} placeholder="새 의견을 입력하세요"/><button type="button" onClick={sendChat} disabled={!chatInput.trim()}><Send/></button></div></aside>
-      <main><header><div><h3>장소 아이디어 보드</h3><p>가고 싶은 장소에 투표해 우선순위를 함께 정해요.</p></div><button type="button" onClick={()=>openIdeaComposer('place')}><Plus/> 장소 추가</button></header><div className="idea-place-grid">{draft.ideas.filter(i=>i.category==='place').sort((a,b)=>b.votes-a.votes).map((idea,index)=><article key={idea.id}><span>{index+1}</span><i>{idea.emoji}</i><b>{idea.name}</b><small>#{index===0?'야경':'사진'} · #{index===2?'카페':'산책'}</small><button type="button" onClick={()=>vote(idea.id)}>♥ {idea.votes}</button></article>)}</div><section className="ai-meeting-summary"><Bot/><div><b>AI 회의 도우미</b><p>{draft.ideas.length?`현재 프로젝트의 주제와 ${draft.ideas.length}개의 제안을 분석해 어울리는 세종 장소를 추천할 수 있어요.`:'프로젝트 주제를 분석해 첫 장소 후보를 추천할 수 있어요.'}</p><button type="button" onClick={()=>void recommendPlaces()} disabled={aiLoading}>{aiLoading?'GPT가 장소를 찾는 중…':'AI 장소 추천받기'}</button></div></section>{aiPlaces.length>0&&<section className="ai-place-suggestions">{aiPlaces.map(place=><article key={place.name}><div><b>{place.name}</b><p>{place.reason}</p><small>{place.tags.map(tag=>`#${tag}`).join(' ')}</small></div><button type="button" onClick={()=>addSuggestedPlace(place.name)}><Plus/> 보드에 추가</button></article>)}</section>}</main>
+      <main><header><div><h3>장소 아이디어 보드</h3><p>카카오 장소 검색에서 실제 세종 장소를 추가하고 투표해요.</p></div><button type="button" onClick={()=>openIdeaComposer('place')}><Search/> 카카오 장소 검색</button></header><div className="idea-place-grid">{draft.ideas.filter(i=>i.category==='place').sort((a,b)=>b.votes-a.votes).map((idea,index)=><article key={idea.id}><span>{index+1}</span><i>{idea.emoji}</i><b>{idea.name}</b><small>실제 세종 장소</small><button type="button" onClick={()=>vote(idea.id)}>♥ {idea.votes}</button></article>)}</div></main>
       <aside className="idea-members"><h3>멤버 및 역할</h3>{draft.roles.map((member,index)=><div key={member.name}><span>{member.name.slice(0,1)}</span><p><b>{member.name}{index===0?' (나)':''}</b><small>{member.role}</small></p></div>)}<section><h4>참여도 현황</h4><p>의견 작성 <i><b style={{width:`${opinionProgress}%`}}/></i></p><p>장소 투표 <i><b style={{width:`${voteProgress}%`}}/></i></p><p>아이디어 제안 <i><b style={{width:`${ideaProgress}%`}}/></i></p></section></aside>
     </div>:tab==='themes'
       ?<div className="theme-idea-columns">{groups.map(group=><section className={group.tone} key={group.key}><h3>{group.title}</h3>{draft.ideas.filter(i=>i.category===group.key).map(idea=><button type="button" onClick={()=>vote(idea.id)} key={idea.id}><span>{idea.emoji} {idea.name}</span><b>♥ {idea.votes}</b></button>)}<button type="button" className="add" onClick={()=>openIdeaComposer(group.key)}><Plus/> 아이디어 추가</button></section>)}</div>
       :tab==='course'?<ProjectCoursePlanner draft={draft} onChange={update} onGoToIdeas={()=>setTab('ideas')} onGoToThemes={()=>setTab('themes')} onNotice={onNotice}/>
-      :tab==='roles'?<ProjectRoleEditor draft={draft} leaderId={project.leaderId} onChange={changeRole}/>
+      :tab==='roles'?<ProjectRoleEditor draft={draft} leaderId={project.leaderId} canEdit={isLeader} onChange={changeRole}/>
       :<ProjectAgreementInfo project={project} draft={draft}/>}
-    <footer className="idea-action-footer"><button type="button" onClick={()=>{saveTravelProjectDraft(draft,project.id);onNotice(`${project.title}의 협상 내용을 저장했어요.`)}}>☁ 임시 저장</button><div><small>다음 단계</small><b>장소·일정·역할을 확인하고 팀의 최종 실행안으로 확정해요.</b></div><button type="button" className="review" onClick={requestReview}>최종 합의 검토 <ChevronRight/></button></footer>
+    <footer className="idea-action-footer"><button type="button" onClick={()=>{saveTravelProjectDraft(draft,project.id);onNotice(`${project.title}의 협상 내용을 저장했어요.`)}}>☁ 임시 저장</button><div><small>다음 단계</small><b>장소·일정·역할을 확인하고 팀의 최종 실행안으로 확정해요.</b></div>{isLeader?<button type="button" className="review" onClick={requestReview}>최종 합의 검토 <ChevronRight/></button>:<span>팀장의 최종 검토 요청을 기다려 주세요.</span>}</footer>
     {ideaComposer&&<div className="course-idea-composer" role="dialog" aria-modal="true" aria-label="아이디어 추가" onClick={()=>{setIdeaComposer(null);setIdeaInput('')}}><section className={ideaComposer==='place'?'place-map-composer':undefined} onClick={event=>event.stopPropagation()}><small>{ideaComposer==='place'?'SEJONG PLACE MAP':ideaComposer==='theme'?'ACTIVITY':ideaComposer==='festival'?'FESTIVAL':'FOOD'} IDEA</small><h3>{ideaComposer==='place'?'지도에서 실제 세종 장소 추가':ideaComposer==='theme'?'가고 싶은 활동':ideaComposer==='festival'?'축제·테마': '먹거리'} 아이디어 추가</h3><p>{ideaComposer==='place'?'세종시 장소를 검색하고 지도에서 정확한 위치를 선택해 주세요.':'팀원들과 함께 검토할 아이디어를 입력해 주세요.'}</p>{ideaComposer==='place'?<><form className="place-map-search" onSubmit={event=>{event.preventDefault();void searchSejongPlaces(ideaInput)}}><Search/><input autoFocus value={ideaInput} onChange={event=>setIdeaInput(event.target.value)} maxLength={60} placeholder="예: 세종호수공원, 카페, 미술관"/><button disabled={!ideaInput.trim()||placeSearchLoading}>{placeSearchLoading?'검색 중…':'검색'}</button></form><div className="sejong-place-picker"><div className="sejong-map" aria-label="세종시 장소 검색 지도"><span className="sejong-map-label">세종특별자치시</span><i className="sejong-river"/>{placeResults.map((place,index)=>{const left=Math.max(5,Math.min(95,((place.longitude-127.15)/.28)*100));const top=Math.max(7,Math.min(93,(1-(place.latitude-36.43)/.29)*100));return <button type="button" key={place.id||`${place.name}-${index}`} className={selectedPlace?.id===place.id?'selected':''} style={{left:`${left}%`,top:`${top}%`}} onClick={()=>setSelectedPlace(place)} title={place.name}><MapPin/><b>{index+1}</b></button>})}{!placeResults.length&&!placeSearchLoading&&<div className="sejong-map-empty"><MapPin/><b>세종의 장소를 검색해 보세요</b><span>검색 결과가 지도에 표시됩니다.</span></div>}</div><div className="sejong-place-results">{placeSearchError&&<p className="place-search-error">{placeSearchError}</p>}{placeResults.map((place,index)=><button type="button" key={place.id||`${place.name}-list-${index}`} className={selectedPlace?.id===place.id?'selected':''} onClick={()=>setSelectedPlace(place)}><span>{index+1}</span><div><b>{place.name}</b><small>{place.roadAddress||place.address}</small><em>{place.category.split(' > ').slice(-1)[0]}</em></div></button>)}</div></div><footer><button type="button" onClick={()=>{setIdeaComposer(null);setIdeaInput('')}}>취소</button><button type="button" onClick={addSelectedPlace} disabled={!selectedPlace}><Plus/> 선택한 장소 추가</button></footer></>:<><input autoFocus value={ideaInput} onChange={event=>setIdeaInput(event.target.value)} onKeyDown={event=>{event.stopPropagation();if(event.key==='Enter'&&!event.nativeEvent.isComposing)addIdea()}} maxLength={60} placeholder={ideaComposer==='theme'?'예: 사진 촬영, 인터뷰, 야경 산책':ideaComposer==='festival'?'예: 복숭아축제 체험, 야간 공연':'예: 복숭아 디저트, 전통시장 먹거리'}/><footer><button type="button" onClick={()=>{setIdeaComposer(null);setIdeaInput('')}}>취소</button><button type="button" onClick={addIdea} disabled={!ideaInput.trim()}><Plus/> 아이디어 등록</button></footer></>}</section></div>}
-    {draft.status==='review-requested'&&<div className="course-final-review" role="dialog" aria-modal="true"><section><header><span><Check/></span><div><small>FINAL AGREEMENT</small><h3>프로젝트 코스를 완성할까요?</h3><p>완성하면 정부청사로 이동해 실제 방문 단계로 이어집니다.</p></div></header><div className="final-review-route">{(draft.courseOrder??[]).map((id,index)=>{const place=draft.ideas.find(idea=>idea.id===id);return place?<article key={id}><b>{index+1}</b><div><strong>{place.name}</strong><small>{draft.courseTimes?.[id]??'시간 협의'} · {draft.courseDurations?.[id]??90}분</small></div></article>:null})}</div><aside><Users/> 역할 {draft.roles.length}명 배정 완료 · 장소 {(draft.courseOrder??[]).length}곳</aside><footer><button type="button" onClick={()=>update({...draft,status:'draft'})}>돌아가서 수정</button><button type="button" onClick={completeCourse}><Check/> 코스 완성 · 정부청사 이동</button></footer></section></div>}
+    {consensus&&project.memberIds.includes(profile.nickname)&&<div className="course-final-review" role="dialog" aria-modal="true"><section><header><span><Check/></span><div><small>FINAL AGREEMENT · {Object.values(decisions).filter(value=>value==='accepted').length}/{project.memberIds.length}</small><h3>{consensus.status==='confirmed'?'최종 코스가 확정되었습니다':'최종 합의를 검토하시겠습니까?'}</h3><p>{consensus.status==='confirmed'?'팀장이 확정한 코스로 정부청사 이동이 가능합니다.':'모든 프로젝트 참가자가 수락한 뒤 팀장이 최종 확정합니다.'}</p></div></header><div className="final-review-route">{consensus.course.map((place,index)=><article key={place.id}><b>{index+1}</b><div><strong>{place.name}</strong><small>{place.time} · {place.duration}분</small></div></article>)}</div><aside><Users/> {project.memberIds.map(name=>`${name} ${decisions[name]==='accepted'?'동의':decisions[name]==='rejected'?'거절':'대기'}`).join(' · ')}</aside><footer>{consensus.status==='confirmed'?<button type="button" className="accept" onClick={()=>gameEvents.emit('travel-to-map','government')}><ChevronRight/> 정부청사로 이동</button>:allAccepted&&isLeader?<button type="button" className="accept" onClick={()=>void completeCourse()}><Check/> 최종 코스 확정</button>:!myDecision?<><button type="button" onClick={()=>void respondReview('rejected')}>거절</button><button type="button" onClick={()=>void respondReview('accepted')}><Check/> 수락</button></>:<span>{myDecision==='accepted'?'내 동의가 저장되었습니다.':'거절 의견이 저장되었습니다.'}</span>}</footer></section></div>}
   </section>;
 }
 
@@ -471,9 +463,9 @@ function ProjectCoursePlanner({draft,onChange,onGoToIdeas,onGoToThemes,onNotice}
   </div>;
 }
 
-function ProjectRoleEditor({draft,leaderId,onChange}:{draft:TravelProjectDraft;leaderId:string;onChange:(name:string,role:string)=>void}){
+function ProjectRoleEditor({draft,leaderId,canEdit,onChange}:{draft:TravelProjectDraft;leaderId:string;canEdit:boolean;onChange:(name:string,role:string)=>void}){
   const roleOptions=['역할 미정','프로젝트 리더','일정 관리','장소 조사','사진·영상 기록','인터뷰·취재','예산·준비물','결과물 편집'];
-  return <div className="course-secondary project-role-editor"><span>👥</span><h3>역할 및 멤버</h3><p>각 팀원이 맡을 역할을 정하면 최종 검토를 진행할 수 있어요.</p><div>{draft.roles.map(member=><article key={member.name}><i>{member.name.slice(0,1)}</i><b>{member.name}{member.name===leaderId?' · 팀장':''}</b><select value={member.role} onChange={event=>onChange(member.name,event.target.value)}>{roleOptions.map(role=><option key={role} value={role}>{role}</option>)}</select></article>)}</div></div>;
+  return <div className="course-secondary project-role-editor"><span>👥</span><h3>역할 및 멤버</h3><p>{canEdit?'팀장만 각 팀원의 역할을 배정할 수 있어요.':'팀장이 역할을 배정하면 이곳에 표시됩니다.'}</p><div>{draft.roles.map(member=><article key={member.name}><i>{member.name.slice(0,1)}</i><b>{member.name}{member.name===leaderId?' · 팀장':''}</b><select disabled={!canEdit} value={member.role} onChange={event=>onChange(member.name,event.target.value)}>{roleOptions.map(role=><option key={role} value={role}>{role}</option>)}</select></article>)}</div></div>;
 }
 
 function ProjectAgreementInfo({project,draft}:{project:Project;draft:TravelProjectDraft}){
@@ -496,7 +488,7 @@ function CourseSecondaryTab({tab,profile}:{tab:'roles'|'schedule'|'info';profile
 
 function ProjectCard({project,recommendation,sent,canApply,onDetail,onSend}:{project:Project;recommendation?:AIProjectRecommendation;sent:boolean;canApply:boolean;onDetail:()=>void;onSend:()=>void}){
   const match=recommendation?.matchScore??Math.min(96,66+project.tags.length*5);
-  return <article className="project-board-card"><header><span style={{background:project.id.includes('garden')?'#5cae85':project.id.includes('festival')?'#8a6ad2':'#d38a53'}}>{project.thumbnail??'💡'}</span><div><small>{project.placeIds[0]} · 프로젝트</small><h3>{project.title}</h3><p>{project.summary}</p></div><strong>{match}%<small>적합도</small></strong></header><div className="project-tags">{project.tags.map(tag=><i key={tag}>#{tag}</i>)}</div><dl><div><Users size={14}/><span><dt>모집 현황</dt><dd>{project.memberIds.length}/{project.maxMembers}명</dd></span></div><div><CalendarDays size={14}/><span><dt>일정</dt><dd>{formatDate(project.startDate)}</dd></span></div><div><Sparkles size={14}/><span><dt>관심 태그</dt><dd>{project.tags.slice(0,2).join(' · ')}</dd></span></div></dl><p className="project-reason">추천 이유 · {recommendation?.reasons[0]??`${project.tags.slice(0,2).join('과 ')} 관심사가 잘 맞는 프로젝트예요.`}</p><footer><button type="button" onClick={onDetail}>상세 보기 <ChevronRight size={13}/></button>{canApply?<button type="button" disabled={sent} onClick={onSend}>{sent?<><Check size={14}/> 승인 대기 중</>:<><Send size={14}/> 참가 신청</>}</button>:<span className="project-owner-badge">내 프로젝트 · 신청 불가</span>}</footer></article>;
+  return <article className="project-board-card"><header><span style={{background:project.id.includes('garden')?'#5cae85':project.id.includes('festival')?'#8a6ad2':'#d38a53'}}>{project.thumbnail??'💡'}</span><div><small>{project.placeIds[0]} · 모집글</small><h3>{project.title}</h3><p>{project.summary}</p></div><strong>{match}%<small>적합도</small></strong></header><div className="project-tags">{project.tags.map(tag=><i key={tag}>#{tag}</i>)}</div><dl><div><Users size={14}/><span><dt>모집 현황</dt><dd>{project.memberIds.length}/{project.maxMembers}명</dd></span></div><div><CalendarDays size={14}/><span><dt>일정</dt><dd>{formatDate(project.startDate)}</dd></span></div><div><Sparkles size={14}/><span><dt>관심 태그</dt><dd>{project.tags.slice(0,2).join(' · ')}</dd></span></div></dl><p className="project-reason">추천 이유 · {recommendation?.reasons[0]??`${project.tags.slice(0,2).join('과 ')} 관심사가 잘 맞는 모집글이에요.`}</p><footer><button type="button" onClick={onDetail}>상세 보기 <ChevronRight size={13}/></button>{canApply?<button type="button" disabled={sent} onClick={onSend}>{sent?<><Check size={14}/> 승인 대기 중</>:<><Send size={14}/> 참가 신청</>}</button>:<span className="project-owner-badge">내 프로젝트 · 신청 불가</span>}</footer></article>;
 }
 
 function ProjectDetail({project,profile,applications,sent,canApply,onBack,onSend,onReview,onDelete}:{project:Project;profile:UserProfile;applications:ProjectApplication[];sent:boolean;canApply:boolean;onBack:()=>void;onSend:()=>void;onReview:(application:ProjectApplication,status:'accepted'|'rejected')=>void;onDelete:(project:Project)=>void}){

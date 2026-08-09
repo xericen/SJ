@@ -5,8 +5,6 @@ import json
 import math
 import re
 import secrets
-import random
-import sqlite3
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,8 +20,6 @@ AVATAR_TEXT_FIELDS = ("faceId", "hairStyleId", "topId", "bottomId", "shoesId")
 AVATAR_COLOR_FIELDS = ("hairColor", "skinColor", "topColor", "bottomColor", "shoesColor")
 WORLD_PORTAL_LAYOUT_ID = "shared-world-portals-v1"
 WORLD_CAMERA_LAYOUT_ID = "shared-world-camera-profiles-v1"
-NATURAL_PORTAL_LOCK_ID = "shared-natural-portals-lock-v1"
-NATURAL_PORTAL_CORRECTION_LOCK_ID = "shared-natural-portals-correction-lock-v2"
 WORLD_CAMERA_MAP_IDS = {
     "personal-farm", "town", "arts-center", "festival-experience",
     "food-experience", "club-street-festival", "bear-tree-park",
@@ -77,6 +73,7 @@ WORLD_PORTAL_DEFAULTS = (
 )
 WORLD_PORTAL_KEYS = {(item[0], item[1]) for item in WORLD_PORTAL_DEFAULTS}
 FROZEN_WORLD_PORTAL_MAPS = {
+    "town",
     "campus",
     "arts-center",
     "festival-experience",
@@ -103,6 +100,9 @@ CANONICAL_WORLD_PORTAL_KEYS = {
     ("arts-center", "town"),
     ("festival-experience", "town"),
     ("food-experience", "town"),
+    ("bear-tree-park", "town"),
+    ("bear-tree-park", "garden"),
+    ("bear-tree-park", "bear-play-zone"),
     ("garden", "bear-tree-park"),
     ("garden", "personal-farm"),
 }
@@ -361,6 +361,8 @@ def _secret_configured(config, name):
 
 
 def api_config_status():
+    if wiz.request.query("action", "").strip() == "placeSearch":
+        return place_search()
     config = _secret_config()
     return wiz.response.status(
         200,
@@ -667,11 +669,7 @@ def _saved_world_portals(db):
         x, z = position.get("x"), position.get("z")
         if (
             key in WORLD_PORTAL_KEYS
-            # Natural-map positions were authored in the trial editor and
-            # promoted to the shared layout before the editor was locked.
-            # Keep those promoted values instead of replacing them with the
-            # original constants during every read.
-            and (key not in CANONICAL_WORLD_PORTAL_KEYS or key[0] in ("town", "bear-tree-park"))
+            and key not in CANONICAL_WORLD_PORTAL_KEYS
             and isinstance(x, (int, float))
             and isinstance(z, (int, float))
             and math.isfinite(x)
@@ -706,40 +704,6 @@ def portal_positions():
         camera_payload = routed_payload.get("profile")
         serialized_camera_payload = "" if camera_payload is None else json.dumps(camera_payload, ensure_ascii=False)
         return camera_profiles(serialized_camera_payload)
-    if isinstance(routed_payload, dict) and routed_payload.get("resource") in ("promoteNaturalPortals", "promoteNaturalPortalsV2"):
-        try:
-            db = struct.db("world_portal_layout")
-            db.orm.create_table(safe=True)
-            correction = routed_payload.get("resource") == "promoteNaturalPortalsV2"
-            lock_id = NATURAL_PORTAL_CORRECTION_LOCK_ID if correction else NATURAL_PORTAL_LOCK_ID
-            if db.get(id=lock_id) is not None:
-                return wiz.response.status(200, positions=_saved_world_portals(db), promoted=False)
-            incoming = routed_payload.get("positions")
-            allowed = {key for key in WORLD_PORTAL_KEYS if key[0] in ("town", "bear-tree-park")}
-            promoted = {}
-            if isinstance(incoming, list):
-                for position in incoming:
-                    if not isinstance(position, dict):
-                        continue
-                    key = (position.get("mapId"), position.get("destination"))
-                    x, z = position.get("x"), position.get("z")
-                    if key in allowed and isinstance(x, (int, float)) and isinstance(z, (int, float)) and math.isfinite(x) and math.isfinite(z) and 0 <= x <= 4800 and 0 <= z <= 2600:
-                        promoted[key] = {"mapId": key[0], "destination": key[1], "x": round(x), "z": round(z)}
-            if not promoted:
-                return wiz.response.status(400, message="고정할 자연 맵 포탈 위치가 없습니다.")
-            positions = _saved_world_portals(db)
-            positions = [promoted.get((item["mapId"], item["destination"]), item) for item in positions]
-            now = datetime.datetime.now()
-            layout = db.get(id=WORLD_PORTAL_LAYOUT_ID)
-            values = {"payload": json.dumps(positions, ensure_ascii=False), "updated": now}
-            if layout is None:
-                db.insert({"id": WORLD_PORTAL_LAYOUT_ID, "created": now, **values})
-            else:
-                db.update(values, id=WORLD_PORTAL_LAYOUT_ID)
-            db.insert({"id": lock_id, "payload": json.dumps({"keys": [list(key) for key in promoted]}, ensure_ascii=False), "created": now, "updated": now})
-            return wiz.response.status(200, positions=positions, promoted=True)
-        except Exception:
-            return wiz.response.status(503, message="자연 맵 포탈 위치를 공용으로 고정하지 못했습니다.")
     source_preview_url = wiz.request.query("foodSourceUrl", "").strip()
     if source_preview_url:
         return _food_source_preview_response(source_preview_url)
@@ -958,9 +922,6 @@ def save_avatar():
 
 def logout():
     session.clear()
-    # Keep this server-side because the React app runs inside an iframe and
-    # its sessionStorage can be replaced when OAuth navigates the top window.
-    session.set(kakao_reauth_required=True)
     return wiz.response.status(200)
 
 def _public_origin():
@@ -993,15 +954,6 @@ def kakao_start():
             message="카카오 로그인 설정을 확인해 주세요.",
         )
 
-    reauth = (
-        wiz.request.query("reauth", "") == "1"
-        or bool(session.get("kakao_reauth_required", False))
-    )
-    if reauth:
-        # An explicit app logout must not leave an old WIZ identity available
-        # while Kakao re-authentication is in progress.
-        session.clear()
-
     state = secrets.token_urlsafe(24)
     session.set(kakao_oauth_state=state)
     params = {
@@ -1013,10 +965,6 @@ def kakao_start():
         # authentication before the onboarding flow.
         # QR 인증을 포함한 카카오의 현재 로그인 세션을 그대로 사용한다.
     }
-    if reauth:
-        # Keep normal/QR login unchanged. Only a login started after an
-        # explicit logout asks Kakao to show authentication again.
-        params["prompt"] = "login"
 
     scopes = getattr(config, "KAKAO_LOGIN_SCOPES", "") or ""
     scopes = ",".join(
@@ -1867,15 +1815,6 @@ def personal_farm_progress():
 
 
 PROJECT_ROOM_STATUSES = ("recruiting", "planning", "active", "completed")
-PROJECT_ROOM_REMOVED_IDS = (
-    "project-1786268579266", "project-1786266150773", "project-1786267655114",
-    "recruitment-local-post-1786263285709", "project-1786195980434",
-    "codex-project-upstream-fixed", "codex-project-final-verified",
-    "recruitment-local-post-1786110705014", "project-1786082258492",
-    "project-1786081846557", "project-1786081415041", "project-1786081353315",
-    "project-1786080220519", "project-1786080183124", "project-1786080149600",
-    "night-festival", "project-1786196649993",
-)
 PROJECT_ROOM_SEEDS = (
     {
         "id": "garden-photo", "title": "수목원 사진 기록 프로젝트",
@@ -1888,6 +1827,18 @@ PROJECT_ROOM_SEEDS = (
         "preferredTraits": ["사진 기록형", "여유형", "대화 중심"],
         "status": "recruiting", "visibility": "public", "thumbnail": "🌸",
         "createdAt": "2026-07-20T09:00:00.000Z",
+    },
+    {
+        "id": "night-festival", "title": "세종 야간축제 탐방 프로젝트",
+        "summary": "공연과 야경을 함께 탐방하고 축제 지도를 만들어요.",
+        "description": "호수공원 야간축제의 공연, 먹거리, 포토존을 나누어 조사한 뒤 방문자용 추천 지도를 제작합니다.",
+        "placeIds": ["세종호수공원"], "activityTypes": ["축제", "탐방", "사진"],
+        "tags": ["야간축제", "공연", "사진", "호수공원"], "leaderId": "별빛여행",
+        "memberIds": ["별빛여행", "밤산책"], "applicantIds": [], "maxMembers": 6,
+        "startDate": "2026-08-15", "deadline": "2026-08-10",
+        "preferredTraits": ["탐색형", "자유형", "실행 중심"],
+        "status": "recruiting", "visibility": "public", "thumbnail": "🎆",
+        "createdAt": "2026-07-22T09:00:00.000Z",
     },
     {
         "id": "market-culture", "title": "전통시장 문화 기록 프로젝트",
@@ -1981,8 +1932,6 @@ def _project_room_db():
 
 def _seed_project_room(db):
     now = datetime.datetime.now()
-    for project_id in PROJECT_ROOM_REMOVED_IDS:
-        db.delete(id=project_id)
     for seed in PROJECT_ROOM_SEEDS:
         if db.get(id=seed["id"]) is not None:
             continue
@@ -1994,8 +1943,8 @@ def _seed_project_room(db):
                 "created": now, "updated": now,
             })
         except Exception:
-            # Two first-time visitors can seed simultaneously. A duplicate
-            # must not make the entire public project list disappear.
+            # Concurrent first-time visitors can seed the same row together.
+            # A duplicate means another request completed the same work.
             pass
 
 
@@ -2004,6 +1953,69 @@ def _project_room_projects(user_id):
     _seed_project_room(db)
     action = wiz.request.query("action", "").strip()
     payload_raw = wiz.request.query("payload", "")
+    collaboration_actions = ("collaboration", "saveDraft", "updateRole", "requestConsensus", "respondConsensus", "confirmConsensus")
+    if action in collaboration_actions:
+        if not user_id:
+            return wiz.response.status(401, message="로그인이 필요합니다.")
+        try:
+            request_value = json.loads(payload_raw or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return wiz.response.status(400, message="프로젝트 협업 요청 형식이 올바르지 않습니다.")
+        project_id = str(request_value.get("projectId") or "").strip()
+        row = db.get(id=project_id) if project_id else None
+        if row is None:
+            return wiz.response.status(404, message="프로젝트를 찾을 수 없습니다.")
+        try:
+            project = json.loads(row.get("payload") or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return wiz.response.status(500, message="프로젝트 데이터를 읽지 못했습니다.")
+        member_names = project.get("memberIds", project.get("memberNicknames", []))
+        actor_name = str(session.get("name") or "").strip()
+        is_leader = row.get("leader_user_id") == user_id
+        if actor_name not in member_names and not is_leader:
+            return wiz.response.status(403, message="프로젝트 참가자만 협업 상태를 볼 수 있습니다.")
+        state = project.setdefault("collaboration", {"roles": {}, "consensus": None, "finalCourse": None})
+        state.setdefault("roles", {})
+        if action == "collaboration":
+            return wiz.response.status(200, collaboration=state, projectStatus=project.get("status"))
+        if action == "saveDraft":
+            draft = request_value.get("draft")
+            if not isinstance(draft, dict) or len(json.dumps(draft, ensure_ascii=False).encode("utf-8")) > 250000:
+                return wiz.response.status(400, message="프로젝트 협업 내용이 올바르지 않습니다.")
+            state["draft"] = draft
+        if action in ("updateRole", "requestConsensus", "confirmConsensus") and not is_leader:
+            return wiz.response.status(403, message="프로젝트 팀장만 수행할 수 있습니다.")
+        if action == "updateRole":
+            member_name = str(request_value.get("memberName") or "").strip()
+            role = str(request_value.get("role") or "").strip()[:50]
+            if member_name not in member_names or not role:
+                return wiz.response.status(400, message="팀원과 역할을 확인해 주세요.")
+            state["roles"][member_name] = role
+        elif action == "requestConsensus":
+            course = request_value.get("course")
+            if not isinstance(course, list) or not course:
+                return wiz.response.status(400, message="최종 검토할 장소 코스가 필요합니다.")
+            state["consensus"] = {"requestId": "consensus-" + secrets.token_hex(8), "status": "pending", "requestedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "course": course[:20], "decisions": {actor_name: "accepted"}}
+        elif action == "respondConsensus":
+            consensus = state.get("consensus")
+            decision = str(request_value.get("decision") or "")
+            if not isinstance(consensus, dict) or consensus.get("status") != "pending" or decision not in ("accepted", "rejected"):
+                return wiz.response.status(400, message="응답할 최종 합의 요청이 없습니다.")
+            consensus.setdefault("decisions", {})[actor_name] = decision
+            if decision == "rejected":
+                consensus["status"] = "rejected"
+        elif action == "confirmConsensus":
+            consensus = state.get("consensus")
+            decisions = consensus.get("decisions", {}) if isinstance(consensus, dict) else {}
+            if not isinstance(consensus, dict) or consensus.get("status") != "pending" or not all(decisions.get(name) == "accepted" for name in member_names):
+                return wiz.response.status(409, message="모든 참가자의 동의가 필요합니다.")
+            consensus["status"] = "confirmed"
+            consensus["confirmedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            state["finalCourse"] = consensus.get("course", [])
+            project["status"] = "completed"
+        now = datetime.datetime.now()
+        db.update({"payload": json.dumps(project, ensure_ascii=False, separators=(",", ":")), "status": project.get("status", row.get("status")), "updated": now}, id=project_id)
+        return wiz.response.status(200, collaboration=state, projectStatus=project.get("status"))
     if action == "delete" and payload_raw:
         try:
             payload = json.loads(payload_raw)
@@ -2015,9 +2027,6 @@ def _project_room_projects(user_id):
             return wiz.response.status(404, message="프로젝트를 찾을 수 없습니다.")
         if current.get("leader_user_id") not in (user_id, "guest:" + str(payload.get("leaderId", ""))):
             return wiz.response.status(403, message="다른 사용자의 프로젝트는 삭제할 수 없습니다.")
-        application_db = struct.db("project_room_application")
-        application_db.orm.create_table(safe=True)
-        application_db.delete(project_id=project_id)
         db.delete(id=project_id)
         return wiz.response.status(200, deleted=project_id)
     if not payload_raw:
@@ -2041,7 +2050,7 @@ def _project_room_projects(user_id):
         _, legacy_projects = _shared_json_collection("project_room_projects")
         for item in legacy_projects:
             project = _normalize_project_room_project(item)
-            if project is not None and project["id"] not in PROJECT_ROOM_REMOVED_IDS and project.get("visibility", "public") != "private":
+            if project is not None and project.get("visibility", "public") != "private":
                 if not any(existing["id"] == project["id"] for existing in projects):
                     projects.append(project)
         return wiz.response.status(200, projects=projects)
@@ -2070,7 +2079,6 @@ def _project_room_projects(user_id):
         try:
             db.insert({"id": project["id"], "created": now, **values})
         except Exception:
-            # A retried dual request may race with the first insert.
             db.update(values, id=project["id"])
     else:
         db.update(values, id=project["id"])
@@ -2310,24 +2318,6 @@ def _shared_json_collection(name):
     return db, value if isinstance(value, list) else []
 
 
-def _save_shared_json_collection(db, name, items):
-    now = datetime.datetime.now()
-    record_id = f"shared-{name}"
-    record = db.get(id=record_id)
-    values = {
-        "id": record_id,
-        "user_id": record_id[:32],
-        "version": 1,
-        "payload": json.dumps(items, ensure_ascii=False),
-        "updated": now,
-    }
-    if record is None:
-        values["created"] = now
-        db.insert(values)
-    else:
-        db.update(values, id=record_id)
-
-
 def _shared_json_endpoint(name):
     db, items = _shared_json_collection(name)
     action = wiz.request.query("action", "").strip()
@@ -2371,6 +2361,52 @@ def _shared_json_endpoint(name):
     return wiz.response.status(200, items=items)
 
 
+def _save_shared_json_items(db, name, items):
+    now = datetime.datetime.now()
+    record_id = f"shared-{name}"
+    values = {
+        "id": record_id,
+        "user_id": record_id[:32],
+        "version": 1,
+        "payload": json.dumps(items, ensure_ascii=False, separators=(",", ":")),
+        "updated": now,
+    }
+    if db.get(id=record_id) is None:
+        db.insert({**values, "created": now})
+    else:
+        db.update(values, id=record_id)
+
+
+def _community_session_identity():
+    session_id = session.get("id")
+    if not session_id:
+        return None
+    name = str(session.get("name") or "카카오 사용자").strip()[:50]
+    email = str(session.get("email") or "").strip().lower()
+    match = re.match(r"^kakao-([1-9][0-9]{0,19})@oauth\.local$", email)
+    if match is None:
+        return None
+    # Existing UI records used the nickname-prefixed identifier. Keep that
+    # convention while deriving it exclusively from the authenticated session.
+    return {"id": "community-user-" + name, "name": name, "kakaoId": match.group(1)}
+
+
+def _club_public_view(club, identity):
+    value = dict(club)
+    members = value.get("members") if isinstance(value.get("members"), list) else []
+    current_member = next((item for item in members if identity and isinstance(item, dict) and str(item.get("userId")) == identity["id"]), None)
+    member = current_member is not None
+    value["memberCount"] = len(members)
+    value["isMember"] = member
+    value["currentRole"] = str(current_member.get("role") or "member") if current_member else None
+    if not member:
+        value.pop("feed", None)
+        value.pop("activityBoard", None)
+        value.pop("members", None)
+        value.pop("applications", None)
+    return value
+
+
 def community():
     if wiz.request.query("resource", "").strip() == "greenhouse_memories":
         return _shared_json_endpoint("greenhouse_public_memories")
@@ -2385,6 +2421,21 @@ def community():
             payload = None
         if isinstance(payload, dict) and payload.get("kind") == "project-room-project":
             return _project_room_projects(session.get("id") or "")
+        if wiz.request.query("action", "").strip() == "create":
+            identity = _community_session_identity()
+            if identity is None:
+                return wiz.response.status(401, message="카카오 로그인이 필요합니다.")
+            if not isinstance(payload, dict) or not str(payload.get("title") or "").strip():
+                return wiz.response.status(400, message="모집글 제목과 내용을 확인해 주세요.")
+            db, items = _shared_json_collection("community_posts")
+            item = dict(payload)
+            item["id"] = str(item.get("id") or ("post-" + identity["kakaoId"] + "-" + secrets.token_hex(6)))
+            item["author"] = identity["name"]
+            item["authorUserId"] = identity["id"]
+            item["createdAt"] = str(item.get("createdAt") or datetime.datetime.now(datetime.timezone.utc).isoformat())
+            items = [item] + [entry for entry in items if entry.get("id") != item["id"]]
+            _save_shared_json_items(db, "community_posts", items)
+            return wiz.response.status(201, item=item, items=items)
     try:
         return _shared_json_endpoint("community_posts")
     except Exception:
@@ -2393,147 +2444,180 @@ def community():
 
 def clubs():
     action = wiz.request.query("action", "").strip()
-    if action in ("", "create", "delete"):
-        return _shared_json_endpoint("community_clubs")
-    if not session.get("id"):
-        return wiz.response.status(401, message="카카오 로그인 후 이용해 주세요.")
-    try:
-        payload = json.loads(wiz.request.query("payload", "") or "{}")
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return wiz.response.status(400, message="요청 형식이 올바르지 않습니다.")
+    identity = _community_session_identity()
     db, items = _shared_json_collection("community_clubs")
-    club = next((item for item in items if item.get("id") == payload.get("clubId")), None)
+    payload_raw = wiz.request.query("payload", "")
+    try:
+        payload = json.loads(payload_raw) if payload_raw else {}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return wiz.response.status(400, message="요청 데이터를 해석하지 못했습니다.")
+
+    normalized_existing = False
+    for existing in items:
+        existing_members = existing.setdefault("members", [])
+        owner_id = str(existing.get("ownerId") or "")
+        owner = next((member for member in existing_members if str(member.get("userId")) == owner_id), None)
+        if owner_id and owner is None:
+            existing_members.insert(0, {"userId": owner_id, "name": str(existing.get("ownerName") or "회장"), "role": "chair", "joinedAt": str(existing.get("createdAt") or "")})
+            normalized_existing = True
+        elif owner is not None and owner.get("role") != "chair":
+            owner["role"] = "chair"
+            normalized_existing = True
+    if normalized_existing:
+        _save_shared_json_items(db, "community_clubs", items)
+
+    if not action:
+        return wiz.response.status(200, items=[_club_public_view(item, identity) for item in items], currentUserId=identity["id"] if identity else None)
+
+    if action in ("create", "join", "role", "assignBooth", "content", "createPost", "comment", "like") and identity is None:
+        return wiz.response.status(401, message="카카오 로그인이 필요합니다.")
+
+    if action == "create":
+        name = str(payload.get("name") or "").strip()[:40]
+        if not name:
+            return wiz.response.status(400, message="동아리 이름을 입력해 주세요.")
+        normalized = re.sub(r"\s+", "", name).casefold()
+        if any(re.sub(r"\s+", "", str(item.get("name") or "")).casefold() == normalized for item in items):
+            return wiz.response.status(409, message="같은 이름의 동아리가 이미 존재합니다.")
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        club = {
+            "id": "club-" + identity["kakaoId"] + "-" + secrets.token_hex(6),
+            "name": name,
+            "description": str(payload.get("description") or "").strip()[:180],
+            "category": str(payload.get("category") or "기타").strip()[:30],
+            "color": str(payload.get("color") or "#d8952f")[:20],
+            "ownerId": identity["id"], "ownerName": identity["name"],
+            "activity": str(payload.get("activity") or "").strip()[:50],
+            "location": str(payload.get("location") or "공동캠퍼스").strip()[:80],
+            "schedule": str(payload.get("schedule") or "자율 활동").strip()[:80],
+            "capacity": max(2, min(int(payload.get("capacity") or 30), 100)),
+            "tags": [str(tag).strip()[:30] for tag in payload.get("tags", []) if str(tag).strip()][:8],
+            "members": [{"userId": identity["id"], "name": identity["name"], "role": "chair", "joinedAt": now}],
+            "applications": [], "feed": [], "createdAt": now,
+        }
+        items.insert(0, club)
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(201, club=club, items=[club])
+
+    club_id = str(payload.get("clubId") or "").strip()
+    club = next((item for item in items if str(item.get("id")) == club_id), None)
     if club is None:
         return wiz.response.status(404, message="동아리를 찾지 못했습니다.")
     members = club.setdefault("members", [])
-    applications = club.setdefault("applications", [])
-    actor_id = str(payload.get("actorId") or payload.get("userId") or "")
-    if action == "apply":
-        if actor_id == club.get("ownerId"):
-            return wiz.response.status(409, message="내가 만든 동아리에는 가입 신청할 수 없습니다.")
-        if any(member.get("userId") == actor_id for member in members):
+    is_member = any(str(item.get("userId")) == identity["id"] for item in members if isinstance(item, dict))
+    is_chair = str(club.get("ownerId") or "") == identity["id"]
+
+    if action == "join":
+        if is_member:
             return wiz.response.status(409, message="이미 가입한 동아리입니다.")
-        if any(item.get("userId") == actor_id for item in applications):
-            return wiz.response.status(409, message="이미 가입 승인 대기 중입니다.")
-        applications.append({"userId": actor_id, "name": str(payload.get("userName") or "신청자"), "status": "pending", "requestedAt": datetime.datetime.now().isoformat()})
-    elif action == "respond":
-        if actor_id != club.get("ownerId"):
-            return wiz.response.status(403, message="회장만 가입 신청을 처리할 수 있습니다.")
-        applicant_id = str(payload.get("applicantId") or "")
-        application = next((item for item in applications if item.get("userId") == applicant_id), None)
-        if application is None:
-            return wiz.response.status(404, message="대기 중인 가입 신청이 없습니다.")
-        club["applications"] = [item for item in applications if item.get("userId") != applicant_id]
-        if payload.get("decision") == "accepted" and not any(member.get("userId") == applicant_id for member in members):
-            members.append({"userId": applicant_id, "name": application.get("name") or "회원", "role": "member"})
-    elif action == "role":
-        if actor_id != club.get("ownerId"):
-            return wiz.response.status(403, message="회장만 역할을 변경할 수 있습니다.")
-        target_id, role = str(payload.get("userId") or ""), payload.get("role")
-        if target_id == club.get("ownerId") or role not in ("executive", "member"):
-            return wiz.response.status(400, message="변경할 수 없는 역할입니다.")
-        target = next((member for member in members if member.get("userId") == target_id), None)
+        if len(members) >= int(club.get("capacity") or 30):
+            return wiz.response.status(409, message="동아리 정원이 가득 찼습니다.")
+        members.append({"userId": identity["id"], "name": identity["name"], "role": "member", "joinedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(200, club=club)
+
+    if action == "role":
+        if not is_chair:
+            return wiz.response.status(403, message="회장만 구성원의 직급을 변경할 수 있습니다.")
+        member_id, role = str(payload.get("memberId") or ""), str(payload.get("role") or "")
+        if role not in ("executive", "member"):
+            return wiz.response.status(400, message="임원 또는 부원만 지정할 수 있습니다.")
+        if member_id == club.get("ownerId"):
+            return wiz.response.status(400, message="회장 직급은 일반 직급 변경으로 바꿀 수 없습니다.")
+        target = next((item for item in members if str(item.get("userId")) == member_id), None)
         if target is None:
-            return wiz.response.status(404, message="가입 인원을 찾지 못했습니다.")
+            return wiz.response.status(404, message="동아리 구성원을 찾지 못했습니다.")
         target["role"] = role
-    else:
-        return wiz.response.status(400, message="지원하지 않는 동아리 요청입니다.")
-    _save_shared_json_collection(db, "community_clubs", items)
-    return wiz.response.status(200, club=club, items=items)
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(200, club=club)
 
+    if action == "content":
+        if not is_member:
+            return wiz.response.status(403, message="동아리에 가입한 회원만 볼 수 있습니다.")
+        return wiz.response.status(200, feed=club.get("feed", []), activityBoard=club.get("activityBoard", {}))
 
-def _real_place_secrets():
-    config = _secret_config()
-    return (
-        (getattr(config, "KAKAO_REST_API_KEY", "") or "").strip(),
-        (getattr(config, "OPENAI_API_KEY", "") or "").strip(),
-        (getattr(config, "OPENAI_MODEL", "") or "gpt-4.1-mini").strip(),
-    )
+    if action == "createPost":
+        if not is_member:
+            return wiz.response.status(403, message="동아리에 가입한 회원만 활동을 등록할 수 있습니다.")
+        post = payload.get("post") if isinstance(payload.get("post"), dict) else {}
+        post = {"id": "post-" + secrets.token_hex(8), "author": identity["name"], "title": str(post.get("title") or "활동 기록").strip()[:100], "detail": str(post.get("detail") or "").strip()[:300], "photo": str(post.get("photo") or "")[:350000], "likes": 0, "likedBy": [], "comments": 0, "commentTexts": [], "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        club.setdefault("feed", []).insert(0, post)
+        club["feed"] = club["feed"][:100]
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(201, post=post, feed=club["feed"])
 
+    if action in ("comment", "like"):
+        if not is_member:
+            return wiz.response.status(403, message="동아리에 가입한 회원만 이용할 수 있습니다.")
+        post = next((item for item in club.get("feed", []) if str(item.get("id")) == str(payload.get("postId") or "")), None)
+        if post is None:
+            return wiz.response.status(404, message="활동 기록을 찾지 못했습니다.")
+        if action == "comment":
+            text = str(payload.get("text") or "").strip()[:160]
+            if not text:
+                return wiz.response.status(400, message="댓글을 입력해 주세요.")
+            post.setdefault("commentTexts", []).append({"author": identity["name"], "text": text})
+            post["comments"] = len(post["commentTexts"])
+        else:
+            liked = post.setdefault("likedBy", [])
+            if identity["id"] in liked:
+                liked.remove(identity["id"])
+            else:
+                liked.append(identity["id"])
+            post["likes"] = len(liked)
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(200, feed=club.get("feed", []))
 
-def _kakao_real_places(queries):
-    kakao_key, _, _ = _real_place_secrets()
-    if not kakao_key:
-        return []
-    places = {}
-    for query in list(dict.fromkeys(queries))[:5]:
-        url = "https://dapi.kakao.com/v2/local/search/keyword.json?" + urllib.parse.urlencode({"query": query, "size": 15})
-        request = urllib.request.Request(url, headers={"Authorization": "KakaoAK " + kakao_key})
+    if action == "assignBooth":
         try:
-            with urllib.request.urlopen(request, timeout=8) as response:
-                documents = json.loads(response.read().decode("utf-8")).get("documents", [])
-        except Exception:
+            booth_index = int(payload.get("boothIndex"))
+        except (TypeError, ValueError):
+            return wiz.response.status(400, message="부스 배치 정보가 올바르지 않습니다.")
+        if booth_index < 3 or booth_index > 9:
+            return wiz.response.status(400, message="부스 배치 정보가 올바르지 않습니다.")
+        if not is_chair:
+            return wiz.response.status(403, message="동아리 회장만 부스를 배치할 수 있습니다.")
+        occupied = next((item for item in items if item.get("boothIndex") == booth_index and str(item.get("id")) != club_id), None)
+        if occupied is not None:
+            return wiz.response.status(409, message="이미 다른 동아리가 사용 중인 부스입니다.")
+        club["boothIndex"] = booth_index
+        now = datetime.datetime.now()
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(200, club=club)
+    return wiz.response.status(400, message="지원하지 않는 동아리 요청입니다.")
+
+
+def place_search():
+    """카카오 Local에서 확인된 세종시 장소만 프로젝트 보드에 제공한다."""
+    if not session.get("id"):
+        return wiz.response.status(401, message="로그인이 필요합니다.")
+    query = wiz.request.query("query", "").strip()[:80]
+    if not query:
+        return wiz.response.status(400, message="검색어를 입력해 주세요.")
+    config = _secret_config()
+    api_key = (getattr(config, "KAKAO_REST_API_KEY", "") if config is not None else "").strip()
+    if not api_key:
+        return wiz.response.status(503, message="카카오 Local API 설정을 확인해 주세요.")
+    params = urllib.parse.urlencode({"query": f"세종 {query}", "x": "127.289", "y": "36.5", "radius": "20000", "size": "15"})
+    try:
+        result = _kakao_request_json(
+            "https://dapi.kakao.com/v2/local/search/keyword.json?" + params,
+            headers={"Authorization": "KakaoAK " + api_key},
+        )
+    except Exception:
+        return wiz.response.status(502, message="카카오 장소 검색에 실패했습니다.")
+    places = []
+    for item in result.get("documents", []):
+        address = str(item.get("address_name") or "")
+        road_address = str(item.get("road_address_name") or "")
+        if "세종특별자치시" not in address and "세종특별자치시" not in road_address:
             continue
-        for item in documents:
-            address = str(item.get("road_address_name") or item.get("address_name") or "")
-            if "세종특별자치시" not in address:
-                continue
-            place_id = str(item.get("id") or "")
-            if place_id:
-                places[place_id] = {"id": place_id, "name": str(item.get("place_name") or ""), "category": str(item.get("category_name") or ""), "address": str(item.get("address_name") or ""), "roadAddress": str(item.get("road_address_name") or ""), "phone": str(item.get("phone") or ""), "externalUrl": str(item.get("place_url") or ""), "source": "kakao"}
-    return list(places.values())[:10]
-
-
-def _openai_place_json(system_prompt, payload):
-    _, openai_key, model = _real_place_secrets()
-    if not openai_key:
-        return None
-    request = urllib.request.Request("https://api.openai.com/v1/chat/completions", data=json.dumps({"model": model, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]}).encode("utf-8"), headers={"Authorization": "Bearer " + openai_key, "Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            body = json.loads(response.read().decode("utf-8"))
-        return json.loads(body["choices"][0]["message"]["content"])
-    except Exception:
-        return None
-
-
-def conversation_place_recommendation():
-    user_id = str(session.get("id") or "")
-    try:
-        payload = json.loads(wiz.request.query("payload", "{}"))
-    except Exception:
-        payload = {}
-    room_id = str(payload.get("directRoomId") or "")[:80]
-    if not user_id or not room_id:
-        return wiz.response.status(403, error="카카오 로그인 사용자만 추천을 요청할 수 있습니다.")
-    connection = sqlite3.connect(wiz.project.fs().abspath("runtime/realtime-chat.sqlite3"), timeout=5)
-    try:
-        room = connection.execute("SELECT member_a, member_b, active FROM realtime_direct_rooms WHERE id = ?", (room_id,)).fetchone()
-        if not room or user_id not in room[:2] or not room[2]:
-            return wiz.response.status(403, error="이 채팅방의 참여자만 추천을 요청할 수 있습니다.")
-        rows = connection.execute("SELECT sender_user_id, message, sent_at FROM realtime_direct_messages WHERE room_id = ? ORDER BY sent_at DESC LIMIT 30", (room_id,)).fetchall()[::-1]
-    finally:
-        connection.close()
-    if len(rows) < 2:
-        return wiz.response.status(422, error="두 분의 대화를 조금 더 나눈 뒤 추천받아 보세요.")
-    text = " ".join(str(row[1]) for row in rows)
-    keyword = "카페" if re.search(r"커피|카페|조용", text) else "공원 산책" if re.search(r"걷|산책|바깥|공원", text) else "맛집" if re.search(r"배고|먹|고기|식사", text) else "문화시설 전시" if re.search(r"전시|공연|문화", text) else "관광명소"
-    aliases = {row[0]: "A" if index == 0 else "B" for index, row in enumerate(rows) if row[0] not in {item for item in [row[0] for row in rows[:index]]}}
-    anonymous_messages = [{"speaker": aliases.get(row[0], "B"), "message": str(row[1])[:500]} for row in rows]
-    analysis = _openai_place_json("두 사용자의 최근 대화에서 실제 세종특별자치시 장소 검색 조건만 JSON으로 만드세요. 장소 이름, 개인정보, 민감 특성을 만들거나 추론하지 마세요. 형식: {activity,category,searchQueries:[...],reason}.", {"recentMessages": anonymous_messages, "additionalRequest": str(payload.get("userRequest") or "")[:300]}) or {}
-    search_queries = [str(item)[:80] for item in analysis.get("searchQueries", []) if isinstance(item, str)][:5] or ["세종 " + keyword, "세종 " + keyword.split()[0]]
-    candidates = _kakao_real_places(search_queries)
-    if not candidates:
-        return wiz.response.status(404, error="조건에 맞는 장소를 찾지 못했어요. 다른 분위기로 다시 추천해볼까요?")
-    selection = _openai_place_json("실제 세종특별자치시 장소 후보 중 정확히 1곳만 선택하세요. 후보에 없는 placeId·장소명·주소를 만들거나 수정하지 말고 확인되지 않은 영업시간, 가격, 메뉴, 평점을 말하지 마세요. JSON: {placeId,reason,message}.", {"conversationAnalysis": analysis, "candidatePlaces": candidates}) or {}
-    place = next((item for item in candidates if item["id"] == str(selection.get("placeId") or "")), candidates[0])
-    reason = str(selection.get("reason") or "두 사람의 최근 대화에서 함께 하고 싶은 활동과 잘 맞는 실제 세종 장소예요.")[:300]
-    recommendation = {"recommendationId": "wiz-real-" + secrets.token_hex(8), "summary": str(selection.get("message") or "대화에서 드러난 공통 활동을 바탕으로 카카오에서 확인된 장소를 찾았어요.")[:300], "places": [{**place, "recommendationReason": reason}]}
-    message = {"id": "real-place-" + secrets.token_hex(8), "directRoomId": room_id, "senderId": "chungnyeongi", "nickname": "충녕이", "message": recommendation["summary"], "createdAt": int(datetime.datetime.now().timestamp() * 1000), "type": "ai-recommendation", "recommendation": recommendation}
-    return wiz.response.status(200, ok=True, message=message)
-
-
-def chungnyeong_place_recommendation():
-    category = random.choice(["카페", "맛집", "공원", "산책", "관광명소", "문화시설", "전시", "체험", "디저트"])
-    places = _kakao_real_places(["세종 " + category])
-    if not places:
-        return wiz.response.status(404, error="실제 세종 장소를 찾지 못했어요. 잠시 후 다시 눌러주세요.")
-    previous = str(session.get("chungnyeong_recent_place_id") or "")
-    pool = [item for item in places if item["id"] != previous] if len(places) > 1 else places
-    place = random.choice(pool or places)
-    session.set(chungnyeong_recent_place_id=place["id"])
-    generated = _openai_place_json("친근한 세종 안내 NPC 충녕이다. 제공된 장소 이름을 바꾸지 말고 확인되지 않은 가격·영업시간·평점·메뉴 없이 한두 문장 JSON {message}로 추천한다.", {"placeName": place["name"], "category": place["category"], "address": place["roadAddress"] or place["address"]}) or {}
-    return wiz.response.status(200, place={"placeName": place["name"], "address": place["roadAddress"] or place["address"], "category": place["category"], "placeUrl": place["externalUrl"], "message": str(generated.get("message") or ("오늘은 %s 한번 가보는 거 어때요?" % place["name"]))[:300]})
+        try:
+            longitude, latitude = float(item.get("x")), float(item.get("y"))
+        except (TypeError, ValueError):
+            continue
+        places.append({"id": str(item.get("id") or ""), "name": str(item.get("place_name") or ""), "category": str(item.get("category_name") or ""), "address": address, "roadAddress": road_address, "externalUrl": str(item.get("place_url") or ""), "longitude": longitude, "latitude": latitude, "source": "kakao"})
+    return wiz.response.status(200, places=places)
 
 
 def greenhouse_public_memories():

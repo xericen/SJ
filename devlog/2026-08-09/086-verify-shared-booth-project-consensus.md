@@ -1,0 +1,6 @@
+# 동아리 공용 부스·프로젝트 합의 기능 재검증
+
+- 사용자 요청: 동아리 부스 공용 DB·중복 차단, 팀장 전용 역할/최종 검토, 카카오 장소 검색, 참가자 전원 합의 완료 기능 재확인
+- 변경 파일: `src/app/page.home/api.py`, `src/app/page.home/view.pug`, `react-app/src/components/ClubStreetExperience.tsx`, `react-app/src/components/ProjectRoomInteractions.tsx`, `react-app/src/runtimeBuild.ts`, 운영 정적 번들
+- 변경 내용: 운영 WIZ API에 원자적 부스 배치 및 중복 차단을 추가하고, 프로젝트 장소 검색을 서버 측 카카오 Local API로 연결했다. 팀장 권한·AI 회의 도우미 제거·전원 합의 완료 조건도 재검증했다.
+- 검증 결과: React·서버·WIZ 빌드와 성능 예산 검사를 통과했고 운영 번들 반영을 확인했다. 운영 Python API 프로세스는 신규 분기 응답이 즉시 갱신되지 않아 로그인 계정 기반 최종 확인이 남았다.

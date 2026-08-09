@@ -70,7 +70,9 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     let active=true,settled=false,fallbackTimer=0;
     const finish=(position:RespawnPosition)=>{if(!active||settled)return;settled=true;window.clearTimeout(fallbackTimer);setEntrySpawn(position)};
     const resolveRespawn=async()=>{
-      try{finish(await getSharedRespawnPosition())}
+      try{
+        if(authenticated&&socket.connected){const resumed=await new Promise<RespawnPosition|null>(resolve=>socket.emit('getPlayerResumeState',resolve));if(resumed)return finish(resumed)}
+        finish(await getSharedRespawnPosition())}
       catch{
         if(socket.connected)socket.emit('getRespawnPosition',finish);
         else socket.connect();
@@ -81,7 +83,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     socket.on('connect',resolveRespawn);
     void resolveRespawn();
     return()=>{active=false;window.clearTimeout(fallbackTimer);socket.off('connect',resolveRespawn)};
-  },[profile.nickname,returnState]);
+  },[authenticated,profile.nickname,returnState]);
   useEffect(()=>{
     if(!ref.current||!entrySpawn)return;
     let cancelled=false,mapTravelActive=false,gardenReleaseTimer=0;

@@ -1,8 +1,9 @@
 import math
-import os
-import sqlite3
+import json
 import threading
 import time
+import urllib.parse
+import urllib.request
 import uuid
 
 import season
@@ -51,9 +52,12 @@ def _state(server):
         state.direct_rooms = {}
         state.groups = {}
         state.nearby_messages = {}
+        state.recommendation_cache = {}
         server.app.jochwon_realtime = state
     if not hasattr(state, "pending_friends"):
         state.pending_friends = {}
+    if not hasattr(state, "recommendation_cache"):
+        state.recommendation_cache = {}
     return server.app.jochwon_realtime
 
 
@@ -124,148 +128,45 @@ class Controller:
             history = list(self.state.nearby_messages.get(room_id, []))
         io.emit("nearbyChatHistory", history, to=sid)
 
-    def _chat_database(self, wiz):
-        runtime_dir = os.path.join(wiz.project.fs().abspath(), "runtime")
-        os.makedirs(runtime_dir, exist_ok=True)
-        connection = sqlite3.connect(
-            os.path.join(runtime_dir, "realtime-chat.sqlite3"),
-            timeout=5,
-        )
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS realtime_direct_rooms (
-                id TEXT PRIMARY KEY,
-                member_a TEXT NOT NULL,
-                member_b TEXT NOT NULL,
-                active INTEGER NOT NULL DEFAULT 1,
-                accepted_at INTEGER NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS realtime_friendships (
-                user_a TEXT NOT NULL,
-                user_b TEXT NOT NULL,
-                accepted_at INTEGER NOT NULL,
-                PRIMARY KEY (user_a, user_b)
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS realtime_direct_messages (
-                id TEXT PRIMARY KEY,
-                room_id TEXT NOT NULL,
-                sender_user_id TEXT NOT NULL,
-                message TEXT NOT NULL,
-                sent_at INTEGER NOT NULL,
-                FOREIGN KEY(room_id) REFERENCES realtime_direct_rooms(id)
-            )
-            """
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_realtime_messages_room "
-            "ON realtime_direct_messages(room_id, sent_at)"
-        )
-        return connection
+    def _chat_tables(self, wiz):
+        struct = wiz.model("struct")
+        rooms = struct.db("realtime_direct_room")
+        friendships = struct.db("realtime_friendship")
+        messages = struct.db("realtime_direct_message")
+        rooms.orm.create_table(safe=True)
+        friendships.orm.create_table(safe=True)
+        messages.orm.create_table(safe=True)
+        return rooms, friendships, messages
 
     def _persist_room(self, wiz, room, member_user_ids):
         now = _now_ms()
         member_a, member_b = sorted(str(item) for item in member_user_ids)
-        connection = self._chat_database(wiz)
-        try:
-            with connection:
-                connection.execute(
-                    """
-                    INSERT INTO realtime_direct_rooms (
-                        id, member_a, member_b, active,
-                        accepted_at, created_at, updated_at
-                    ) VALUES (?, ?, ?, 1, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        member_a = excluded.member_a,
-                        member_b = excluded.member_b,
-                        active = 1,
-                        accepted_at = excluded.accepted_at,
-                        updated_at = excluded.updated_at
-                    """,
-                    (
-                        room["id"],
-                        member_a,
-                        member_b,
-                        now,
-                        now,
-                        now,
-                    ),
-                )
-        finally:
-            connection.close()
+        rooms, _, _ = self._chat_tables(wiz)
+        values = {"member_a": member_a, "member_b": member_b, "active": True, "accepted_at": now, "updated_at": now}
+        if rooms.get(id=room["id"]) is None:
+            rooms.insert({"id": room["id"], "created_at": now, **values})
+        else:
+            rooms.update(values, id=room["id"])
 
     def _existing_room_id(self, wiz, member_user_ids):
         member_a, member_b = sorted(str(item) for item in member_user_ids)
-        connection = self._chat_database(wiz)
-        try:
-            row = connection.execute(
-                """
-                SELECT id FROM realtime_direct_rooms
-                WHERE (member_a = ? AND member_b = ?)
-                   OR (member_a = ? AND member_b = ?)
-                ORDER BY updated_at DESC LIMIT 1
-                """,
-                (member_a, member_b, member_b, member_a),
-            ).fetchone()
-            return row[0] if row else None
-        finally:
-            connection.close()
+        rooms, _, _ = self._chat_tables(wiz)
+        rows = [row for row in rooms.rows(orderby="updated_at", order="DESC", dump=1000) if {str(row.get("member_a")), str(row.get("member_b"))} == {member_a, member_b}]
+        return rows[0]["id"] if rows else None
 
     def _existing_active_room_id(self, wiz, member_user_ids):
         member_a, member_b = sorted(str(item) for item in member_user_ids)
-        connection = self._chat_database(wiz)
-        try:
-            row = connection.execute(
-                """
-                SELECT id FROM realtime_direct_rooms
-                WHERE active = 1 AND (
-                    (member_a = ? AND member_b = ?)
-                    OR (member_a = ? AND member_b = ?)
-                )
-                ORDER BY updated_at DESC LIMIT 1
-                """,
-                (member_a, member_b, member_b, member_a),
-            ).fetchone()
-            return row[0] if row else None
-        finally:
-            connection.close()
+        rooms, _, _ = self._chat_tables(wiz)
+        rows = [row for row in rooms.rows(orderby="updated_at", order="DESC", dump=1000) if row.get("active") and {str(row.get("member_a")), str(row.get("member_b"))} == {member_a, member_b}]
+        return rows[0]["id"] if rows else None
 
     def _close_rooms_for_pair(self, wiz, io, member_user_ids, by_id):
         member_a, member_b = sorted(str(item) for item in member_user_ids)
-        connection = self._chat_database(wiz)
-        try:
-            with connection:
-                rows = connection.execute(
-                    """
-                    SELECT id FROM realtime_direct_rooms
-                    WHERE active = 1 AND (
-                        (member_a = ? AND member_b = ?)
-                        OR (member_a = ? AND member_b = ?)
-                    )
-                    """,
-                    (member_a, member_b, member_b, member_a),
-                ).fetchall()
-                connection.execute(
-                    """
-                    UPDATE realtime_direct_rooms SET active = 0, updated_at = ?
-                    WHERE (member_a = ? AND member_b = ?)
-                       OR (member_a = ? AND member_b = ?)
-                    """,
-                    (_now_ms(), member_a, member_b, member_b, member_a),
-                )
-        finally:
-            connection.close()
-        room_ids = {str(row[0]) for row in rows}
+        rooms, _, _ = self._chat_tables(wiz)
+        rows = [row for row in rooms.rows(dump=1000) if row.get("active") and {str(row.get("member_a")), str(row.get("member_b"))} == {member_a, member_b}]
+        for row in rows:
+            rooms.update({"active": False, "updated_at": _now_ms()}, id=row["id"])
+        room_ids = {str(row["id"]) for row in rows}
         with self.state.lock:
             for room_id, entry in self.state.direct_rooms.items():
                 if set(str(item) for item in entry["memberUserIds"]) == {member_a, member_b}:
@@ -279,19 +180,9 @@ class Controller:
             )
 
     def _friend_user_ids(self, wiz, user_id):
-        connection = self._chat_database(wiz)
-        try:
-            rows = connection.execute(
-                """
-                SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END
-                FROM realtime_friendships
-                WHERE user_a = ? OR user_b = ?
-                """,
-                (str(user_id), str(user_id), str(user_id)),
-            ).fetchall()
-            return {str(row[0]) for row in rows}
-        finally:
-            connection.close()
+        _, friendships, _ = self._chat_tables(wiz)
+        user_id = str(user_id)
+        return {str(row["user_b"] if str(row.get("user_a")) == user_id else row["user_a"]) for row in friendships.rows(dump=2000) if user_id in (str(row.get("user_a")), str(row.get("user_b")))}
 
     def _emit_friend_state(self, wiz, io, sid):
         user_id = self._authenticated(sid)
@@ -314,62 +205,35 @@ class Controller:
 
     def _save_friendship(self, wiz, first_user_id, second_user_id):
         user_a, user_b = sorted((str(first_user_id), str(second_user_id)))
-        connection = self._chat_database(wiz)
-        try:
-            with connection:
-                connection.execute(
-                    """
-                    INSERT INTO realtime_friendships (user_a, user_b, accepted_at)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(user_a, user_b) DO UPDATE SET
-                        accepted_at = excluded.accepted_at
-                    """,
-                    (user_a, user_b, _now_ms()),
-                )
-        finally:
-            connection.close()
+        _, friendships, _ = self._chat_tables(wiz)
+        record_id = user_a + ":" + user_b
+        values = {"user_a": user_a, "user_b": user_b, "accepted_at": _now_ms()}
+        if friendships.get(id=record_id) is None:
+            friendships.insert({"id": record_id, **values})
+        else:
+            friendships.update(values, id=record_id)
 
     def _remove_friendship(self, wiz, first_user_id, second_user_id):
         user_a, user_b = sorted((str(first_user_id), str(second_user_id)))
-        connection = self._chat_database(wiz)
-        try:
-            with connection:
-                connection.execute(
-                    "DELETE FROM realtime_friendships WHERE user_a = ? AND user_b = ?",
-                    (user_a, user_b),
-                )
-        finally:
-            connection.close()
+        _, friendships, _ = self._chat_tables(wiz)
+        friendships.delete(id=user_a + ":" + user_b)
 
     def _persist_message(self, wiz, message_id, room_id, user_id, message):
-        connection = self._chat_database(wiz)
-        try:
-            with connection:
-                connection.execute(
-                    """
-                    INSERT INTO realtime_direct_messages (
-                        id, room_id, sender_user_id, message, sent_at
-                    ) VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (message_id, room_id, str(user_id), message, _now_ms()),
-                )
-        finally:
-            connection.close()
+        _, _, messages = self._chat_tables(wiz)
+        messages.insert({"id": message_id, "room_id": room_id, "sender_user_id": str(user_id), "message": message, "sent_at": _now_ms()})
+
+    def _emit_direct_history(self, wiz, io, room_id, participants, user_socket_ids, to_id):
+        _, _, messages = self._chat_tables(wiz)
+        names = {str(user_id): self.state.players.get(socket_id, {}).get("nickname", "사용자") for user_id, socket_id in user_socket_ids.items()}
+        rows = [row for row in messages.rows(orderby="sent_at", order="ASC", dump=300) if str(row.get("room_id")) == room_id][-200:]
+        for row in rows:
+            sender_user_id = str(row.get("sender_user_id"))
+            io.emit("directMessageReceived", {"id": str(row.get("id")), "directRoomId": room_id, "senderId": user_socket_ids.get(sender_user_id, sender_user_id), "nickname": names.get(sender_user_id, "사용자"), "message": str(row.get("message") or ""), "createdAt": int(row.get("sent_at") or 0), "type": "user"}, to=to_id)
 
     def _close_persisted_room(self, wiz, room_id):
-        connection = self._chat_database(wiz)
-        try:
-            with connection:
-                connection.execute(
-                    """
-                    UPDATE realtime_direct_rooms
-                    SET active = 0, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (_now_ms(), room_id),
-                )
-        finally:
-            connection.close()
+        rooms, _, _ = self._chat_tables(wiz)
+        if rooms.get(id=room_id) is not None:
+            rooms.update({"active": False, "updated_at": _now_ms()}, id=room_id)
 
     def connect(self, wiz, flask):
         sid = self._sid(flask)
@@ -613,6 +477,7 @@ class Controller:
         io.join(room_id, sid=to_id)
         io.emit("directChatStarted", room, to=sid)
         io.emit("directChatAvailable", room, to=to_id)
+        self._emit_direct_history(wiz, io, room_id, room["participants"], {str(source_user): sid, str(target_user): to_id}, sid)
 
     def directChatAccept(self, wiz, data, flask, io):
         sid = self._sid(flask)
@@ -654,6 +519,9 @@ class Controller:
         io.join(room["id"], sid=request["toId"])
         io.emit("directChatStarted", room, to=request["fromId"])
         io.emit("directChatStarted", room, to=request["toId"])
+        socket_ids = {str(request["fromUserId"]): request["fromId"], str(request["toUserId"]): request["toId"]}
+        self._emit_direct_history(wiz, io, room["id"], room["participants"], socket_ids, request["fromId"])
+        self._emit_direct_history(wiz, io, room["id"], room["participants"], socket_ids, request["toId"])
 
     def directChatReject(self, data, flask, io):
         sid = self._sid(flask)
@@ -795,6 +663,75 @@ class Controller:
             "type": "user",
         }
         io.emit("directMessageReceived", payload, to=room_id)
+
+    def directRecommendationRequest(self, wiz, data, flask, io):
+        if not isinstance(data, dict):
+            return
+        started = time.perf_counter()
+        sid = self._sid(flask)
+        room_id = _text(data.get("directRoomId"), 80)
+        user_request = _text(data.get("userRequest"), 200)
+        user_id = self._authenticated(sid)
+        with self.state.lock:
+            entry = self.state.direct_rooms.get(room_id)
+        if not entry or sid not in entry["memberSocketIds"] or user_id not in entry["memberUserIds"]:
+            io.emit("directRecommendationFailed", {"directRoomId": room_id, "message": "이 채팅방의 참여자만 추천을 요청할 수 있습니다."}, to=sid)
+            return
+        io.emit("directRecommendationStarted", {"directRoomId": room_id, "stage": "analyzing"}, to=room_id)
+        _, _, messages_db = self._chat_tables(wiz)
+        load_started = time.perf_counter()
+        rows = [row for row in messages_db.rows(orderby="sent_at", order="DESC", dump=200) if str(row.get("room_id")) == room_id][:20]
+        rows.reverse()
+        load_ms = round((time.perf_counter() - load_started) * 1000)
+        if len(rows) < 2:
+            io.emit("directRecommendationFailed", {"directRoomId": room_id, "message": "대화를 2개 이상 나눈 뒤 추천해 주세요."}, to=sid)
+            return
+        combined = " ".join([str(row.get("message") or "") for row in rows] + [user_request])
+        categories = [
+            ("카페", ("카페", "커피", "디저트")), ("음식점", ("밥", "먹", "맛집", "고기", "식당")),
+            ("공원", ("산책", "걷", "공원")), ("전시", ("전시", "미술", "박물관")),
+            ("영화관", ("영화", "시네마")), ("체험", ("체험", "놀", "데이트")),
+        ]
+        analysis_started = time.perf_counter()
+        category = next((label for label, words in categories if any(word in combined for word in words)), "관광명소")
+        query = user_request or ("세종 " + category)
+        analysis_ms = round((time.perf_counter() - analysis_started) * 1000)
+        fingerprint = str(rows[-1].get("id")) + ":" + query
+        cached = self.state.recommendation_cache.get(room_id)
+        if cached and cached.get("fingerprint") == fingerprint and cached.get("expires", 0) > _now_ms():
+            io.emit("directRecommendationCompleted", {"directRoomId": room_id, "message": cached["message"]}, to=room_id)
+            return
+        io.emit("directRecommendationStarted", {"directRoomId": room_id, "stage": "searching"}, to=room_id)
+        search_started = time.perf_counter()
+        try:
+            config = wiz.config("secret")
+            key = str(getattr(config, "KAKAO_REST_API_KEY", "") or "").strip()
+            params = urllib.parse.urlencode({"query": query, "x": "127.289", "y": "36.5", "radius": "20000", "size": "10"})
+            request = urllib.request.Request("https://dapi.kakao.com/v2/local/search/keyword.json?" + params, headers={"Authorization": "KakaoAK " + key})
+            with urllib.request.urlopen(request, timeout=8) as response:
+                documents = json.loads(response.read().decode("utf-8")).get("documents", [])
+        except Exception:
+            io.emit("directRecommendationFailed", {"directRoomId": room_id, "message": "카카오 장소 검색이 지연되고 있어요. 잠시 후 다시 시도해 주세요."}, to=sid)
+            return
+        search_ms = round((time.perf_counter() - search_started) * 1000)
+        places = []
+        for item in documents:
+            address = str(item.get("address_name") or "")
+            road = str(item.get("road_address_name") or "")
+            if "세종특별자치시" not in address and "세종특별자치시" not in road:
+                continue
+            places.append({"id": str(item.get("id") or ""), "name": str(item.get("place_name") or ""), "category": str(item.get("category_name") or ""), "address": address, "roadAddress": road, "phone": str(item.get("phone") or ""), "externalUrl": str(item.get("place_url") or ""), "longitude": float(item.get("x")), "latitude": float(item.get("y")), "distanceMeters": int(item.get("distance") or 0), "source": "kakao", "recommendationReason": "최근 대화에서 함께 하고 싶은 활동과 맞는 실제 세종 장소예요."})
+            if len(places) >= 3:
+                break
+        if not places:
+            io.emit("directRecommendationFailed", {"directRoomId": room_id, "message": "조건에 맞는 실제 세종 장소를 찾지 못했어요. 다른 활동으로 다시 요청해 주세요."}, to=sid)
+            return
+        recommendation_id = "recommendation-" + str(uuid.uuid4())
+        message = {"id": str(uuid.uuid4()), "directRoomId": room_id, "senderId": "chungnyeongi", "nickname": "충녕이", "message": "최근 대화와 잘 맞는 실제 세종 장소를 찾았어요.", "createdAt": _now_ms(), "type": "ai-recommendation", "recommendation": {"recommendationId": recommendation_id, "summary": "대화에서 확인된 활동을 기준으로 카카오 장소 검색 결과를 골랐어요.", "basis": {"activity": category, "region": "세종특별자치시", "rejectedCategories": [], "mood": []}, "places": places}}
+        self.state.recommendation_cache[room_id] = {"fingerprint": fingerprint, "expires": _now_ms() + 300000, "message": message}
+        io.emit("directRecommendationCompleted", {"directRoomId": room_id, "message": message}, to=room_id)
+        total_ms = round((time.perf_counter() - started) * 1000)
+        print("[direct-place-performance] conversation_load={}ms analysis={}ms kakao_search={}ms selection=0ms total={}ms".format(load_ms, analysis_ms, search_ms, total_ms))
 
     def directChatClosed(self, wiz, data, flask, io):
         sid = self._sid(flask)

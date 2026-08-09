@@ -1,0 +1,8 @@
+{
+  "id": "sejong-place-search",
+  "title": "세종 장소 검색",
+  "route": "/api/sejong-place-search",
+  "category": "",
+  "viewuri": "",
+  "controller": ""
+}

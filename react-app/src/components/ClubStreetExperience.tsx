@@ -1,24 +1,5 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type FormEvent,
-} from "react";
-import {
-  ArrowRight,
-  Check,
-  Crown,
-  Heart,
-  Image,
-  MessageCircle,
-  Plus,
-  Send,
-  Shield,
-  Sparkles,
-  Users,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { ArrowRight, Check, Crown, Heart, Image, MessageCircle, Plus, Send, Shield, Sparkles, Users, X } from "lucide-react";
 import { COMMUNITY_API_BASE_URL as API_BASE_URL } from "../config/api";
 import { gameEvents } from "../game/events";
 import type { UserProfile } from "../types";
@@ -40,12 +21,6 @@ type ClubMember = {
   name: string;
   role?: "chair" | "executive" | "member";
 };
-type ClubApplication = {
-  userId: string;
-  name: string;
-  status: "pending";
-  requestedAt: string;
-};
 type Club = {
   id: string;
   name: string;
@@ -55,13 +30,15 @@ type Club = {
   ownerId: string;
   ownerName: string;
   members: ClubMember[];
-  applications?: ClubApplication[];
+  isMember?: boolean;
+  currentRole?: "chair" | "executive" | "member";
   activity?: string;
   location?: string;
   schedule?: string;
   capacity?: number;
   tags?: string[];
   createdAt?: string;
+  boothIndex?: number;
 };
 type BoothClub = Club & {
   icon: string;
@@ -85,20 +62,14 @@ type FeedItem = {
   comments: number;
   liked?: boolean;
   photo?: string;
+  commentTexts?: Array<{ author: string; text: string }>;
 };
 type ClubTab = "feed" | "album" | "info" | "members";
 type LinkedProject = { id: string; icon: string; name: string; status: string };
 
 const BOOTH_COUNT = 10;
 const INITIAL_CLUB_COUNT = 2;
-const ALBUM_IMAGES = [
-  "/images/festivals/spring-flower-2026.jpg",
-  "/images/festivals/peach-2026.jpg",
-  "/images/festivals/hangeul-2026.jpg",
-  "/images/festivals/childrens-day-2026.jpg",
-  "/images/festivals/street-hangeul-2026.jpg",
-  "/images/festivals/dano-2026.jpg",
-];
+const ALBUM_IMAGES = ["/images/festivals/spring-flower-2026.jpg", "/images/festivals/peach-2026.jpg", "/images/festivals/hangeul-2026.jpg", "/images/festivals/childrens-day-2026.jpg", "/images/festivals/street-hangeul-2026.jpg", "/images/festivals/dano-2026.jpg"];
 const DEFAULT_PROJECTS: LinkedProject[] = [
   {
     id: "archive",
@@ -113,48 +84,18 @@ const DEFAULT_PROJECTS: LinkedProject[] = [
     status: "진행 중 · 동아리원 6명 참여",
   },
 ];
-const iconFor = (club: Club) =>
-  club.category.includes("사진")
-    ? "📸"
-    : club.category.includes("환경")
-      ? "🌱"
-      : club.category.includes("카페")
-        ? "☕"
-        : club.category.includes("꽃")
-          ? "🌸"
-          : "🎪";
-const userIdFor = (name: string) =>
-  `community-user-${name.trim().toLowerCase().replace(/\s+/g, "-") || "anonymous"}`;
-const normalizeClub = (value: Partial<Club>): Club => {
-  const members = Array.isArray(value.members) ? value.members : [];
-  const normalizedMembers =
-    value.ownerId && !members.some((member) => member.userId === value.ownerId)
-      ? [
-          {
-            userId: value.ownerId,
-            name: value.ownerName || "회장",
-            role: "chair" as const,
-          },
-          ...members,
-        ]
-      : members.map((member) =>
-          member.userId === value.ownerId
-            ? { ...member, role: "chair" as const }
-            : member,
-        );
-  return {
+const iconFor = (club: Club) => (club.category.includes("사진") ? "📸" : club.category.includes("환경") ? "🌱" : club.category.includes("카페") ? "☕" : club.category.includes("꽃") ? "🌸" : "🎪");
+const userIdFor = (name: string) => `community-user-${name.trim().toLowerCase().replace(/\s+/g, "-") || "anonymous"}`;
+const normalizeClub = (value: Partial<Club>): Club =>
+  ({
     ...value,
-    members: normalizedMembers,
-    applications: Array.isArray(value.applications) ? value.applications : [],
+    members: Array.isArray(value.members) ? value.members : [],
     tags: Array.isArray(value.tags) ? value.tags : [],
-  } as Club;
-};
+  }) as Club;
+const asBoothClub = (club: Club): BoothClub => ({ ...club, icon: iconFor(club), recentActivity: club.activity || club.location || "첫 활동 준비 중", interests: (club.tags?.length ? club.tags : [club.category]).slice(0, 2) });
 const readError = async (response: Response) => {
   try {
-    return (
-      ((await response.json()) as { message?: string }).message ||
-      "요청을 처리하지 못했어요."
-    );
+    return ((await response.json()) as { message?: string }).message || "요청을 처리하지 못했어요.";
   } catch {
     return "요청을 처리하지 못했어요.";
   }
@@ -214,15 +155,7 @@ const seedFeed = (club: BoothClub): FeedItem[] =>
         },
       ];
 
-export function ClubStreetExperience({
-  active,
-  profile,
-  onNotice,
-}: {
-  active: boolean;
-  profile: UserProfile;
-  onNotice: (message: string) => void;
-}) {
+export function ClubStreetExperience({ active, profile, onNotice }: { active: boolean; profile: UserProfile; onNotice: (message: string) => void }) {
   const [positions, setPositions] = useState<BoothScreenPosition[]>([]),
     [clubs, setClubs] = useState<Club[]>([]),
     [selected, setSelected] = useState<BoothClub | null>(null),
@@ -240,13 +173,13 @@ export function ClubStreetExperience({
     [projects, setProjects] = useState<LinkedProject[]>(DEFAULT_PROJECTS),
     [projectName, setProjectName] = useState(""),
     [projectFormOpen, setProjectFormOpen] = useState(false);
-  const userId = useMemo(() => userIdFor(profile.nickname), [profile.nickname]);
+  const fallbackUserId = useMemo(() => userIdFor(profile.nickname), [profile.nickname]);
+  const [authenticatedUserId, setAuthenticatedUserId] = useState<string | null>(null);
+  const userId = authenticatedUserId ?? fallbackUserId;
   const guestSession = !localStorage.getItem("jochiwon-kakao-user-id")?.trim();
-  const [boothPickerTarget, setBoothPickerTarget] = useState<number | null>(
-      null,
-    ),
-    [addedBooths, setAddedBooths] = useState<Record<number, BoothClub>>({});
+  const [boothPickerTarget, setBoothPickerTarget] = useState<number | null>(null);
   const openCreator = () => {
+    if (guestSession) { onNotice("동아리 만들기는 카카오 로그인 후 이용할 수 있어요."); return; }
     setCreateError("");
     setCreatorOpen(true);
   };
@@ -263,24 +196,19 @@ export function ClubStreetExperience({
       setCreatorOpen(false);
       if (guestSession) {
         setClubs([]);
-        setAddedBooths({});
         setFeed([]);
         setProjects(DEFAULT_PROJECTS);
       }
       return;
     }
     const controller = new AbortController();
-    fetch(`${API_BASE_URL}/clubs`, { signal: controller.signal })
+    const refresh = () => fetch(`${API_BASE_URL}/clubs`, { signal: controller.signal, credentials: "include" })
       .then((response) => (response.ok ? response.json() : []))
-      .then((value) =>
-        setClubs(
-          (Array.isArray(value) ? value : (value?.data?.items ?? [])).map(
-            normalizeClub,
-          ),
-        ),
-      )
+      .then((value) => { setAuthenticatedUserId(value?.data?.currentUserId ?? value?.currentUserId ?? null); setClubs((Array.isArray(value) ? value : (value?.data?.items ?? [])).map(normalizeClub)); })
       .catch(() => undefined);
-    return () => controller.abort();
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 2500);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, [active, guestSession]);
   const boothClubs = useMemo(
     () =>
@@ -288,37 +216,38 @@ export function ClubStreetExperience({
         ...club,
         icon: iconFor(club),
         recentActivity: club.activity || club.location || "첫 활동 준비 중",
-        interests: (club.tags?.length ? club.tags : [club.category]).slice(
-          0,
-          2,
-        ),
+        interests: (club.tags?.length ? club.tags : [club.category]).slice(0, 2),
       })),
     [clubs],
   );
   const myBoothClubs = useMemo(
     () =>
       clubs
-        .filter((club) => club.ownerId === userId)
+        .filter((club) => club.ownerId === userId && !Number.isInteger(club.boothIndex))
         .map((club) => ({
           ...club,
           icon: iconFor(club),
           recentActivity: club.activity || club.location || "첫 활동 준비 중",
-          interests: (club.tags?.length ? club.tags : [club.category]).slice(
-            0,
-            2,
-          ),
-        }))
-        .filter(
-          (club) =>
-            !Object.values(addedBooths).some((added) => added.id === club.id),
-        ),
-    [clubs, userId, addedBooths],
+          interests: (club.tags?.length ? club.tags : [club.category]).slice(0, 2),
+        })),
+    [clubs, userId],
   );
-  const placeMyClub = (club: BoothClub) => {
+  const placeMyClub = async (club: BoothClub) => {
     if (boothPickerTarget === null) return;
-    setAddedBooths((current) => ({ ...current, [boothPickerTarget]: club }));
-    setBoothPickerTarget(null);
-    onNotice(`${club.name}을 선택한 부스에 올렸어요.`);
+    try {
+      const payload = { clubId: club.id, boothIndex: boothPickerTarget };
+      const response = await fetch(`${API_BASE_URL}/clubs?action=assignBooth&payload=${encodeURIComponent(JSON.stringify(payload))}`, { credentials: "include" });
+      if (!response.ok) throw new Error(await readError(response));
+      const result = await response.json() as { code?: number; data?: { club?: Club; message?: string }; club?: Club };
+      if (result.code && result.code >= 400) throw new Error(result.data?.message ?? "부스 위치를 저장하지 못했어요.");
+      const updated = result.data?.club ?? result.club;
+      if (!updated) throw new Error("부스 저장 응답을 확인하지 못했어요.");
+      setClubs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setBoothPickerTarget(null);
+      onNotice(`${club.name}을 공용 부스에 올렸어요. 다른 사용자에게도 표시됩니다.`);
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "부스 위치를 저장하지 못했어요.");
+    }
   };
   const openClub = (club: BoothClub) => {
     recordExperienceAction({
@@ -332,25 +261,23 @@ export function ClubStreetExperience({
     setTab("feed");
     setProjectFormOpen(false);
     try {
-      const stored = JSON.parse(
-        localStorage.getItem(`club-feed-${club.id}`) ?? "null",
-      ) as FeedItem[] | null;
-      setFeed(Array.isArray(stored) ? stored : seedFeed(club));
-      const savedProjects = JSON.parse(
-        localStorage.getItem(`club-projects-${club.id}`) ?? "null",
-      ) as LinkedProject[] | null;
-      setProjects(
-        Array.isArray(savedProjects) ? savedProjects : DEFAULT_PROJECTS,
-      );
+      setFeed([]);
+      if (!guestSession && (club.isMember || club.members.some((member) => member.userId === userId))) {
+        const payload = encodeURIComponent(JSON.stringify({ clubId: club.id }));
+        void fetch(`${API_BASE_URL}/clubs?action=content&payload=${payload}`, { credentials: "include" }).then((response) => response.json()).then((body) => {
+          if (body.code === 200) setFeed(body.data?.feed ?? []);
+        });
+      }
+      const savedProjects = JSON.parse(localStorage.getItem(`club-projects-${club.id}`) ?? "null") as LinkedProject[] | null;
+      setProjects(Array.isArray(savedProjects) ? savedProjects : DEFAULT_PROJECTS);
     } catch {
-      setFeed(seedFeed(club));
+      setFeed([]);
       setProjects(DEFAULT_PROJECTS);
     }
   };
   const saveFeed = (items: FeedItem[]) => {
     if (!selected) return;
     setFeed(items);
-    localStorage.setItem(`club-feed-${selected.id}`, JSON.stringify(items));
   };
   const createClub = async (event: FormEvent) => {
     event.preventDefault();
@@ -383,69 +310,42 @@ export function ClubStreetExperience({
         location: "공동캠퍼스",
         schedule: "자율 활동",
         tags: [interest, recordType],
-        members: [{ userId, name: profile.nickname, role: "chair" as const }],
-        applications: [],
       };
       if (guestSession) {
-        const created = normalizeClub(payload);
-        setClubs((current) => [...current, created]);
-        recordCreated(created);
-        setCreatorOpen(false);
-        setClubName("");
-        setDescription("");
-        onNotice(
-          `${created.name} 커뮤니티가 만들어졌어요. 공동캠퍼스를 나가면 체험 기록만 남아요.`,
-        );
+        setCreateError("카카오 로그인 사용자만 동아리를 만들 수 있어요.");
         return;
       }
-      const response = await fetch(
-        `${API_BASE_URL}/clubs?action=create&payload=${encodeURIComponent(JSON.stringify(payload))}`,
-      );
-      if (!response.ok) throw new Error(await readError(response));
+      const response = await fetch(`${API_BASE_URL}/clubs?action=create&payload=${encodeURIComponent(JSON.stringify(payload))}`, { credentials: "include" });
       const body = (await response.json()) as {
-          data?: { items?: Club[] };
+          code?: number;
+          data?: { message?: string; club?: Club; items?: Club[] };
           items?: Club[];
         },
-        created = body.data?.items?.[0] ?? body.items?.[0];
+        created = body.data?.club ?? body.data?.items?.[0] ?? body.items?.[0];
+      if (body.code && body.code >= 400) throw new Error(body.data?.message ?? "동아리를 생성하지 못했어요.");
       if (!created) throw new Error("동아리 저장 응답이 올바르지 않아요.");
       setClubs((current) => [...current, created]);
       recordCreated(created);
       setCreatorOpen(false);
       setClubName("");
       setDescription("");
-      onNotice(
-        `${created.name} 커뮤니티가 만들어졌어요. 빈 부스의 + 버튼에서 올릴 수 있어요.`,
-      );
+      onNotice(`${created.name} 커뮤니티가 만들어졌어요. 빈 부스의 + 버튼에서 올릴 수 있어요.`);
     } catch (error) {
-      setCreateError(
-        error instanceof Error ? error.message : "동아리를 생성하지 못했어요.",
-      );
+      setCreateError(error instanceof Error ? error.message : "동아리를 생성하지 못했어요.");
     } finally {
       setSaving(false);
     }
   };
   const joinClub = async (club: BoothClub) => {
-    if (club.ownerId === userId) {
-      onNotice("내가 만든 동아리에는 가입 신청할 수 없어요.");
-      return;
-    }
+    if (guestSession) return onNotice("동아리 가입은 카카오 로그인 후 이용할 수 있어요.");
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/clubs?action=apply&payload=${encodeURIComponent(JSON.stringify({ clubId: club.id, userId, userName: profile.nickname }))}`,
-      );
-      if (!response.ok) throw new Error(await readError(response));
-      const body = (await response.json()) as {
-        data?: { club?: Club };
-        club?: Club;
-      };
-      const updated = normalizeClub(body.data?.club ?? body.club ?? club);
-      setClubs((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      setSelected((current) =>
-        current?.id === updated.id ? { ...current, ...updated } : current,
-      );
-      onNotice(`${club.name}에 가입 신청을 보냈어요. 회장 수락 후 가입됩니다.`);
+      const response = await fetch(`${API_BASE_URL}/clubs?action=join&payload=${encodeURIComponent(JSON.stringify({ clubId: club.id }))}`, { credentials: "include" });
+      const body = await response.json() as { code: number; data?: { club?: Club; message?: string } };
+      if (body.code >= 400 || !body.data?.club) throw new Error(body.data?.message ?? "가입하지 못했어요.");
+      const updated = body.data.club;
+      setClubs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelected((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
+      onNotice(`${club.name}에 가입했어요.`);
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "가입하지 못했어요.");
     }
@@ -465,20 +365,18 @@ export function ClubStreetExperience({
       const source = String(reader.result),
         image = new window.Image();
       image.onload = () => {
-        const scale = Math.min(1, 1200 / Math.max(image.width, image.height)),
+        const scale = Math.min(1, 640 / Math.max(image.width, image.height)),
           canvas = document.createElement("canvas");
         canvas.width = Math.round(image.width * scale);
         canvas.height = Math.round(image.height * scale);
-        canvas
-          .getContext("2d")
-          ?.drawImage(image, 0, 0, canvas.width, canvas.height);
-        setPostPhoto(canvas.toDataURL("image/jpeg", 0.82));
+        canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        setPostPhoto(canvas.toDataURL("image/jpeg", 0.7));
       };
       image.src = source;
     };
     reader.readAsDataURL(file);
   };
-  const addPost = (event: FormEvent) => {
+  const addPost = async (event: FormEvent) => {
     event.preventDefault();
     if ((!postText.trim() && !postPhoto) || !selected) return;
     recordExperienceAction({
@@ -487,45 +385,33 @@ export function ClubStreetExperience({
       activityName: postText.trim() || "활동 사진 공유",
       category: selected.category,
       tags: selected.interests,
-      note: postPhoto
-        ? "활동 사진과 후기를 피드에 공유했어요."
-        : "활동 후기를 피드에 공유했어요.",
+      note: postPhoto ? "활동 사진과 후기를 피드에 공유했어요." : "활동 후기를 피드에 공유했어요.",
     });
-    saveFeed([
-      {
-        id: `post-${Date.now()}`,
+    try {
+      const post = {
         author: profile.nickname,
         title: postText.trim() || "새 활동 사진을 공유했어요",
         detail: `${selected.interests[0]} 활동 기록을 공유했습니다.`,
         likes: 0,
         comments: 0,
         photo: postPhoto ?? undefined,
-      },
-      ...feed,
-    ]);
+      };
+      const response = await fetch(`${API_BASE_URL}/clubs?action=createPost`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: new URLSearchParams({ payload: JSON.stringify({ clubId: selected.id, post }) }),
+      });
+      const body = await response.json() as { code: number; data?: { feed?: FeedItem[]; message?: string } };
+      if (body.code >= 400) throw new Error(body.data?.message ?? "활동을 저장하지 못했어요.");
+      saveFeed(body.data?.feed ?? feed);
+    } catch (error) { onNotice(error instanceof Error ? error.message : "활동을 저장하지 못했어요."); return; }
     setPostText("");
     setPostPhoto(null);
-    onNotice(
-      postPhoto
-        ? "사진이 피드와 활동 앨범에 등록됐어요."
-        : "활동 피드에 기록을 공유했어요.",
-    );
+    onNotice(postPhoto ? "사진이 피드와 활동 앨범에 등록됐어요." : "활동 피드에 기록을 공유했어요.");
   };
-  const toggleLike = (id: string) =>
-    saveFeed(
-      feed.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              liked: !item.liked,
-              likes: item.likes + (item.liked ? -1 : 1),
-            }
-          : item,
-      ),
-    );
-  const uploadedPhotos = feed
-    .filter((item) => item.photo)
-    .map((item) => ({ src: item.photo!, caption: item.title }));
+  const toggleLike = async (id: string) => { if (!selected) return; const response = await fetch(`${API_BASE_URL}/clubs?action=like&payload=${encodeURIComponent(JSON.stringify({ clubId: selected.id, postId: id }))}`, { credentials: "include" }); const body = await response.json(); if (body.code === 200) saveFeed(body.data?.feed ?? feed); };
+  const uploadedPhotos = feed.filter((item) => item.photo).map((item) => ({ src: item.photo!, caption: item.title }));
   const albumImages = [
     ...uploadedPhotos,
     ...ALBUM_IMAGES.map((src, index) => ({
@@ -534,74 +420,29 @@ export function ClubStreetExperience({
     })),
   ];
   const isChair = selected?.ownerId === userId;
-  const memberRole = (member: ClubMember) =>
-    member.userId === selected?.ownerId
-      ? "회장"
-      : member.role === "executive"
-        ? "집부"
-        : "회원";
-  const respondApplication = async (
-    application: ClubApplication,
-    decision: "accepted" | "rejected",
-  ) => {
-    if (!selected || !isChair) return;
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/clubs?action=respond&payload=${encodeURIComponent(JSON.stringify({ clubId: selected.id, actorId: userId, applicantId: application.userId, decision }))}`,
-      );
-      if (!response.ok) throw new Error(await readError(response));
-      const body = (await response.json()) as {
-        data?: { club?: Club };
-        club?: Club;
-      };
-      const updated = normalizeClub(body.data?.club ?? body.club ?? selected);
-      setClubs((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      setSelected((current) =>
-        current?.id === updated.id ? { ...current, ...updated } : current,
-      );
-      onNotice(
-        decision === "accepted"
-          ? `${application.name}님의 가입을 수락했어요.`
-          : `${application.name}님의 가입을 거절했어요.`,
-      );
-    } catch (error) {
-      onNotice(
-        error instanceof Error
-          ? error.message
-          : "가입 신청을 처리하지 못했어요.",
-      );
-    }
+  const isJoined = Boolean(selected?.isMember || selected?.members.some((member) => member.userId === userId));
+  const canViewCommunity = !guestSession && isJoined;
+  const commentOn = async (id: string) => {
+    if (!canViewCommunity) return;
+    const text = window.prompt("댓글을 입력해 주세요.")?.trim();
+    if (!text) return;
+    if (!selected) return;
+    const response = await fetch(`${API_BASE_URL}/clubs?action=comment&payload=${encodeURIComponent(JSON.stringify({ clubId: selected.id, postId: id, text }))}`, { credentials: "include" });
+    const body = await response.json(); if (body.code === 200) saveFeed(body.data?.feed ?? feed); else onNotice(body.data?.message ?? "댓글을 저장하지 못했어요.");
   };
-  const changeMemberRole = async (
-    member: ClubMember,
-    role: "executive" | "member",
-  ) => {
+  const memberRole = (member: ClubMember) => (member.userId === selected?.ownerId ? "회장" : member.role === "executive" ? "임원" : "부원");
+  const changeMemberRole = async (member: ClubMember, role: "executive" | "member") => {
     if (!selected || !isChair || member.userId === selected.ownerId) return;
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/clubs?action=role&payload=${encodeURIComponent(JSON.stringify({ clubId: selected.id, actorId: userId, userId: member.userId, role }))}`,
-      );
-      if (!response.ok) throw new Error(await readError(response));
-      const body = (await response.json()) as {
-        data?: { club?: Club };
-        club?: Club;
-      };
-      const updated = normalizeClub(body.data?.club ?? body.club ?? selected);
-      setClubs((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      );
-      setSelected((current) =>
-        current?.id === updated.id ? { ...current, ...updated } : current,
-      );
-      onNotice(
-        `${member.name}님의 역할을 ${role === "executive" ? "집부" : "회원"}으로 변경했어요.`,
-      );
+      const response = await fetch(`${API_BASE_URL}/clubs?action=role&payload=${encodeURIComponent(JSON.stringify({ clubId: selected.id, memberId: member.userId, role }))}`, { credentials: "include" });
+      const body = await response.json() as { code: number; data?: { club?: Club; message?: string } };
+      if (body.code >= 400 || !body.data?.club) throw new Error(body.data?.message ?? "역할을 변경하지 못했어요.");
+      const updated = body.data.club;
+      setClubs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelected((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
+      onNotice(`${member.name}님의 역할을 ${role === "executive" ? "임원" : "부원"}으로 변경했어요.`);
     } catch (error) {
-      onNotice(
-        error instanceof Error ? error.message : "역할을 변경하지 못했어요.",
-      );
+      onNotice(error instanceof Error ? error.message : "역할을 변경하지 못했어요.");
     }
   };
   const addLinkedProject = (event: FormEvent) => {
@@ -651,7 +492,10 @@ export function ClubStreetExperience({
                 ? undefined
                 : index <= INITIAL_CLUB_COUNT
                   ? boothClubs[index - 1]
-                  : addedBooths[index],
+                  : (() => {
+                      const placed = clubs.find((item) => item.boothIndex === index);
+                      return placed ? asBoothClub(placed) : undefined;
+                    })(),
             color = club?.color || "#d8952f",
             titleStyle = {
               "--club-color": color,
@@ -661,51 +505,28 @@ export function ClubStreetExperience({
             } as CSSProperties;
           if (index === 0)
             return (
-              <button
-                key="creator-booth"
-                className={`club-booth-title club-creator-booth-title ${!anchor.visible ? "is-offscreen" : ""}`}
-                style={titleStyle}
-                onClick={openCreator}
-              >
+              <button key="creator-booth" className={`club-booth-title club-creator-booth-title ${!anchor.visible ? "is-offscreen" : ""}`} style={titleStyle} onClick={openCreator}>
                 <Plus />
                 <b>동아리 창설 부스</b>
               </button>
             );
           if (club)
             return (
-              <button
-                key={club.id}
-                className={`club-booth-title ${!anchor.visible ? "is-offscreen" : ""}`}
-                style={titleStyle}
-                onClick={() => openClub(club)}
-              >
+              <button key={club.id} className={`club-booth-title ${!anchor.visible ? "is-offscreen" : ""}`} style={titleStyle} onClick={() => openClub(club)}>
                 <span>{club.icon}</span>
                 <b>{club.name}</b>
               </button>
             );
           return (
-            <button
-              key={`empty-booth-${index}`}
-              className={`club-empty-booth-add ${!anchor.visible ? "is-offscreen" : ""}`}
-              style={titleStyle}
-              onClick={() => setBoothPickerTarget(index)}
-              aria-label={`${index + 1}번 빈 부스에 내 동아리 올리기`}
-            >
+            <button key={`empty-booth-${index}`} className={`club-empty-booth-add ${!anchor.visible ? "is-offscreen" : ""}`} style={titleStyle} onClick={() => setBoothPickerTarget(index)} aria-label={`${index + 1}번 빈 부스에 내 동아리 올리기`}>
               <Plus />
             </button>
           );
         })}
       </div>
       {selected && (
-        <aside
-          className="club-community-panel"
-          style={{ "--club-color": selected.color } as CSSProperties}
-        >
-          <button
-            className="club-panel-close"
-            onClick={() => setSelected(null)}
-            aria-label="동아리 닫기"
-          >
+        <aside className="club-community-panel" style={{ "--club-color": selected.color } as CSSProperties}>
+          <button className="club-panel-close" onClick={() => setSelected(null)} aria-label="동아리 닫기">
             <X />
           </button>
           <header className="club-panel-hero">
@@ -717,22 +538,13 @@ export function ClubStreetExperience({
             </div>
           </header>
           <div className="club-panel-stats">
-            <button
-              className={tab === "members" ? "active" : ""}
-              onClick={() => setTab("members")}
-            >
+            <button className={tab === "members" ? "active" : ""} onClick={() => setTab("members")}>
               <b>{selected.members.length}</b> 가입 인원
             </button>
-            <button
-              className={tab === "feed" ? "active" : ""}
-              onClick={() => setTab("feed")}
-            >
+            <button className={tab === "feed" ? "active" : ""} onClick={() => setTab("feed")}>
               <b>{feed.length}</b> 이번 달 활동
             </button>
-            <button
-              className={tab === "album" ? "active" : ""}
-              onClick={() => setTab("album")}
-            >
+            <button className={tab === "album" ? "active" : ""} onClick={() => setTab("album")}>
               <b>{38 + uploadedPhotos.length}</b> 공유 사진
             </button>
           </div>
@@ -744,24 +556,23 @@ export function ClubStreetExperience({
                 ["info", "동아리 정보"],
               ] as [ClubTab, string][]
             ).map(([id, label]) => (
-              <button
-                className={tab === id ? "active" : ""}
-                onClick={() => setTab(id)}
-                key={id}
-              >
+              <button className={tab === id ? "active" : ""} onClick={() => setTab(id)} key={id}>
                 {label}
               </button>
             ))}
           </nav>
-          {tab === "feed" && (
+          {(tab === "feed" || tab === "album") && !canViewCommunity && (
+            <section className="club-member-gate">
+              <Users />
+              <h3>가입한 로그인 멤버만 볼 수 있어요</h3>
+              <p>이번 달 활동과 공유 사진, 댓글은 동아리 가입 후 이용할 수 있습니다.</p>
+            </section>
+          )}
+          {tab === "feed" && canViewCommunity && (
             <section className="club-feed">
               <form onSubmit={addPost}>
                 <span>{profile.nickname.slice(0, 1)}</span>
-                <input
-                  value={postText}
-                  onChange={(event) => setPostText(event.target.value)}
-                  placeholder="사진, 후기, 새로운 정보를 공유해 보세요"
-                />
+                <input value={postText} onChange={(event) => setPostText(event.target.value)} placeholder="사진, 후기, 새로운 정보를 공유해 보세요" />
                 <label className="club-photo-attach" title="사진 첨부">
                   <Image />
                   <input
@@ -779,11 +590,7 @@ export function ClubStreetExperience({
                 {postPhoto && (
                   <div className="club-photo-preview">
                     <img src={postPhoto} alt="첨부 사진 미리보기" />
-                    <button
-                      type="button"
-                      onClick={() => setPostPhoto(null)}
-                      aria-label="첨부 사진 삭제"
-                    >
+                    <button type="button" onClick={() => setPostPhoto(null)} aria-label="첨부 사진 삭제">
                       <X />
                     </button>
                   </div>
@@ -799,31 +606,26 @@ export function ClubStreetExperience({
                     </header>
                     <strong>{item.title}</strong>
                     <p>{item.detail}</p>
-                    {item.photo && (
-                      <img
-                        className="club-feed-photo"
-                        src={item.photo}
-                        alt={`${item.author}님의 활동 사진`}
-                      />
-                    )}
+                    {item.photo && <img className="club-feed-photo" src={item.photo} alt={`${item.author}님의 활동 사진`} />}
                     <footer>
-                      <button
-                        className={item.liked ? "liked" : ""}
-                        onClick={() => toggleLike(item.id)}
-                      >
-                        <Heart fill={item.liked ? "currentColor" : "none"} />{" "}
-                        {item.likes}
+                      <button className={item.liked ? "liked" : ""} onClick={() => toggleLike(item.id)}>
+                        <Heart fill={item.liked ? "currentColor" : "none"} /> {item.likes}
                       </button>
-                      <span>
+                      <button type="button" onClick={() => commentOn(item.id)}>
                         <MessageCircle /> 댓글 {item.comments}
-                      </span>
+                      </button>
                     </footer>
+                    {item.commentTexts?.slice(-2).map((comment, index) => (
+                      <p className="club-feed-comment" key={`${item.id}-comment-${index}`}>
+                        <b>{comment.author}</b> {comment.text}
+                      </p>
+                    ))}
                   </div>
                 </article>
               ))}
             </section>
           )}
-          {tab === "album" && (
+          {tab === "album" && canViewCommunity && (
             <section className="club-album">
               <header>
                 <div>
@@ -838,10 +640,7 @@ export function ClubStreetExperience({
               <div className="club-album-grid">
                 {albumImages.map((item, index) => (
                   <figure key={`${item.src.slice(0, 48)}-${index}`}>
-                    <img
-                      src={item.src}
-                      alt={`${selected.name} 활동 사진 ${index + 1}`}
-                    />
+                    <img src={item.src} alt={`${selected.name} 활동 사진 ${index + 1}`} />
                     <figcaption>{item.caption}</figcaption>
                   </figure>
                 ))}
@@ -852,9 +651,7 @@ export function ClubStreetExperience({
                     최근 연결 프로젝트 <small>{projects.length}개</small>
                   </h3>
                   {isChair ? (
-                    <button
-                      onClick={() => setProjectFormOpen((value) => !value)}
-                    >
+                    <button onClick={() => setProjectFormOpen((value) => !value)}>
                       <Plus /> 프로젝트 추가
                     </button>
                   ) : (
@@ -865,13 +662,7 @@ export function ClubStreetExperience({
                 </header>
                 {projectFormOpen && isChair && (
                   <form onSubmit={addLinkedProject}>
-                    <input
-                      autoFocus
-                      maxLength={50}
-                      value={projectName}
-                      onChange={(event) => setProjectName(event.target.value)}
-                      placeholder="연결할 프로젝트 이름"
-                    />
+                    <input autoFocus maxLength={50} value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="연결할 프로젝트 이름" />
                     <button disabled={!projectName.trim()}>추가</button>
                   </form>
                 )}
@@ -893,38 +684,9 @@ export function ClubStreetExperience({
                 <Users />
                 <div>
                   <b>동아리 구성원</b>
-                  <small>
-                    {isChair
-                      ? "회장은 구성원의 역할을 변경할 수 있어요."
-                      : "역할별로 커뮤니티를 함께 운영해요."}
-                  </small>
+                  <small>{isChair ? "회장은 구성원의 역할을 변경할 수 있어요." : "역할별로 커뮤니티를 함께 운영해요."}</small>
                 </div>
               </header>
-              {isChair && (selected.applications?.length ?? 0) > 0 && (
-                <div className="club-applications">
-                  <b>가입 승인 대기</b>
-                  {selected.applications?.map((application) => (
-                    <article key={application.userId}>
-                      <span>{application.name}</span>
-                      <button
-                        onClick={() =>
-                          void respondApplication(application, "accepted")
-                        }
-                      >
-                        수락
-                      </button>
-                      <button
-                        className="reject"
-                        onClick={() =>
-                          void respondApplication(application, "rejected")
-                        }
-                      >
-                        거절
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              )}
               {selected.members.map((member) => {
                 const role = memberRole(member);
                 return (
@@ -934,39 +696,17 @@ export function ClubStreetExperience({
                       <b>{member.name}</b>
                       <small>
                         {member.userId === userId ? "나 · " : ""}
-                        {role === "회장"
-                          ? "동아리 운영과 프로젝트 연결 담당"
-                          : role === "집부"
-                            ? "활동 기록과 정보 공유 지원"
-                            : "커뮤니티 활동 참여"}
+                        {role === "회장" ? "동아리 운영과 프로젝트 연결 담당" : role === "임원" ? "활동 기록과 정보 공유 지원" : "커뮤니티 활동 참여"}
                       </small>
                     </div>
                     {isChair && role !== "회장" ? (
-                      <select
-                        className={`role-select role-${role}`}
-                        aria-label={`${member.name} 역할 변경`}
-                        value={
-                          member.role === "executive" ? "executive" : "member"
-                        }
-                        onChange={(event) =>
-                          void changeMemberRole(
-                            member,
-                            event.target.value as "executive" | "member",
-                          )
-                        }
-                      >
-                        <option value="executive">집부</option>
-                        <option value="member">회원</option>
+                      <select className={`role-select role-${role}`} aria-label={`${member.name} 역할 변경`} value={member.role === "executive" ? "executive" : "member"} onChange={(event) => void changeMemberRole(member, event.target.value as "executive" | "member")}>
+                        <option value="executive">임원</option>
+                        <option value="member">부원</option>
                       </select>
                     ) : (
                       <span className={`role-${role}`}>
-                        {role === "회장" ? (
-                          <Crown />
-                        ) : role === "집부" ? (
-                          <Shield />
-                        ) : (
-                          <Users />
-                        )}
+                        {role === "회장" ? <Crown /> : role === "임원" ? <Shield /> : <Users />}
                         {role}
                       </span>
                     )}
@@ -1009,36 +749,14 @@ export function ClubStreetExperience({
               </span>
               <ArrowRight />
             </button>
-            <button
-              className="club-simple-join"
-              disabled={
-                selected.ownerId === userId ||
-                selected.members.some((member) => member.userId === userId) ||
-                selected.applications?.some(
-                  (application) => application.userId === userId,
-                )
-              }
-              onClick={() => void joinClub(selected)}
-            >
-              {selected.ownerId === userId ? (
-                <>
-                  <Crown /> 회장
-                </>
-              ) : selected.members.some(
-                  (member) => member.userId === userId,
-                ) ? (
+            <button className="club-simple-join" disabled={Boolean(selected.isMember || selected.members.some((member) => member.userId === userId))} onClick={() => void joinClub(selected)}>
+              {selected.isMember || selected.members.some((member) => member.userId === userId) ? (
                 <>
                   <Check /> 가입됨
                 </>
-              ) : selected.applications?.some(
-                  (application) => application.userId === userId,
-                ) ? (
-                <>
-                  <Check /> 승인 대기
-                </>
               ) : (
                 <>
-                  <Plus /> 가입 신청
+                  <Plus /> 동아리 가입
                 </>
               )}
             </button>
@@ -1052,15 +770,8 @@ export function ClubStreetExperience({
             if (event.target === event.currentTarget) setCreatorOpen(false);
           }}
         >
-          <form
-            className="club-create-modal club-community-create"
-            onSubmit={createClub}
-          >
-            <button
-              type="button"
-              className="club-modal-close"
-              onClick={() => setCreatorOpen(false)}
-            >
+          <form className="club-create-modal club-community-create" onSubmit={createClub}>
+            <button type="button" className="club-modal-close" onClick={() => setCreatorOpen(false)}>
               <X />
             </button>
             <header>
@@ -1075,10 +786,7 @@ export function ClubStreetExperience({
               <Crown />
               <div>
                 <b>{profile.nickname}님이 회장이 됩니다</b>
-                <p>
-                  회장은 임원·부원과 활동을 운영하고 동아리에 프로젝트를 연결할
-                  수 있어요.
-                </p>
+                <p>회장은 임원·부원과 활동을 운영하고 동아리에 프로젝트를 연결할 수 있어요.</p>
               </div>
             </aside>
             <section className="club-create-fields">
@@ -1086,87 +794,43 @@ export function ClubStreetExperience({
                 <span>
                   동아리명 <em>필수</em>
                 </span>
-                <input
-                  required
-                  maxLength={40}
-                  value={clubName}
-                  onChange={(event) => setClubName(event.target.value)}
-                  placeholder="예: 세종 사진동아리"
-                  autoFocus
-                />
+                <input required maxLength={40} value={clubName} onChange={(event) => setClubName(event.target.value)} placeholder="예: 세종 사진동아리" autoFocus />
               </label>
               <label>
                 <span>
                   동아리 소개 <em>필수</em>
                 </span>
-                <textarea
-                  required
-                  maxLength={180}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="예: 세종의 풍경을 함께 기록하고 사진 이야기를 나눠요."
-                />
+                <textarea required maxLength={180} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="예: 세종의 풍경을 함께 기록하고 사진 이야기를 나눠요." />
                 <small>{description.length}/180</small>
               </label>
               <label>
                 <span>
                   대표 관심사 <em>필수</em>
                 </span>
-                <input
-                  required
-                  maxLength={24}
-                  value={interest}
-                  onChange={(event) => setInterest(event.target.value)}
-                  placeholder="예: 사진"
-                />
+                <input required maxLength={24} value={interest} onChange={(event) => setInterest(event.target.value)} placeholder="예: 사진" />
                 <div className="club-interest-picks">
-                  {["사진", "카페", "꽃·식물", "축제", "환경·봉사"].map(
-                    (item) => (
-                      <button
-                        type="button"
-                        className={interest === item ? "active" : ""}
-                        key={item}
-                        onClick={() => setInterest(item)}
-                      >
-                        {item}
-                      </button>
-                    ),
-                  )}
+                  {["사진", "카페", "꽃·식물", "축제", "환경·봉사"].map((item) => (
+                    <button type="button" className={interest === item ? "active" : ""} key={item} onClick={() => setInterest(item)}>
+                      {item}
+                    </button>
+                  ))}
                 </div>
               </label>
               <label>
                 <span>
                   주로 남길 활동 기록 <em>필수</em>
                 </span>
-                <input
-                  required
-                  maxLength={24}
-                  value={recordType}
-                  onChange={(event) => setRecordType(event.target.value)}
-                  placeholder="예: 출사, 사진, 후기"
-                />
+                <input required maxLength={24} value={recordType} onChange={(event) => setRecordType(event.target.value)} placeholder="예: 출사, 사진, 후기" />
                 <small>활동 피드와 앨범에서 쌓아갈 기록을 적어주세요.</small>
               </label>
             </section>
             <section className="club-create-preview">
               <small>부스 미리보기</small>
               <div>
-                <i>
-                  {interest.includes("사진")
-                    ? "📸"
-                    : interest.includes("카페")
-                      ? "☕"
-                      : interest.includes("꽃")
-                        ? "🌸"
-                        : interest.includes("환경")
-                          ? "🌱"
-                          : "🎪"}
-                </i>
+                <i>{interest.includes("사진") ? "📸" : interest.includes("카페") ? "☕" : interest.includes("꽃") ? "🌸" : interest.includes("환경") ? "🌱" : "🎪"}</i>
                 <span>
                   <b>{clubName.trim() || "새 동아리"}</b>
-                  <p>
-                    {description.trim() || "동아리 소개가 여기에 표시됩니다."}
-                  </p>
+                  <p>{description.trim() || "동아리 소개가 여기에 표시됩니다."}</p>
                   <em>
                     #{interest || "관심사"} · #{recordType || "활동 기록"}
                   </em>
@@ -1177,22 +841,11 @@ export function ClubStreetExperience({
               <Check />
               <span>
                 <b>동아리는 커뮤니티 공간입니다.</b>
-                <small>
-                  가입, 활동 기록, 사진·후기·정보 공유를 중심으로 운영됩니다.
-                </small>
+                <small>가입, 활동 기록, 사진·후기·정보 공유를 중심으로 운영됩니다.</small>
               </span>
             </div>
             {createError && <p className="club-create-error">{createError}</p>}
-            <button
-              className="club-create-submit"
-              disabled={
-                saving ||
-                !clubName.trim() ||
-                !description.trim() ||
-                !interest.trim() ||
-                !recordType.trim()
-              }
-            >
+            <button className="club-create-submit" disabled={saving || !clubName.trim() || !description.trim() || !interest.trim() || !recordType.trim()}>
               {saving ? "동아리를 만드는 중…" : "내 동아리 만들기"}
             </button>
           </form>
@@ -1202,16 +855,11 @@ export function ClubStreetExperience({
         <div
           className="club-modal-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget)
-              setBoothPickerTarget(null);
+            if (event.target === event.currentTarget) setBoothPickerTarget(null);
           }}
         >
           <section className="club-booth-picker">
-            <button
-              type="button"
-              className="club-modal-close"
-              onClick={() => setBoothPickerTarget(null)}
-            >
+            <button type="button" className="club-modal-close" onClick={() => setBoothPickerTarget(null)}>
               <X />
             </button>
             <header>
@@ -1224,11 +872,7 @@ export function ClubStreetExperience({
             {myBoothClubs.length ? (
               <div>
                 {myBoothClubs.map((club) => (
-                  <button
-                    type="button"
-                    key={club.id}
-                    onClick={() => placeMyClub(club)}
-                  >
+                  <button type="button" key={club.id} onClick={() => placeMyClub(club)}>
                     <span>{club.icon}</span>
                     <div>
                       <b>{club.name}</b>

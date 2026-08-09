@@ -317,3 +317,14 @@
 | 2026-08-09 | 025 | 체험 프로젝트 세션 정리·신청 전달 및 목록 UI 정비 | [상세](devlog/2026-08-09/025-project-room-live-session-applications.md) |
 | 2026-08-09 | 026 | 체험용 자연 맵 포탈 공용 저장 좌표 복구 | [상세](devlog/2026-08-09/026-restore-promoted-natural-portals.md) |
 | 2026-08-09 | 029 | 동아리 가입 승인·회장 권한 및 모집 키오스크 공용 연결 | [상세](devlog/2026-08-09/029-club-approval-recruitment-kiosk.md) |
+| 2026-08-09 | 081 | 브라우저 확장 메시지 채널 오류 격리 | [상세](devlog/2026-08-09/081-extension-message-channel-guard.md) |
+| 2026-08-09 | 082 | 정부청사 프로젝트 코스 순환 흐름 연결 | [상세](devlog/2026-08-09/082-government-project-route-flow.md) |
+| 2026-08-09 | 083 | 직접 채팅 저장 및 맵 새로고침 복구 | [상세](devlog/2026-08-09/083-direct-chat-persistence-map-refresh.md) |
+| 2026-08-09 | 084 | 동아리 부스와 프로젝트 합의 기능 보강 | [상세](devlog/2026-08-09/084-club-booth-project-consensus.md) |
+| 2026-08-09 | 085 | 동아리 회원 전용 콘텐츠 제한 | [상세](devlog/2026-08-09/085-publish-club-member-gate.md) |
+| 2026-08-09 | 086 | 공용 부스·프로젝트 합의 재검증 | [상세](devlog/2026-08-09/086-verify-shared-booth-project-consensus.md) |
+| 2026-08-09 | 087 | 프로젝트 세종 장소 검색 복구 | [상세](devlog/2026-08-09/087-fix-project-sejong-place-search.md) |
+| 2026-08-09 | 088 | MySQL 멀티사용자 협업·권한 보강 | [상세](devlog/2026-08-09/088-mysql-multiuser-collaboration.md) |
+| 2026-08-09 | 089 | SejongPark 정식 원본 복구 및 회귀 감사 | [상세](devlog/2026-08-09/089-restore-sejongpark-source-audit.md) |
+| 2026-08-09 | 090 | GitHub 최신 main 복구 병합 및 포탈 운영 재배포 | [상세](devlog/2026-08-09/090-pull-latest-main-portal-recovery.md) |
+| 2026-08-09 | 091 | 현재 복구·기능 보강 상태 GitHub 반영 | [상세](devlog/2026-08-09/091-push-current-recovered-state.md) |

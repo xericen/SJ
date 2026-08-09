@@ -40,6 +40,7 @@ export function AiSejongProfile({ profile, onClose, onEdit }: { profile: UserPro
     window.addEventListener('sejong-experience-profile-updated', update);
     window.addEventListener('sejong-festival-interest-updated', update);
     window.addEventListener('sejong-food-taste-updated', update);
+    window.addEventListener('sejong-travel-draft-changed', update);
     return () => {
       window.removeEventListener('sejong-profile-progress-updated', update);
       window.removeEventListener('sejong-lake-interest-updated', update);
@@ -48,6 +49,7 @@ export function AiSejongProfile({ profile, onClose, onEdit }: { profile: UserPro
       window.removeEventListener('sejong-experience-profile-updated', update);
       window.removeEventListener('sejong-festival-interest-updated', update);
       window.removeEventListener('sejong-food-taste-updated', update);
+      window.removeEventListener('sejong-travel-draft-changed', update);
     };
   }, []);
   const ai = useMemo(() => buildAiSejongProfile(profile), [profile, revision]);

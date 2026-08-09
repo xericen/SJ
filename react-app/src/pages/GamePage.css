@@ -4680,3 +4680,25 @@
     left: 12px;
   }
 }
+/* Player action cards stay above regular HUD layers and inside the viewport. */
+.encounter-menu:not([style]) {
+  position: fixed;
+  z-index: 180;
+  left: min(calc(100vw - 218px), calc(50vw + 118px));
+  top: 50%;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+
+.game-page:has(.encounter-menu) .online {
+  z-index: 45;
+}
+
+@media (max-width: 560px) {
+  .encounter-menu:not([style]) {
+    left: max(12px, calc(50vw - 99px));
+    top: auto;
+    bottom: 92px;
+    transform: none;
+  }
+}

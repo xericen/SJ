@@ -97,13 +97,19 @@ const PROJECT_COLLABORATION_ENDPOINT = `${COMMUNITY_API_BASE_URL}/behavior_state
 type SharedProjectCollaboration = {
   draft?: TravelProjectDraft;
   revision?: number;
+  consensus?: {
+    requestId: string;
+    status: "pending" | "rejected" | "confirmed";
+    course: string[];
+    decisions: Record<string, "accepted" | "rejected">;
+  } | null;
 };
 const requestProjectCollaboration = async (
   projectId: string,
-  action: "collaboration" | "saveDraft",
-  draft?: TravelProjectDraft,
+  action: "collaboration" | "saveDraft" | "requestConsensus" | "respondConsensus" | "confirmConsensus",
+  values: Record<string, unknown> = {},
 ) => {
-  const payload = { projectId, ...(draft ? { draft } : {}) };
+  const payload = { projectId, ...values };
   const response = await fetch(
     `${PROJECT_COLLABORATION_ENDPOINT}&action=${action}&payload=${encodeURIComponent(JSON.stringify(payload))}`,
     { credentials: "include" },
@@ -1494,44 +1500,83 @@ function CourseCollaborationTable({
   const [placeSearchLoading, setPlaceSearchLoading] = useState(false);
   const [placeSearchError, setPlaceSearchError] = useState("");
   const [governmentMovePrompt, setGovernmentMovePrompt] = useState(false);
+  const [collaborationRefreshing, setCollaborationRefreshing] = useState(false);
+  const [collaborationSaveState, setCollaborationSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const [consensus, setConsensus] = useState<SharedProjectCollaboration["consensus"]>(null);
   const sharedRevisionRef = useRef(0);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const saveSequenceRef = useRef(0);
+  const applySharedCollaboration = (incoming: TravelProjectDraft) => {
+    setDraft((current) => {
+      const synchronized = {
+        ...incoming,
+        status: current.status,
+        courseConfirmed: current.courseConfirmed,
+      };
+      saveTravelProjectDraft(synchronized, project.id);
+      return synchronized;
+    });
+  };
   const update = (next: TravelProjectDraft) => {
+    const saveSequence = ++saveSequenceRef.current;
+    setCollaborationSaveState("saving");
     const stamped = { ...next, updatedAt: new Date().toISOString() };
     setDraft(stamped);
     saveTravelProjectDraft(stamped, project.id);
-    void requestProjectCollaboration(project.id, "saveDraft", stamped)
-      .then((shared) => {
+    const saveOperation = saveQueueRef.current.catch(() => undefined).then(async () => {
+      const shared = await requestProjectCollaboration(project.id, "saveDraft", { draft: stamped });
         const revision = shared?.revision ?? 0;
-        if (revision <= sharedRevisionRef.current) return;
-        sharedRevisionRef.current = revision;
-        if (shared?.draft) {
-          setDraft(shared.draft);
-          saveTravelProjectDraft(shared.draft, project.id);
+        if (shared?.consensus !== undefined) setConsensus(shared.consensus);
+        if (revision > sharedRevisionRef.current) {
+          sharedRevisionRef.current = revision;
         }
-      })
-      .catch(() => undefined);
+    });
+    saveQueueRef.current = saveOperation;
+    void saveOperation.then(() => {
+      if (saveSequence === saveSequenceRef.current) setCollaborationSaveState("saved");
+    }).catch(() => {
+      if (saveSequence === saveSequenceRef.current) {
+        setCollaborationSaveState("error");
+        onNotice("협업 내용 자동 저장에 실패했어요. 새로고침 전에 다시 시도해 주세요.");
+      }
+    });
+  };
+  const pullSharedDraft = async (force = false) => {
+    const shared = await requestProjectCollaboration(project.id, "collaboration");
+    const incoming = shared?.draft;
+    const revision = shared?.revision ?? 0;
+    if (shared?.consensus !== undefined) setConsensus(shared.consensus);
+    if (!incoming || (!force && revision <= sharedRevisionRef.current)) return false;
+    sharedRevisionRef.current = Math.max(sharedRevisionRef.current, revision);
+    applySharedCollaboration(incoming);
+    return true;
+  };
+  const refreshCollaboration = async () => {
+    if (collaborationRefreshing) return;
+    setCollaborationRefreshing(true);
+    try {
+      await saveQueueRef.current;
+      const changed = await pullSharedDraft(true);
+      onNotice(changed ? "다른 플레이어의 최신 프로젝트 내용을 가져왔어요." : "현재 프로젝트 내용이 최신 상태예요.");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "프로젝트 내용을 새로고침하지 못했어요.");
+    } finally {
+      setCollaborationRefreshing(false);
+    }
   };
   useEffect(() => {
     const enterProjectRoom = () =>
       socket.emit("enterProjectRoomInstance", project.id);
-    const pullSharedDraft = () => {
-      void requestProjectCollaboration(project.id, "collaboration")
-        .then((shared) => {
-          const incoming = shared?.draft;
-          const revision = shared?.revision ?? 0;
-          if (!incoming || revision <= sharedRevisionRef.current) return;
-          sharedRevisionRef.current = revision;
-          setDraft(() => {
-            saveTravelProjectDraft(incoming, project.id);
-            return incoming;
-          });
-        })
-        .catch(() => undefined);
+    const pullAfterPendingSaves = async () => {
+      await saveQueueRef.current;
+      await pullSharedDraft();
     };
     enterProjectRoom();
-    pullSharedDraft();
+    void pullAfterPendingSaves().catch(() => undefined);
     socket.on("connect", enterProjectRoom);
-    const timer = window.setInterval(pullSharedDraft, 2000);
+    const timer = window.setInterval(() => {
+      void pullAfterPendingSaves().catch(() => undefined);
+    }, 2000);
     return () => {
       socket.off("connect", enterProjectRoom);
       window.clearInterval(timer);
@@ -1767,7 +1812,7 @@ function CourseCollaborationTable({
       axes: { relation: 4, record: 2 },
     });
   };
-  const requestReview = () => {
+  const requestReview = async () => {
     if (!draft.ideas.some((idea) => idea.category === "place")) {
       setTab("ideas");
       onNotice("최종 검토 전에 장소를 하나 이상 추가해 주세요.");
@@ -1783,8 +1828,32 @@ function CourseCollaborationTable({
       onNotice("최종 검토 전에 프로젝트 코스를 만들어 주세요.");
       return;
     }
-    update({ ...draft, status: "review-requested" });
-    onNotice(`${project.title}의 최종 합의 검토를 요청했어요.`);
+    if (profile.nickname !== project.leaderId) {
+      onNotice("최종 합의 요청은 프로젝트 팀장이 시작할 수 있어요.");
+      return;
+    }
+    try {
+      await saveQueueRef.current;
+      const shared = await requestProjectCollaboration(project.id, "requestConsensus", {
+        course: draft.courseOrder,
+      });
+      setConsensus(shared?.consensus ?? null);
+      const reviewing = { ...draft, status: "review-requested" as const };
+      setDraft(reviewing);
+      saveTravelProjectDraft(reviewing, project.id);
+      onNotice(`${project.title}의 최종 합의 검토를 팀원들에게 요청했어요.`);
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "최종 합의 요청을 시작하지 못했어요.");
+    }
+  };
+  const respondToConsensus = async (decision: "accepted" | "rejected") => {
+    try {
+      const shared = await requestProjectCollaboration(project.id, "respondConsensus", { decision });
+      setConsensus(shared?.consensus ?? null);
+      onNotice(decision === "accepted" ? "프로젝트 코스 완성에 동의했어요." : "수정이 필요하다는 의견을 전달했어요.");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "합의 의견을 전달하지 못했어요.");
+    }
   };
   const completeCourse = () => {
     const coursePlaces = (draft.courseOrder ?? []).flatMap((id) => {
@@ -1850,12 +1919,33 @@ function CourseCollaborationTable({
     onNotice("프로젝트 코스를 완성하고 프로젝트를 완료했어요.");
     setGovernmentMovePrompt(true);
   };
+  const confirmConsensusAndComplete = async () => {
+    try {
+      const shared = await requestProjectCollaboration(project.id, "confirmConsensus");
+      setConsensus(shared?.consensus ?? null);
+      completeCourse();
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "모든 팀원의 동의를 확인하지 못했어요.");
+    }
+  };
   const groups = [
     { key: "theme", title: "가고 싶은 활동", tone: "purple" },
     { key: "festival", title: "축제·테마 아이디어", tone: "blue" },
     { key: "food", title: "먹거리 아이디어", tone: "green" },
   ] as const;
   const memberCount = Math.max(1, draft.roles.length);
+  const consensusDecisions = consensus?.decisions ?? {};
+  const acceptedMemberCount = draft.roles.filter((member) => consensusDecisions[member.name] === "accepted").length;
+  const allMembersAccepted = draft.roles.length > 0 && acceptedMemberCount === draft.roles.length;
+  const myConsensusDecision = consensusDecisions[profile.nickname];
+  const tryCompleteConsensus = () => {
+    if (!allMembersAccepted) {
+      const remaining = Math.max(0, draft.roles.length - acceptedMemberCount);
+      onNotice(`아직 ${remaining}명의 팀원 동의가 필요해요. 새로고침으로 최신 동의 상태를 확인해 주세요.`);
+      return;
+    }
+    void confirmConsensusAndComplete();
+  };
   const opinionProgress = Math.min(
     100,
     Math.round(((draft.messages?.length ?? 0) / (memberCount * 2)) * 100),
@@ -1966,9 +2056,14 @@ function CourseCollaborationTable({
                 <h3>장소 아이디어 보드</h3>
                 <p>가고 싶은 장소에 투표해 우선순위를 함께 정해요.</p>
               </div>
-              <button type="button" onClick={() => openIdeaComposer("place")}>
-                <Plus /> 장소 추가
-              </button>
+              <div className="idea-board-actions">
+                <button type="button" onClick={refreshCollaboration} disabled={collaborationRefreshing}>
+                  <RotateCcw /> {collaborationRefreshing ? "불러오는 중" : "새로고침"}
+                </button>
+                <button type="button" onClick={() => openIdeaComposer("place")}>
+                  <Plus /> 장소 추가
+                </button>
+              </div>
             </header>
             <div className="idea-place-grid">
               {draft.ideas
@@ -2046,13 +2141,18 @@ function CourseCollaborationTable({
                     <b>♥ {idea.votes}</b>
                   </button>
                 ))}
-              <button
-                type="button"
-                className="add"
-                onClick={() => openIdeaComposer(group.key)}
-              >
-                <Plus /> 아이디어 추가
-              </button>
+              <div className="theme-idea-actions">
+                <button type="button" className="refresh" onClick={refreshCollaboration} disabled={collaborationRefreshing}>
+                  <RotateCcw /> {collaborationRefreshing ? "불러오는 중" : "새로고침"}
+                </button>
+                <button
+                  type="button"
+                  className="add"
+                  onClick={() => openIdeaComposer(group.key)}
+                >
+                  <Plus /> 아이디어 추가
+                </button>
+              </div>
             </section>
           ))}
         </div>
@@ -2069,21 +2169,17 @@ function CourseCollaborationTable({
           draft={draft}
           leaderId={project.leaderId}
           canEdit={profile.nickname === project.leaderId}
+          refreshing={collaborationRefreshing}
+          onRefresh={refreshCollaboration}
           onChange={changeRole}
         />
       ) : (
         <ProjectAgreementInfo project={project} draft={draft} />
       )}
       <footer className="idea-action-footer">
-        <button
-          type="button"
-          onClick={() => {
-            saveTravelProjectDraft(draft, project.id);
-            onNotice(`${project.title}의 협상 내용을 저장했어요.`);
-          }}
-        >
-          ☁ 임시 저장
-        </button>
+        <p className={`collaboration-auto-save ${collaborationSaveState}`} role="status">
+          <Check /> {collaborationSaveState === "saving" ? "변경 내용 저장 중" : collaborationSaveState === "error" ? "자동 저장 실패" : "변경 내용 자동 저장됨"}
+        </p>
         <div>
           <small>다음 단계</small>
           <b>장소·일정·역할을 확인하고 팀의 최종 실행안으로 확정해요.</b>
@@ -2283,7 +2379,7 @@ function CourseCollaborationTable({
           </section>
         </div>
       )}
-      {draft.status === "review-requested" && (
+      {consensus?.status === "pending" && (
         <div className="course-final-review" role="dialog" aria-modal="true">
           <section>
             <header>
@@ -2292,8 +2388,8 @@ function CourseCollaborationTable({
               </span>
               <div>
                 <small>FINAL AGREEMENT</small>
-                <h3>프로젝트 코스를 완성할까요?</h3>
-                <p>팀이 확정한 코스를 저장하고 프로젝트를 완료합니다.</p>
+                <h3>팀원들의 최종 동의를 기다리고 있어요</h3>
+                <p>협업 테이블 참가자 모두가 동의해야 프로젝트 코스를 완성할 수 있습니다.</p>
               </div>
             </header>
             <div className="final-review-route">
@@ -2314,19 +2410,29 @@ function CourseCollaborationTable({
               })}
             </div>
             <aside>
-              <Users /> 역할 {draft.roles.length}명 배정 완료 · 장소{" "}
-              {(draft.courseOrder ?? []).length}곳
+              <Users /> 동의 {acceptedMemberCount}/{draft.roles.length}명 · 장소{" "}
+              {(draft.courseOrder ?? []).length}곳 · 내 상태 {myConsensusDecision === "accepted" ? "동의 완료" : "응답 대기"}
             </aside>
             <footer>
-              <button
-                type="button"
-                onClick={() => update({ ...draft, status: "draft" })}
-              >
-                돌아가서 수정
-              </button>
-              <button type="button" onClick={completeCourse}>
-                <Check /> 코스 완성
-              </button>
+              {profile.nickname === project.leaderId ? (
+                <>
+                  <button type="button" onClick={() => { setConsensus(null); update({ ...draft, status: "draft" }); }}>
+                    돌아가서 수정
+                  </button>
+                  <button type="button" onClick={tryCompleteConsensus}>
+                    <Check /> {allMembersAccepted ? "모두 동의 완료 · 코스 완성" : `팀원 동의 기다리는 중 (${acceptedMemberCount}/${draft.roles.length})`}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => respondToConsensus("rejected")}>
+                    수정 필요
+                  </button>
+                  <button type="button" onClick={() => respondToConsensus("accepted")} disabled={myConsensusDecision === "accepted"}>
+                    <Check /> {myConsensusDecision === "accepted" ? "동의 완료" : "코스 완성에 동의"}
+                  </button>
+                </>
+              )}
             </footer>
           </section>
         </div>
@@ -2686,11 +2792,15 @@ function ProjectRoleEditor({
   draft,
   leaderId,
   canEdit,
+  refreshing,
+  onRefresh,
   onChange,
 }: {
   draft: TravelProjectDraft;
   leaderId: string;
   canEdit: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
   onChange: (name: string, role: string) => void;
 }) {
   const roleOptions = [
@@ -2712,6 +2822,9 @@ function ProjectRoleEditor({
           ? "팀장만 각 팀원의 역할을 정할 수 있어요."
           : "역할은 프로젝트 팀장만 변경할 수 있어요."}
       </p>
+      <button type="button" className="project-role-refresh-button" onClick={onRefresh} disabled={refreshing}>
+        <RotateCcw /> {refreshing ? "불러오는 중" : "역할 새로고침"}
+      </button>
       <div>
         {draft.roles.map((member) => (
           <article key={member.name}>

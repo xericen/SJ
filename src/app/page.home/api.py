@@ -361,11 +361,13 @@ def _secret_configured(config, name):
 
 
 def api_config_status():
-    action = wiz.request.query("action", "").strip()
-    if action == "placeSearch":
+    operation = wiz.request.query("operation", "").strip()
+    if operation == "placeSearch":
         return place_search()
-    if action == "chungnyeongPlaceRecommendation":
+    if operation == "chungnyeongPlaceRecommendation":
         return chungnyeong_place_recommendation()
+    if operation == "governmentProfileCourseRecommendation":
+        return _government_profile_course_recommendation()
     config = _secret_config()
     return wiz.response.status(
         200,
@@ -464,6 +466,13 @@ def me():
 
 
 ACCOUNT_PROFILE_MAX_BYTES = 16000
+ACCOUNT_DATA_SNAPSHOT_MAX_BYTES = 512000
+ACCOUNT_DATA_SNAPSHOT_MAX_ITEMS = 200
+ACCOUNT_DATA_KEY_PATTERN = re.compile(
+    r"^(?:yeogi-|jochiwon-|sejong-|greenhouse-|bear-|nature-discovery-|"
+    r"campus-|government-|festival-|food-|project-room-|club-|arts-center-|"
+    r"world-|character-debug-settings-)|^bear-photo-zone-position$"
+)
 ACCOUNT_PROFILE_MODELS = {
     "custom",
     "chungnyeong",
@@ -595,10 +604,12 @@ def account_profile():
         session.clear()
         return wiz.response.status(404, message="사용자 정보를 찾지 못했습니다.")
 
+    profile_db = struct.db("account_profile_snapshot")
     payload_raw = wiz.request.query("profile", "")
     if not payload_raw:
         profile = None
-        stored = user.get("avatar") or ""
+        stored_record = profile_db.get(id=user_id)
+        stored = (stored_record or {}).get("payload") or user.get("avatar") or ""
         if isinstance(stored, str) and stored:
             try:
                 profile = _normalize_account_profile(json.loads(stored))
@@ -623,15 +634,86 @@ def account_profile():
         ensure_ascii=False,
         separators=(",", ":"),
     )
+    now = datetime.datetime.now()
     try:
-        struct.user.update_profile(
-            user_id,
-            name=profile["nickname"],
-            avatar=serialized,
-        )
+        struct.user.update_profile(user_id, name=profile["nickname"])
+        record = profile_db.get(id=user_id)
+        values = {"user_id": user_id, "payload": serialized, "updated": now}
+        if record is None:
+            profile_db.insert({"id": user_id, "created": now, **values})
+        else:
+            profile_db.update(values, id=user_id)
     except Exception:
         return wiz.response.status(503, message="프로필을 서버에 저장하지 못했습니다.")
     return wiz.response.status(200, profile=profile)
+
+
+def _normalize_account_data_snapshot(value):
+    if not isinstance(value, dict) or len(value) > ACCOUNT_DATA_SNAPSHOT_MAX_ITEMS:
+        return None
+    normalized = {}
+    total_bytes = 0
+    for key, item in value.items():
+        if (
+            not isinstance(key, str)
+            or not ACCOUNT_DATA_KEY_PATTERN.search(key)
+            or not isinstance(item, str)
+            or len(item.encode("utf-8")) > 65536
+        ):
+            return None
+        total_bytes += len(key.encode("utf-8")) + len(item.encode("utf-8"))
+        if total_bytes > ACCOUNT_DATA_SNAPSHOT_MAX_BYTES:
+            return None
+        normalized[key] = item
+    return normalized
+
+
+def account_data_snapshot():
+    """카카오 로그인 사용자의 로컬 체험 데이터를 계정 DB에 보관한다."""
+    user_id = session.get("id")
+    if not user_id:
+        return wiz.response.status(401, message="카카오 로그인이 필요합니다.")
+
+    db = struct.db("account_data_snapshot")
+    payload_raw = wiz.request.query("data", "")
+    if not payload_raw:
+        record = db.get(id=user_id)
+        if record is None:
+            return wiz.response.status(200, data={})
+        try:
+            data = _normalize_account_data_snapshot(
+                json.loads(record.get("payload") or "{}")
+            )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            data = None
+        return wiz.response.status(200, data=data or {})
+
+    if (
+        not isinstance(payload_raw, str)
+        or len(payload_raw.encode("utf-8")) > ACCOUNT_DATA_SNAPSHOT_MAX_BYTES
+    ):
+        return wiz.response.status(413, message="저장할 활동 데이터가 너무 큽니다.")
+    try:
+        data = _normalize_account_data_snapshot(json.loads(payload_raw))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        data = None
+    if data is None:
+        return wiz.response.status(400, message="활동 데이터 형식이 올바르지 않습니다.")
+
+    now = datetime.datetime.now()
+    serialized = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    record = db.get(id=user_id)
+    values = {
+        "user_id": user_id,
+        "version": int(record.get("version") or 0) + 1 if record else 1,
+        "payload": serialized,
+        "updated": now,
+    }
+    if record is None:
+        db.insert({"id": user_id, "created": now, **values})
+    else:
+        db.update(values, id=user_id)
+    return wiz.response.status(200, saved=True, itemCount=len(data))
 
 
 def _world_portal_editor():
@@ -943,6 +1025,13 @@ def _kakao_callback_url():
 
 
 def kakao_start():
+    reauth = wiz.request.query("reauth", "") == "1"
+    if reauth:
+        # Drop any residual application session before starting an explicit
+        # Kakao re-login. The OAuth state is created again immediately below.
+        session.clear()
+        session.set(kakao_reauth_required=True)
+
     config = _secret_config()
     client_id = (
         getattr(config, "KAKAO_REST_API_KEY", "")
@@ -964,10 +1053,12 @@ def kakao_start():
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "state": state,
-        # A previous Kakao session must not skip visible account
-        # authentication before the onboarding flow.
-        # QR 인증을 포함한 카카오의 현재 로그인 세션을 그대로 사용한다.
     }
+
+    if reauth or session.get("kakao_reauth_required", False):
+        # Kakao otherwise silently reuses its browser session after app
+        # logout and sends the user straight back into the experience.
+        params["prompt"] = "login"
 
     scopes = getattr(config, "KAKAO_LOGIN_SCOPES", "") or ""
     scopes = ",".join(
@@ -2009,7 +2100,19 @@ def _project_room_projects(user_id):
                 else:
                     existing.update(idea)
                     existing["votes"] = max(int(_number(existing.get("votes"), 0)), int(_number(idea.get("votes"), 0)))
-            state["draft"] = {**previous_draft, **draft, "ideas": merged_ideas}
+            previous_messages = previous_draft.get("messages") if isinstance(previous_draft.get("messages"), list) else []
+            incoming_messages = draft.get("messages") if isinstance(draft.get("messages"), list) else []
+            merged_messages = []
+            seen_message_ids = set()
+            for message in previous_messages + incoming_messages:
+                message_id = str(message.get("id") or "").strip() if isinstance(message, dict) else ""
+                if not message_id or message_id in seen_message_ids:
+                    continue
+                seen_message_ids.add(message_id)
+                merged_messages.append(dict(message))
+            state["draft"] = {**previous_draft, **draft, "ideas": merged_ideas, "messages": merged_messages}
+            if isinstance(state.get("consensus"), dict) and state["consensus"].get("status") == "pending":
+                state["consensus"] = None
             state["revision"] = int(_number(state.get("revision"), 0)) + 1
         if action in ("updateRole", "requestConsensus", "confirmConsensus") and not is_leader:
             return wiz.response.status(403, message="프로젝트 팀장만 수행할 수 있습니다.")
@@ -2648,16 +2751,199 @@ def place_search():
     return wiz.response.status(200, places=places)
 
 
+GOVERNMENT_PROFILE_COURSE_PROMPT = """너는 세종 중앙광장의 개인 맞춤 코스 추천 AI다.
+- 카카오 Local API로 확인된 실제 세종 장소 후보만 선택한다.
+- 제공된 프로필 분석과 실제 활동 근거를 추천 이유에 반영한다.
+- 밥집, 카페, 세종도시 장소를 순서대로 정확히 한 곳씩 선택한다.
+- 후보에 없는 장소, 영업시간, 가격, 메뉴, 별점은 만들지 않는다.
+- placeId는 입력 후보의 값을 그대로 사용한다.
+- JSON {"food":{"placeId":"...","reason":"..."},"cafe":{...},"city":{...}}만 반환한다."""
+
+
+def _government_profile_course_recommendation():
+    """카카오 로그인 계정의 분석 결과로 실제 세종 3개 장소 코스를 만든다."""
+    if not session.get("id"):
+        return wiz.response.status(401, message="카카오 로그인이 필요합니다.")
+    profile_raw = wiz.request.query("profileAnalysis", "")
+    if not isinstance(profile_raw, str) or len(profile_raw.encode("utf-8")) > 48000:
+        return wiz.response.status(413, message="프로필 분석 데이터가 너무 큽니다.")
+    try:
+        profile_analysis = json.loads(profile_raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        profile_analysis = None
+    if not isinstance(profile_analysis, dict):
+        return wiz.response.status(400, message="프로필 분석 결과를 확인해 주세요.")
+
+    config = _secret_config()
+    kakao_key = (getattr(config, "KAKAO_REST_API_KEY", "") if config is not None else "").strip()
+    openai_key = (getattr(config, "OPENAI_API_KEY", "") if config is not None else "").strip()
+    openai_model = (getattr(config, "OPENAI_MODEL", "") if config is not None else "").strip()
+    if not kakao_key or not openai_key or not openai_model:
+        return wiz.response.status(503, message="카카오 Local 또는 OpenAI 설정을 확인해 주세요.")
+
+    profile_text = json.dumps(profile_analysis, ensure_ascii=False)[:24000]
+    city_queries = ["세종 관광명소", "세종 문화시설"]
+    if re.search(r"자연|식물|정원|산책|힐링|공원", profile_text):
+        city_queries = ["세종 수목원", "세종 공원"]
+    elif re.search(r"공연|축제|문화|전시|예술", profile_text):
+        city_queries = ["세종 문화시설", "세종 전시관"]
+    elif re.search(r"역사|기록|교육|독서", profile_text):
+        city_queries = ["세종 박물관", "세종 도서관"]
+    elif re.search(r"도시|건축|스마트|전망", profile_text):
+        city_queries = ["세종 관광명소", "세종 전망대"]
+
+    query_groups = {
+        "밥집": ["세종 맛집", "세종 한식"],
+        "카페": ["세종 카페", "세종 디저트 카페"],
+        "세종도시": city_queries,
+    }
+    candidates = []
+    seen_ids = set()
+    for course_category, queries in query_groups.items():
+        for query in queries:
+            params = urllib.parse.urlencode({"query": query, "x": "127.289", "y": "36.5", "radius": "20000", "size": "15"})
+            try:
+                result = _kakao_request_json(
+                    "https://dapi.kakao.com/v2/local/search/keyword.json?" + params,
+                    headers={"Authorization": "KakaoAK " + kakao_key},
+                )
+            except Exception:
+                return wiz.response.status(502, message="카카오에서 실제 세종 장소를 찾지 못했습니다.")
+            for item in result.get("documents", []):
+                place_id = str(item.get("id") or "").strip()
+                name = str(item.get("place_name") or "").strip()
+                address = str(item.get("road_address_name") or item.get("address_name") or "").strip()
+                kakao_category = str(item.get("category_name") or "").strip()
+                if not place_id or not name or "세종특별자치시" not in address or place_id in seen_ids:
+                    continue
+                if course_category == "밥집" and ("음식점" not in kakao_category or "카페" in kakao_category):
+                    continue
+                if course_category == "카페" and "카페" not in kakao_category:
+                    continue
+                if course_category == "세종도시" and "음식점" in kakao_category:
+                    continue
+                try:
+                    longitude, latitude = float(item.get("x")), float(item.get("y"))
+                except (TypeError, ValueError):
+                    continue
+                seen_ids.add(place_id)
+                candidates.append({
+                    "placeId": place_id,
+                    "name": name,
+                    "category": course_category,
+                    "kakaoCategory": kakao_category,
+                    "address": address,
+                    "longitude": longitude,
+                    "latitude": latitude,
+                    "placeUrl": str(item.get("place_url") or ""),
+                })
+                if sum(1 for candidate in candidates if candidate["category"] == course_category) >= 8:
+                    break
+            if sum(1 for candidate in candidates if candidate["category"] == course_category) >= 8:
+                break
+
+    if any(not any(candidate["category"] == category for candidate in candidates) for category in query_groups):
+        return wiz.response.status(404, message="코스에 필요한 실제 세종 장소를 모두 찾지 못했습니다.")
+
+    request_body = json.dumps({
+        "model": openai_model,
+        "max_completion_tokens": 1800,
+        "reasoning_effort": "low",
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "sejong_profile_course",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "food": {
+                            "type": "object",
+                            "properties": {
+                                "placeId": {"type": "string", "enum": [candidate["placeId"] for candidate in candidates if candidate["category"] == "밥집"]},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["placeId", "reason"], "additionalProperties": False,
+                        },
+                        "cafe": {
+                            "type": "object",
+                            "properties": {
+                                "placeId": {"type": "string", "enum": [candidate["placeId"] for candidate in candidates if candidate["category"] == "카페"]},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["placeId", "reason"], "additionalProperties": False,
+                        },
+                        "city": {
+                            "type": "object",
+                            "properties": {
+                                "placeId": {"type": "string", "enum": [candidate["placeId"] for candidate in candidates if candidate["category"] == "세종도시"]},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["placeId", "reason"], "additionalProperties": False,
+                        },
+                    },
+                    "required": ["food", "cafe", "city"], "additionalProperties": False,
+                },
+            },
+        },
+        "messages": [
+            {"role": "system", "content": GOVERNMENT_PROFILE_COURSE_PROMPT},
+            {"role": "user", "content": json.dumps({"profileAnalysis": profile_analysis, "candidatePlaces": candidates}, ensure_ascii=False)},
+        ],
+    }, ensure_ascii=False).encode("utf-8")
+    try:
+        generated = _kakao_request_json(
+            "https://api.openai.com/v1/chat/completions",
+            data=request_body,
+            headers={"Authorization": "Bearer " + openai_key, "Content-Type": "application/json"},
+        )
+        content = str(generated.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+        json_match = re.search(r"\{[\s\S]*\}", content)
+        selected_payload = json.loads(json_match.group(0) if json_match else content)
+    except Exception:
+        return wiz.response.status(502, message="OpenAI가 프로필 맞춤 코스를 생성하지 못했습니다.")
+
+    if not isinstance(selected_payload, dict):
+        return wiz.response.status(502, message="AI 코스 결과 형식을 확인하지 못했습니다.")
+    candidate_by_id = {candidate["placeId"]: candidate for candidate in candidates}
+    selected_by_category = {}
+    for key, expected_category in (("food", "밥집"), ("cafe", "카페"), ("city", "세종도시")):
+        selected = selected_payload.get(key)
+        if not isinstance(selected, dict):
+            continue
+        candidate = candidate_by_id.get(str(selected.get("placeId") or ""))
+        reason = str(selected.get("reason") or "").strip()[:220]
+        if candidate is not None and candidate["category"] == expected_category and reason:
+            selected_by_category[expected_category] = (candidate, reason)
+    if any(category not in selected_by_category for category in ("밥집", "카페", "세종도시")):
+        return wiz.response.status(502, message="AI가 실제 장소 3곳을 완성하지 못했습니다.")
+
+    stops = []
+    for category in ("밥집", "카페", "세종도시"):
+        candidate, reason = selected_by_category[category]
+        map_name = urllib.parse.quote(candidate["name"], safe="")
+        stops.append({
+            "name": candidate["name"],
+            "category": category,
+            "reason": reason,
+            "address": candidate["address"],
+            "mapUrl": f"https://map.kakao.com/link/map/{map_name},{candidate['latitude']},{candidate['longitude']}",
+            "placeUrl": candidate["placeUrl"],
+            "source": "kakao",
+        })
+    return wiz.response.status(200, stops=stops, ai="openai", place="kakao")
+
+
 CHUNGNYEONG_LAKE_PLACE_PROMPT = """너는 세종호수공원 NPC 충녕이다.
-1. 첫 대화에서는 자신을 짧게 소개한다.
-2. 자신을 '오늘 가볼 세종 장소를 추천해주는 충녕이'라고 자연스럽게 설명한다.
-3. 이어서 제공된 장소 하나를 바로 추천한다.
+1. 사용자는 이미 네 소개를 확인하고 '장소 추천' 버튼을 눌렀다.
+2. 제공된 장소 하나를 오늘 갈 장소로 바로 추천한다.
+3. 자기소개나 대화 안내를 반복하지 않는다.
 4. 장소 이름은 제공된 실제 장소명을 그대로 사용한다.
 5. 후보에 없는 장소를 새로 만들어내지 않는다.
 6. 확인되지 않은 영업시간, 가격, 메뉴, 별점 등의 정보를 만들지 않는다.
 7. 사용자의 성격이나 취향을 임의로 분석하지 않는다.
 8. 너무 관광 안내원처럼 길게 설명하지 않는다.
-9. 밝고 친근한 말투로 2~3문장 이내로 말한다.
+9. 밝고 친근한 말투로 1~2문장 이내로 말한다.
 10. '궁금한 것이 있으면 물어봐', '자유롭게 둘러봐' 같은 일반 챗봇 안내는 하지 않는다.
 11. 핵심은 항상 '오늘 여기 한번 가보는 건 어때?'라는 추천이다."""
 
@@ -2699,30 +2985,29 @@ def chungnyeong_place_recommendation():
     if not candidates:
         return wiz.response.status(404, message="확인된 실제 세종 장소가 없어요.")
     place = candidates[secrets.randbelow(len(candidates))]
-    fallback = f"나는 오늘 가볼 세종 장소를 추천해주는 충녕이야! 오늘은 {place['placeName']} 한번 가보는 건 어때?"
-    message = fallback
+    fallback = f"오늘은 {place['placeName']} 한번 가보는 건 어때?"
     openai_key = (getattr(config, "OPENAI_API_KEY", "") if config is not None else "").strip()
     openai_model = (getattr(config, "OPENAI_MODEL", "") if config is not None else "").strip()
-    if openai_key and openai_model:
-        request_body = json.dumps({
-            "model": openai_model,
-            "max_completion_tokens": 120,
-            "messages": [
-                {"role": "system", "content": CHUNGNYEONG_LAKE_PLACE_PROMPT},
-                {"role": "user", "content": json.dumps({"placeName": place["placeName"], "category": place["category"], "address": place["address"]}, ensure_ascii=False)},
-            ],
-        }, ensure_ascii=False).encode("utf-8")
-        try:
-            generated = _kakao_request_json(
-                "https://api.openai.com/v1/chat/completions",
-                data=request_body,
-                headers={"Authorization": "Bearer " + openai_key, "Content-Type": "application/json"},
-            )
-            value = str(generated.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
-            if place["placeName"] in value and len(value) <= 240:
-                message = value
-        except Exception:
-            pass
+    if not openai_key or not openai_model:
+        return wiz.response.status(503, message="OpenAI 추천 설정을 확인해 주세요.")
+    request_body = json.dumps({
+        "model": openai_model,
+        "max_completion_tokens": 120,
+        "messages": [
+            {"role": "system", "content": CHUNGNYEONG_LAKE_PLACE_PROMPT},
+            {"role": "user", "content": json.dumps({"placeName": place["placeName"], "category": place["category"], "address": place["address"]}, ensure_ascii=False)},
+        ],
+    }, ensure_ascii=False).encode("utf-8")
+    try:
+        generated = _kakao_request_json(
+            "https://api.openai.com/v1/chat/completions",
+            data=request_body,
+            headers={"Authorization": "Bearer " + openai_key, "Content-Type": "application/json"},
+        )
+    except Exception:
+        return wiz.response.status(502, message="OpenAI가 오늘의 장소를 추천하지 못했어요.")
+    value = str(generated.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+    message = value if place["placeName"] in value and len(value) <= 240 else fallback
     place["message"] = message
     return wiz.response.status(200, place=place)
 

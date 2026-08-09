@@ -636,6 +636,7 @@ npm run test:world-navigation
 npm run test:world-camera-editor
 npm run test:postmessage
 npm run test:runtime-entry
+npm run test:wiz-production
 npm run test:multiplayer
 npm run verify:performance
 npm run verify:providers
@@ -650,6 +651,7 @@ npx tsx --test scripts/foodExperience.test.ts
 - React `dist`와 `src/assets/jochwon-app` 파일 일치
 - WIZ 일반 빌드 성공
 - `/home`과 최신 정적 번들 HTTP 200
+- 개발 쿠키 없는 운영 OAuth·충녕이 추천 회귀 테스트 통과
 - MySQL 연결 및 `jochwon_documents` 조회 성공
 - `git diff --check` 통과
 - `.env`, 실제 DB 정보, API 키, 개인키 미추적

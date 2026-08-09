@@ -149,10 +149,14 @@ class User:
             return False
 
         behavior_db = self.core.db("ai_behavior_state")
+        account_profile_db = self.core.db("account_profile_snapshot")
+        account_data_db = self.core.db("account_data_snapshot")
         farm_db = self.core.db("personal_farm_progress")
         database = self.db.orm._meta.database
         with database.atomic():
             behavior_db.delete(user_id=id)
+            account_profile_db.delete(user_id=id)
+            account_data_db.delete(user_id=id)
             farm_db.delete(user_id=id)
             self.db.delete(id=id)
         return True

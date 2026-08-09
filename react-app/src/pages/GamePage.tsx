@@ -288,8 +288,7 @@ export function GamePage({
   const [activeNpc, setActiveNpc] = useState<NearbyNpc | null>(null),
     [npcMessages, setNpcMessages] = useState<NpcChatMessage[]>([]),
     [npcText, setNpcText] = useState("");
-  const [guideMessages, setGuideMessages] = useState<NpcChatMessage[]>([]),
-    [guideText, setGuideText] = useState("");
+  const [guideMessages, setGuideMessages] = useState<NpcChatMessage[]>([]);
   const [guidePlace, setGuidePlace] = useState<{
       placeName: string;
       address: string;
@@ -299,7 +298,8 @@ export function GamePage({
       latitude: number;
       message: string;
     } | null>(null),
-    [guidePlaceLoading, setGuidePlaceLoading] = useState(false);
+    [guidePlaceLoading, setGuidePlaceLoading] = useState(false),
+    [guideMapExpanded, setGuideMapExpanded] = useState(false);
   const [encounter, setEncounter] = useState<CharacterEncounter | null>(null),
     [nearbyNpcScreen, setNearbyNpcScreen] = useState<NpcScreenPosition | null>(
       null,
@@ -1219,12 +1219,21 @@ export function GamePage({
     },
     startGuideChat = () => {
       setGuideConversation(true);
-      setGuideText("");
       setGuidePlace(null);
-      setGuideMessages([]);
-      window.setTimeout(() => void recommendGuidePlace(), 0);
+      setGuideMapExpanded(false);
+      setGuideMessages([
+        {
+          id: "chungnyeong-place-guide-intro",
+          sender: "npc",
+          message:
+            "안녕! 나는 오늘 어디 갈지 추천해주는 세종호수공원 NPC 충녕이야. 아래 장소 추천 버튼을 눌러줘!",
+        },
+      ]);
     },
-    closeGuideChat = () => setGuideConversation(false),
+    closeGuideChat = () => {
+      setGuideConversation(false);
+      setGuideMapExpanded(false);
+    },
     npcReply = (npc: NearbyNpc, message: string) =>
       /프로젝트|아이디어/.test(message)
         ? "좋아요! 관심 있는 주제부터 짧게 이야기해 보면 함께할 방법을 찾기 쉬워요."
@@ -1246,16 +1255,6 @@ export function GamePage({
         },
       ]);
       setNpcText("");
-    },
-    sendGuide = () => {
-      const message = guideText.trim();
-      if (!message) return;
-      setGuideMessages((old) => [
-        ...old,
-        { id: crypto.randomUUID(), sender: "me", message },
-      ]);
-      setGuideText("");
-      window.setTimeout(() => void recommendGuidePlace(), 0);
     },
     playEncounterEmote = (emote: CharacterEmote) =>
       gameEvents.emit("character-emote-play", emote),
@@ -1447,9 +1446,9 @@ export function GamePage({
     if (guidePlaceLoading) return;
     setGuidePlaceLoading(true);
     try {
-      let response = await fetch(
+      const response = await fetch(
           import.meta.env.PROD
-            ? `${COMMUNITY_API_BASE_URL}/api_config_status?action=chungnyeongPlaceRecommendation`
+            ? `${COMMUNITY_API_BASE_URL}/api_config_status?operation=chungnyeongPlaceRecommendation`
             : `${API_BASE_URL}/ai/chungnyeong-place-recommendation`,
           { headers: { "X-Socket-Id": socket.id ?? "" } },
         ),
@@ -1458,50 +1457,15 @@ export function GamePage({
           place?: typeof guidePlace;
           error?: string;
         };
-      let body =
+      const body =
           raw.data ??
           (raw as {
             place?: typeof guidePlace;
             error?: string;
           });
-      if (import.meta.env.PROD && !body.place) {
-        response = await fetch(
-          `${COMMUNITY_API_BASE_URL}/place_search?query=${encodeURIComponent("오늘 갈만한 관광명소")}`,
-          { credentials: "include" },
-        );
-        const search = (await response.json()) as {
-          data?: {
-            places?: Array<{
-              name: string;
-              address: string;
-              roadAddress: string;
-              category: string;
-              externalUrl: string;
-              longitude: number;
-              latitude: number;
-            }>;
-            message?: string;
-          };
-        };
-        const places = search.data?.places ?? [],
-          selected = places[Math.floor(Math.random() * places.length)];
-        body = {
-          error: search.data?.message,
-          place: selected
-            ? {
-                placeName: selected.name,
-                address: selected.roadAddress || selected.address,
-                category: selected.category,
-                placeUrl: selected.externalUrl,
-                longitude: selected.longitude,
-                latitude: selected.latitude,
-                message: `나는 오늘 가볼 세종 장소를 추천해주는 충녕이야! 오늘은 ${selected.name} 한번 가보는 건 어때?`,
-              }
-            : undefined,
-        };
-      }
       if (!response.ok || !body.place)
         throw new Error(body.error ?? "장소를 찾지 못했어요.");
+      setGuideMapExpanded(false);
       setGuidePlace(body.place);
       setGuideMessages((old) => [
         ...old,
@@ -2156,12 +2120,12 @@ export function GamePage({
             </span>
             <div>
               <b>충녕이</b>
-              <small>세종호수공원 NPC와 대화 중</small>
+              <small>오늘 갈 세종 장소 추천</small>
             </div>
             <button
               type="button"
               onClick={closeGuideChat}
-              aria-label="충녕이와 대화 종료"
+              aria-label="충녕이 장소 추천 닫기"
             >
               <X size={17} />
             </button>
@@ -2189,9 +2153,9 @@ export function GamePage({
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
-                <a href={guidePlace.placeUrl} target="_blank" rel="noreferrer">
+                <button type="button" className="chungnyeong-map-expand" onClick={() => setGuideMapExpanded(true)}>
                   카카오맵에서 크게 보기
-                </a>
+                </button>
               </article>
             )}
           </div>
@@ -2201,23 +2165,21 @@ export function GamePage({
             disabled={guidePlaceLoading}
             onClick={() => void recommendGuidePlace()}
           >
-            {guidePlaceLoading ? "실제 세종 장소 찾는 중..." : "✨ 충녕이 추천"}
+            {guidePlaceLoading ? "카카오맵과 AI로 추첨 중..." : "✨ 장소 추천"}
           </button>
-          <footer>
-            <input
-              value={guideText}
-              onChange={(event) => setGuideText(event.target.value)}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === "Enter" && !event.nativeEvent.isComposing)
-                  sendGuide();
-              }}
-              placeholder="충녕이에게 메시지..."
-            />
-            <button type="button" onClick={sendGuide}>
-              <Send size={17} />
-            </button>
-          </footer>
+          {guidePlace && guideMapExpanded && (
+            <div className="chungnyeong-inline-map" role="dialog" aria-modal="true" aria-label={`${guidePlace.placeName} 큰 지도`}>
+              <header>
+                <span><small>카카오지도</small><b>{guidePlace.placeName}</b></span>
+                <button type="button" onClick={() => setGuideMapExpanded(false)} aria-label="큰 지도 닫기"><X /></button>
+              </header>
+              <iframe
+                title={`${guidePlace.placeName} 큰 카카오 지도`}
+                src={`https://map.kakao.com/link/map/${encodeURIComponent(guidePlace.placeName)},${guidePlace.latitude},${guidePlace.longitude}`}
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+          )}
         </section>
       )}
       {bearTutorialOpen && (
@@ -2460,6 +2422,7 @@ export function GamePage({
       {
         <GovernmentAiRecommendationCenter
           profile={profile}
+          authenticated={experienceMode === "social"}
           active={location === "중앙광장"}
           onOpenChange={setGovernmentAiCenterOpen}
           onNotice={setNotice}

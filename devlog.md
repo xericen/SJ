@@ -1,5 +1,15 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-09 | 103 | 프로젝트 새로고침 동작 확인 및 최종 합의 버튼 클릭 안내 개선 | [상세](devlog/2026-08-09/103-verify-refresh-enable-consensus-feedback.md) |
+| 2026-08-09 | 102 | 프로젝트 협업 자동 저장·새로고침 경합 방지 및 전원 합의 완료 | [상세](devlog/2026-08-09/102-project-collaboration-autosave-unanimous-consensus.md) |
+| 2026-08-09 | 101 | 프로젝트 새로고침 확정 상태 분리 및 AI 일정 지도 버튼 제거 | [상세](devlog/2026-08-09/101-separate-refresh-from-confirmation-remove-ai-map-button.md) |
+| 2026-08-09 | 100 | 프로젝트실 아이디어·역할·테마/먹거리 수동 새로고침 추가 | [상세](devlog/2026-08-09/100-project-room-manual-collaboration-refresh.md) |
+| 2026-08-09 | 099 | 중앙광장 STEP 8 추천 요청 취소 결함 및 영구 대기 복구 | [상세](devlog/2026-08-09/099-fix-government-step8-route-stall.md) |
+| 2026-08-09 | 098 | 중앙광장 STEP 6 AI 코스 선행 생성으로 대기 시간 제거 | [상세](devlog/2026-08-09/098-prefetch-government-life-course.md) |
+| 2026-08-09 | 097 | 충녕이 내부 카카오지도 및 프로필 기반 실제 세종 AI 코스 연결 | [상세](devlog/2026-08-09/097-inline-chungnyeong-map-profile-kakao-course.md) |
+| 2026-08-09 | 096 | WIZ 운영 정적·API 혼합 배포 캐시 해소 및 운영 회귀 검사 추가 | [상세](devlog/2026-08-09/096-fix-wiz-production-runtime-cache.md) |
+| 2026-08-09 | 095 | 호수공원 충녕이 카카오·OpenAI 랜덤 장소 추천 전용화 | [상세](devlog/2026-08-09/095-lake-chungnyeong-random-place-only.md) |
+| 2026-08-09 | 092 | 카카오 계정 프로필·체험 데이터 DB 원본 저장 및 복원 | [상세](devlog/2026-08-09/092-persist-kakao-account-data-in-db.md) |
 | 2026-08-09 | 040 | 1:1 장소 추천 운영 소켓 복구 및 분석 진행 상태 표시 | [상세](devlog/2026-08-09/040-fix-direct-recommendation-progress.md) |
 | 2026-08-09 | 039 | 모집센터 글 분리·입력 공백 및 프로젝트 아이디어 실시간 동기화 | [상세](devlog/2026-08-09/039-recruitment-kiosk-project-idea-realtime.md) |
 | 2026-08-09 | 038 | 1:1 대화 분석 추천 UI 재설계 및 웹 내부 카카오 지도 연결 | [상세](devlog/2026-08-09/038-direct-recommendation-inapp-kakao-map.md) |
@@ -343,3 +353,5 @@
 | 2026-08-09 | 042 | 프로젝트 아이디어 실시간 동기화와 완료·정부청사 이동 분리 | [상세](devlog/2026-08-09/042-project-realtime-completion-handoff.md) |
 | 2026-08-09 | 043 | 프로젝트 역할 권한 및 아이디어 실시간 동기화 재수정 | [상세](devlog/2026-08-09/043-fix-project-live-revision-role-permission.md) |
 | 2026-08-09 | 044 | 호수공원 충녕이 실제 세종 장소 첫 추천 및 내부 카카오지도 연결 | [상세](devlog/2026-08-09/044-lake-chungnyeong-kakao-place-map.md) |
+| 2026-08-09 | 093 | 예술의전당→세종호수공원 귀환 구조물 도착 방지 | [상세](devlog/2026-08-09/093-fix-arts-center-lake-arrival.md) |
+| 2026-08-09 | 094 | 카카오 로그아웃 후 재로그인 화면 강제 표시 | [상세](devlog/2026-08-09/094-force-kakao-reauthentication.md) |

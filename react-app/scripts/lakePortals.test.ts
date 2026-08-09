@@ -3,6 +3,8 @@ import test from 'node:test';
 import { WORLD_PORTAL_DEFAULTS } from '../shared/world-portals';
 import { LAKE_PARK_PORTALS } from '../src/game/lakeParkPortals';
 import { isPortalChargePositionHeld,PORTAL_TRAVEL_RETRY_MS,PortalTravelGate } from '../src/game/portalTravelGate';
+import {FIXED_LAKE_RESPAWN} from '../shared/socket-events';
+import {worldPortalArrivalOverride} from '../src/game/worldPortalArrivals';
 
 const expected=[
   ['bear-tree-park',2122,944],
@@ -36,6 +38,11 @@ test('먹거리 부스에서 돌아오면 노란 건물을 피해 호수공원 �
     },
     {x:647,z:1712},
   );
+});
+
+test('예술의전당에서 돌아오면 구조물이 아닌 호수공원 안전 지면에 도착한다',()=>{
+  assert.deepEqual(worldPortalArrivalOverride('arts-center','town'),FIXED_LAKE_RESPAWN);
+  assert.equal(worldPortalArrivalOverride('town','arts-center'),undefined);
 });
 
 for(const portal of LAKE_PARK_PORTALS){

@@ -1,4 +1,4 @@
-import type {MapId,RespawnPosition} from '../../shared/socket-events';
+import {FIXED_LAKE_RESPAWN,type MapId,RespawnPosition} from '../../shared/socket-events';
 
 export const GARDEN_SAFE_ARRIVAL:Readonly<RespawnPosition>={x:1200,z:1400,yaw:0};
 export const BEAR_TREE_TO_GARDEN_ARRIVAL=GARDEN_SAFE_ARRIVAL;
@@ -17,6 +17,11 @@ export function safeWorldEntrySpawn(mapId:MapId,spawn:RespawnPosition):RespawnPo
 }
 
 export function worldPortalArrivalOverride(sourceMapId:MapId,destinationMapId:MapId):RespawnPosition|undefined{
+  // The arts-center return portal used to resolve to the lake map's arts
+  // entrance marker. That marker is on top of an authored structure in the
+  // current lake GLB, so the avatar could arrive stuck above the walkable
+  // surface. Use the canonical flat lake spawn for this return route.
+  if(sourceMapId==='arts-center'&&destinationMapId==='town')return {...FIXED_LAKE_RESPAWN};
   if(sourceMapId==='bear-tree-park'&&destinationMapId==='garden')return {...BEAR_TREE_TO_GARDEN_ARRIVAL};
   if(sourceMapId==='campus'&&destinationMapId==='project-room')return {...CAMPUS_TO_PROJECT_ROOM_ARRIVAL};
   return undefined;

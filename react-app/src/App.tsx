@@ -19,7 +19,7 @@ import { TermsPage } from './pages/TermsPage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSessionStorage } from './hooks/useSessionStorage';
 import { API_BASE_URL } from './config/api';
-import { clearAllAccountData, clearRuntimeAccountData } from './services/accountData';
+import { clearAllAccountData, clearRuntimeAccountData, loadAccountDataSnapshot, restoreAccountDataSnapshot, saveAccountDataSnapshot } from './services/accountData';
 import { socket } from './game/systems/socketClient';
 import { startBehaviorStateSync } from './services/behaviorStateSync';
 
@@ -208,6 +208,7 @@ export default function App() {
   const [guestMapPreview,setGuestMapPreview]=useState(false);
   const [behaviorStateReady,setBehaviorStateReady]=useState(false);
   const hydratedProfileUserIdRef=useRef<string|undefined>(undefined);
+  const hydratedAccountDataUserIdRef=useRef<string|undefined>(undefined);
 
   const [
     socialStoredProfile,
@@ -672,6 +673,25 @@ export default function App() {
     });
   }, [experienceMode, hasLoginIdentity, membershipComplete, setSocialProfile]);
 
+  useEffect(() => {
+    if (experienceMode !== 'social' || !hasLoginIdentity) return;
+    const userId=readStoredValue(KAKAO_USER_ID_KEY)?.trim();
+    if (!userId) return;
+    let active=true;
+    const restore=async()=>{
+      if(hydratedAccountDataUserIdRef.current===userId)return;
+      try{
+        restoreAccountDataSnapshot(await loadAccountDataSnapshot());
+        if(active)hydratedAccountDataUserIdRef.current=userId;
+      }catch{/* 로그인 성공은 유지하고 다음 동기화에서 재시도한다. */}
+    };
+    const save=()=>{void saveAccountDataSnapshot().catch(()=>undefined);};
+    void restore();
+    const timer=window.setInterval(save,4000);
+    window.addEventListener('pagehide',save);
+    return()=>{active=false;window.clearInterval(timer);window.removeEventListener('pagehide',save);};
+  }, [experienceMode, hasLoginIdentity]);
+
   const startExperience = () => {
     setPage('game');
   };
@@ -689,10 +709,14 @@ export default function App() {
     setLocalJourney(defaultUserJourney);
   };
 
-  const startLocalExperience = () => {
+  const startLocalExperience = async () => {
+    if (experienceMode === 'social') {
+      await saveAccountDataSnapshot().catch(() => undefined);
+    }
     clearStoredAccountData();
     setLoginIdentity('');
     hydratedProfileUserIdRef.current = undefined;
+    hydratedAccountDataUserIdRef.current = undefined;
     setLocalProfile(defaultProfile);
     setLocalJourney({
       authenticated: false,
@@ -965,11 +989,13 @@ export default function App() {
           }
 
           setGameReturnState(undefined);
+          await saveAccountDataSnapshot().catch(() => undefined);
           clearRuntimeAccountData();
           socket.disconnect();
           setLoginIdentity('');
           setExperienceMode(null);
           hydratedProfileUserIdRef.current = undefined;
+          hydratedAccountDataUserIdRef.current = undefined;
           removeStoredValue(
             KAKAO_USER_ID_KEY,
           );

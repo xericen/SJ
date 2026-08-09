@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Bot,
   Check,
@@ -8,7 +8,7 @@ import {
   X,
 } from "lucide-react";
 import type { UserProfile } from "../types";
-import {sejongDiningCodeDessertPlaces,sejongDiningCodeRestaurantPlaces} from "../data/sejongDiningCodePlaces";
+import { COMMUNITY_API_BASE_URL } from "../config/api";
 import { gameEvents } from "../game/events";
 import { buildAiSejongProfile } from "../services/aiSejongProfile";
 import {
@@ -85,27 +85,6 @@ const mapLabels:Record<string,string>={
   "government-central-plaza":"중앙광장","government-observatory":"전망대","sejong-smart-city":"스마트시티",
 };
 type RouteStop = { name: string; category: "밥집"|"카페"|"세종도시"; reason: string; address:string; mapUrl:string };
-const kakaoSearch=(name:string,address:string)=>`https://map.kakao.com/link/search/${encodeURIComponent(`${name} ${address}`)}`;
-const fallbackRouteStops: RouteStop[] = [
-  {
-    name: "장원갑칼국수 세종본점", category: "밥집",address:"세종특별자치시 조치원읍 허만석1로 32 2층",mapUrl:kakaoSearch("장원갑칼국수 세종본점","세종특별자치시 조치원읍 허만석1로 32"),
-    reason: "최근 활동에서 확인된 미식·로컬 관심을 바탕으로 추천합니다.",
-  },
-  {
-    name: "국립세종수목원", category: "세종도시",address:"세종특별자치시 수목원로 136",mapUrl:kakaoSearch("국립세종수목원","세종특별자치시 수목원로 136"),
-    reason: "프로젝트와 도시 탐험 활동을 좋아하는 성향에 맞는 장소입니다.",
-  },
-  {
-    name: "테라로사 세종점", category: "카페",address:"세종특별자치시 가름로 143 KT&G 세종타워 B동 1층",mapUrl:kakaoSearch("테라로사 세종점","세종특별자치시 가름로 143"),
-    reason: "분석된 관심 키워드를 정리하며 쉬어갈 수 있는 장소입니다.",
-  },
-];
-const cityCandidates=[
-  {id:"city-national-arboretum",name:"국립세종수목원",address:"세종특별자치시 수목원로 136",tags:["자연","식물","산책","사진","힐링"]},
-  {id:"city-lake-park",name:"세종호수공원",address:"세종특별자치시 다솜로 216",tags:["호수","산책","공연","축제","야경"]},
-  {id:"city-government-rooftop",name:"정부세종청사 옥상정원",address:"세종특별자치시 도움6로 11",tags:["도시","전망","정원","건축","스마트시티"]},
-  {id:"city-presidential-archives",name:"대통령기록관",address:"세종특별자치시 다솜로 250",tags:["전시","역사","기록","도시","문화"]},
-];
 const logs = [
   "축제 데이터 분석",
   "관심사 분석",
@@ -117,12 +96,14 @@ const logs = [
 
 export function GovernmentAiRecommendationCenter({
   profile,
+  authenticated,
   active,
   onOpenChange,
   onNotice,
   onExit,
 }: {
   profile: UserProfile;
+  authenticated: boolean;
   active: boolean;
   onOpenChange: (open: boolean) => void;
   onNotice: (message: string) => void;
@@ -134,13 +115,15 @@ export function GovernmentAiRecommendationCenter({
     [displayProgress, setDisplayProgress] = useState(0),
     [cardIndex, setCardIndex] = useState(0),
     [selectedStop, setSelectedStop] = useState<number | null>(null),
-    [finalMapStop, setFinalMapStop] = useState<number | null>(null),
     [saved, setSaved] = useState(false),
-    [recommendedStops, setRecommendedStops] = useState(fallbackRouteStops),
-    [recommendationSource, setRecommendationSource] = useState<"openai" | "fallback">("fallback"),
+    [recommendedStops, setRecommendedStops] = useState<RouteStop[]>([]),
+    [recommendationSource, setRecommendationSource] = useState<"openai" | "idle">("idle"),
     [recommendationLoading, setRecommendationLoading] = useState(false),
+    [recommendationAttempted, setRecommendationAttempted] = useState(false),
+    [recommendationError, setRecommendationError] = useState(""),
     [profileRevision, setProfileRevision] = useState(0),
     [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
+  const recommendationRequestRef = useRef(0);
   const routeStops = recommendedStops;
   const ai = useMemo(() => buildAiSejongProfile(profile), [profile,profileRevision]);
   const activityRecords=useMemo(()=>loadExperienceActivityHistory(profile.nickname),[profile.nickname,profileRevision]);
@@ -167,31 +150,47 @@ export function GovernmentAiRecommendationCenter({
   },[activityRecords,savedInterests]);
   const dataCards=realDataCards.length?realDataCards:[{icon:"🧭",title:"내 프로필",lines:[...profile.interests,...profile.preferredPlaceCategories,...profile.usagePurposes].filter(Boolean).slice(0,3)}];
   const close = () => {
+    recommendationRequestRef.current += 1;
     setRunning(false);
     setStage(0);
     setDisplayProgress(0);
     setCardIndex(0);
     setSelectedStop(null);
-    setFinalMapStop(null);
     setExitConfirmationOpen(false);
     gameEvents.emit("government-ai-center-stage-changed", 0);
     gameEvents.emit("government-ai-center-mode-changed", false);
   };
   const start = () => {
     if (!active) return;
+    if (!authenticated) {
+      onNotice("카카오 로그인 사용자만 프로필 기반 AI 코스를 만들 수 있어요.");
+      return;
+    }
+    recommendationRequestRef.current += 1;
     setSaved(false);
     setRunning(true);
     setStage(0);
     setDisplayProgress(0);
     setCardIndex(0);
-    setRecommendedStops(fallbackRouteStops);
-    setRecommendationSource("fallback");
+    setRecommendedStops([]);
+    setRecommendationSource("idle");
+    setRecommendationAttempted(false);
+    setRecommendationError("");
     gameEvents.emit("government-ai-center-mode-changed", true);
     gameEvents.emit("government-ai-center-stage-changed", 1);
   };
-  const advance = () =>
+  const advance = () => {
+    if (authenticated && stage >= 7 && routeStops.length === 0) {
+      onNotice(recommendationLoading ? "카카오 장소와 AI 코스를 생성하고 있어요." : "실제 장소 추천을 먼저 완료해 주세요.");
+      return;
+    }
     setStage((value) => Math.min(stages.length - 1, value + 1));
+  };
   const saveRoute = () => {
+    if (!routeStops.length) {
+      onNotice("저장할 실제 장소 코스가 아직 없어요.");
+      return;
+    }
     const draft = loadTravelProjectDraft();
     saveTravelProjectDraft({
       ...draft,
@@ -235,7 +234,7 @@ export function GovernmentAiRecommendationCenter({
       gameEvents.off("government-ai-center-proximity-changed", proximity);
       gameEvents.off("government-ai-center-start", begin);
     };
-  }, [active]);
+  }, [active, authenticated]);
   useEffect(()=>{
     const refresh=()=>setProfileRevision(value=>value+1);
     window.addEventListener("sejong-experience-profile-updated",refresh);
@@ -263,58 +262,63 @@ export function GovernmentAiRecommendationCenter({
     const progressTimer =
       stage === 2 ? window.setTimeout(() => setDisplayProgress(60), 720) : 0;
     if (stage >= stages.length - 1) return;
+    // STEP 6~7 애니메이션은 추천 생성과 함께 계속 진행하고,
+    // 실제 장소가 필요한 최종 완료 직전(STEP 8)에서만 기다린다.
+    if (stage === 7 && authenticated && routeStops.length === 0) return;
     const timer = window.setTimeout(advance, stages[stage].duration);
     return () => {
       window.clearTimeout(timer);
       if (progressTimer) window.clearTimeout(progressTimer);
     };
-  }, [running, stage]);
+  }, [authenticated, recommendationLoading, routeStops.length, running, stage]);
   useEffect(() => {
-    if (!running || stage !== 5 || recommendationLoading || recommendationSource === "openai") return;
-    let cancelled = false;
+    // 프로필 데이터는 시작 시점에 이미 준비되어 있다. 카카오·OpenAI 요청을
+    // 분석 애니메이션과 병렬로 실행해 STEP 6에서 네트워크를 기다리지 않는다.
+    if (!authenticated || !running || recommendationAttempted) return;
+    const requestId = ++recommendationRequestRef.current;
     const request = async () => {
+      setRecommendationAttempted(true);
       setRecommendationLoading(true);
+      setRecommendationError("");
       const activityEvidence = [...activityRecords.slice(-12).flatMap((item)=>[item.title,item.note]),...ai.experienceProfiles.flatMap((fragment) => [...fragment.tags, fragment.summary])].slice(0, 30);
-      const foodCandidates=sejongDiningCodeRestaurantPlaces.slice(0,8).map(place=>({placeId:place.id,name:place.name,category:"밥집" as const,address:place.address,tags:[...place.category,...place.tags].slice(0,10),isLocalBusiness:true,description:place.description,source:"kakao" as const,mapUrl:kakaoSearch(place.name,place.address)}));
-      const cafeCandidates=sejongDiningCodeDessertPlaces.slice(0,8).map(place=>({placeId:place.id,name:place.name,category:"카페" as const,address:place.address,tags:[...place.category,...place.tags].slice(0,10),isLocalBusiness:true,description:place.description,source:"kakao" as const,mapUrl:kakaoSearch(place.name,place.address)}));
-      const urbanCandidates=cityCandidates.map(place=>({placeId:place.id,name:place.name,category:"세종도시" as const,address:place.address,tags:place.tags,isLocalBusiness:false,description:`세종에 실제 위치한 ${place.name}입니다.`,source:"kakao" as const,mapUrl:kakaoSearch(place.name,place.address)}));
-      const candidates=[...foodCandidates,...cafeCandidates,...urbanCandidates];
       try {
-        const response = await fetch("/api/ai/place-recommendations", {
-          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            requester: {
-              userId: profile.nickname || "guest", interests: interests.map((item) => item.label).slice(0, 20),
-              currentNeeds: [ai.oneLineAnalysis, `프로필 완성도 ${ai.completion}%`, `거주지역 ${profile.residence||'미입력'}`, `세종 방문 경험 ${profile.sejongVisitExperience||'미입력'}`, `MBTI ${profile.mbti||'미입력'}`, ...profile.usagePurposes].slice(0,20),
-              campusInterests: profile.preferredPlaceCategories.slice(0, 20),
-              plantProfile: { representativePlant: ai.representativePlant?.name, discoveredPlants: [], completionRate: ai.completion },
-              festivalProfile: { visitedFestivals: activityEvidence, likedBooths: [], likedActivities: activityEvidence },
-            },
-            conversationSummary: { sharedInterests: interests.map((item) => item.label).slice(0, 10), wantedActivities: [...activityEvidence, ...profile.usagePurposes].slice(0, 20), avoidActivities: [], preferredMood: [ai.oneLineAnalysis],additionalConditions:["실제 후보 중 밥집 1곳, 카페 1곳, 세종도시 장소 1곳을 정확히 추천"] },
-            candidatePlaces: candidates.map(({mapUrl,...candidate})=>candidate),
-          }),
+        const profileAnalysis={
+          nickname:profile.nickname,
+          oneLineAnalysis:ai.oneLineAnalysis,
+          completion:ai.completion,
+          interests:interests.map((item)=>item.label).slice(0,20),
+          preferredPlaceCategories:profile.preferredPlaceCategories.slice(0,20),
+          usagePurposes:profile.usagePurposes.slice(0,20),
+          residence:profile.residence,
+          sejongVisitExperience:profile.sejongVisitExperience,
+          mbti:profile.mbti,
+          representativePlant:ai.representativePlant?.name,
+          activityEvidence,
+          experienceProfiles:ai.experienceProfiles.map((fragment)=>({title:fragment.title,summary:fragment.summary,tags:fragment.tags})).slice(0,10),
+        };
+        const form=new URLSearchParams({profileAnalysis:JSON.stringify(profileAnalysis)});
+        const response = await fetch(`${COMMUNITY_API_BASE_URL}/api_config_status?operation=governmentProfileCourseRecommendation`, {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" }, body:form,
         });
-        if (!response.ok) throw new Error("recommendation request failed");
-        const payload = await response.json() as { data?: { route?: Array<{ placeId: string; reason: string }> } };
-        const reasons = new Map((payload.data?.route ?? []).map((item) => [item.placeId, item.reason]));
-        if (!cancelled) {
-          const orderedCategories:RouteStop["category"][]=["밥집","카페","세종도시"];
-          const selected=orderedCategories.map(category=>{
-            const routed=(payload.data?.route??[]).map(item=>candidates.find(candidate=>candidate.placeId===item.placeId)).find(candidate=>candidate?.category===category);
-            const candidate=routed??candidates.find(item=>item.category===category)!;
-            return {name:candidate.name,category,address:candidate.address,mapUrl:candidate.mapUrl,reason:reasons.get(candidate.placeId)??`${ai.oneLineAnalysis} 실제 활동과 관심사를 바탕으로 추천합니다.`};
-          });
-          setRecommendedStops(selected);
+        const payload = await response.json() as { data?: { stops?: RouteStop[]; message?:string }; message?:string };
+        if (!response.ok || payload.data?.stops?.length !== 3) throw new Error(payload.data?.message??payload.message??"실제 장소 코스를 만들지 못했어요.");
+        if (requestId === recommendationRequestRef.current) {
+          setRecommendedStops(payload.data.stops);
           setRecommendationSource("openai");
-          onNotice("내 프로필과 최근 활동을 분석해 OpenAI 장소 추천을 완성했어요.");
+          onNotice("내 프로필 분석과 카카오 실제 장소로 AI 코스를 완성했어요.");
         }
-      } catch {
-        if (!cancelled) onNotice("OpenAI 연결이 지연되어 기본 장소 추천으로 이어갑니다.");
-      } finally { if (!cancelled) setRecommendationLoading(false); }
+      } catch (error) {
+        if (requestId === recommendationRequestRef.current) {
+          const message=error instanceof Error?error.message:"AI 코스를 만들지 못했어요.";
+          setRecommendationError(message);
+          onNotice(message);
+        }
+      } finally {
+        if (requestId === recommendationRequestRef.current) setRecommendationLoading(false);
+      }
     };
     void request();
-    return () => { cancelled = true; };
-  }, [activityRecords,ai, interests, onNotice, profile, recommendationLoading, recommendationSource, running, stage]);
+  }, [activityRecords, ai, authenticated, interests, onNotice, profile, recommendationAttempted, running]);
   useEffect(() => {
     if (!running || stage !== 1) return;
     setCardIndex(0);
@@ -345,7 +349,7 @@ export function GovernmentAiRecommendationCenter({
     };
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
-  }, [exitConfirmationOpen, running, stage, saved]);
+  }, [exitConfirmationOpen, recommendationLoading, routeStops.length, running, stage, saved]);
 
   const current = stages[stage],
     analysisScores = [
@@ -516,6 +520,14 @@ export function GovernmentAiRecommendationCenter({
               <article>
                 <small>AI 추천 일정</small>
                 <h2>세종 라이프 코스</h2>
+                {recommendationLoading && <p className="government-ai-real-place-status"><Sparkles/><b>카카오 실제 장소와 프로필을 분석 중...</b></p>}
+                {recommendationError && !recommendationLoading && (
+                  <div className="government-ai-real-place-error">
+                    <p>{recommendationError}</p>
+                    <button type="button" onClick={()=>{setRecommendationAttempted(false);setRecommendationError("")}}>실제 장소 다시 추천</button>
+                  </div>
+                )}
+                {recommendationSource === "openai" && <em className="government-ai-real-place-source">카카오 Local 실제 장소 · OpenAI 프로필 추천</em>}
                 {routeStops.map((stop, index) => (
                   <p key={stop.name}>
                     <i>{index + 1}</i>
@@ -560,6 +572,18 @@ export function GovernmentAiRecommendationCenter({
                   <b>{stop.name}</b>
                 </button>
               ))}
+              {routeStops.length === 0 && (
+                <div className="government-ai-route-wait" role="status">
+                  {recommendationLoading ? (
+                    <p className="government-ai-real-place-status"><Sparkles/><b>실제 장소 추천 경로를 연결하고 있어요...</b></p>
+                  ) : (
+                    <div className="government-ai-real-place-error">
+                      <p>{recommendationError || "추천 경로 생성을 다시 시작해 주세요."}</p>
+                      <button type="button" onClick={()=>{setRecommendationAttempted(false);setRecommendationError("")}}>추천 경로 다시 생성</button>
+                    </div>
+                  )}
+                </div>
+              )}
               {selectedStop !== null && (
                 <article className="route-reason">
                   <button type="button" onClick={() => setSelectedStop(null)}>
@@ -590,22 +614,12 @@ export function GovernmentAiRecommendationCenter({
                 <h2>{saved ? "일정 저장 완료" : "AI 추천 일정 준비 완료"}</h2>
                 <div className="government-ai-final-routes">
                   {routeStops.map((stop, index) => (
-                    <button type="button" key={stop.name} onClick={() => setFinalMapStop(index)}>
+                    <div key={stop.name}>
                       <i>{index + 1}</i>
                       <span><small>{stop.category}</small>{stop.name}</span>
-                      <em>지도 보기</em>
-                    </button>
+                    </div>
                   ))}
                 </div>
-                {finalMapStop !== null && (
-                  <div className="government-ai-inline-map">
-                    <header>
-                      <b>{routeStops[finalMapStop].name} 카카오지도</b>
-                      <button type="button" onClick={() => setFinalMapStop(null)}><X /></button>
-                    </header>
-                    <iframe title={`${routeStops[finalMapStop].name} 카카오지도`} src={routeStops[finalMapStop].mapUrl} />
-                  </div>
-                )}
                 <button
                   type="button"
                   className="save-route"

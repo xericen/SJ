@@ -31,8 +31,9 @@ const categories = [
 const isSejong = (place: PlaceCandidate) =>
   `${place.roadAddress} ${place.address}`.includes("세종특별자치시");
 const chungnyeongMessage = async (place: PlaceCandidate) => {
-  const fallback = `나는 오늘 가볼 세종 장소를 추천해주는 충녕이야! 오늘은 ${place.name} 한번 가보는 건 어때?`;
-  if (!env.OPENAI_API_KEY || !env.OPENAI_MODEL) return fallback;
+  const fallback = `오늘은 ${place.name} 한번 가보는 건 어때?`;
+  if (!env.OPENAI_API_KEY || !env.OPENAI_MODEL)
+    throw new Error("OpenAI recommendation is not configured");
   try {
     const response = await getOpenAIClient().chat.completions.create({
       model: env.OPENAI_MODEL,
@@ -41,7 +42,7 @@ const chungnyeongMessage = async (place: PlaceCandidate) => {
         {
           role: "system",
           content:
-            "너는 세종호수공원 NPC 충녕이다. 첫 대화에서 자신을 짧게 소개하고 '오늘 가볼 세종 장소를 추천해주는 충녕이'라고 자연스럽게 설명한 뒤 제공된 실제 장소 하나를 바로 추천한다. 장소 이름은 제공값 그대로 사용하고 후보 밖 장소를 만들지 않는다. 확인되지 않은 영업시간·가격·메뉴·별점과 사용자 성격·취향을 만들지 않는다. 관광 안내처럼 길게 말하거나 일반 챗봇 안내를 하지 않는다. 밝고 친근하게 2~3문장 안에서 항상 '오늘 여기 한번 가보는 건 어때?'를 핵심으로 말한다.",
+            "너는 세종호수공원 NPC 충녕이다. 사용자는 이미 네 소개를 확인하고 장소 추천 버튼을 눌렀다. 제공된 실제 장소 하나를 오늘 갈 장소로 바로 추천하고 자기소개나 대화 안내를 반복하지 않는다. 장소 이름은 제공값 그대로 사용하고 후보 밖 장소를 만들지 않는다. 확인되지 않은 영업시간·가격·메뉴·별점과 사용자 성격·취향을 만들지 않는다. 밝고 친근하게 1~2문장 안에서 '오늘 여기 한번 가보는 건 어때?'를 핵심으로 말한다.",
         },
         {
           role: "user",
@@ -53,9 +54,10 @@ const chungnyeongMessage = async (place: PlaceCandidate) => {
         },
       ],
     });
-    return response.choices[0]?.message.content?.trim() || fallback;
-  } catch {
-    return fallback;
+    const value=response.choices[0]?.message.content?.trim();
+    return value?.includes(place.name) ? value : fallback;
+  } catch (error) {
+    throw new Error("OpenAI recommendation failed",{cause:error});
   }
 };
 const strictSearch = async (queries: string[]) => {

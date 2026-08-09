@@ -36,7 +36,7 @@ test('축제부스 편집 UI와 모든 서버 저장 경로가 닫혀 있다',()
   const serverModel=read('../server/src/models/WorldPortalPosition.ts');
   const wizApi=read('../../src/app/page.home/api.py');
 
-  assert.match(page,/portalEditor=!\['town','personal-farm','garden','campus','arts-center','festival-experience','food-experience','club-street-festival','government-central-plaza','sejong-smart-city'\]\.includes\(currentMapId\)/);
+  assert.match(page,/portalEditor=!\['personal-farm','garden','campus','arts-center','festival-experience','food-experience','club-street-festival','government-central-plaza','sejong-smart-city'\]\.includes\(currentMapId\)/);
   assert.doesNotMatch(experiences,/포탈 위치 편집/);
   assert.match(renderer,/position\.mapId==='festival-experience'/);
   assert.match(socketHandlers,/position\.mapId==='festival-experience'/);

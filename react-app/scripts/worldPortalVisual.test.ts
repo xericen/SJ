@@ -9,7 +9,7 @@ import {UNIFIED_WORLD_PORTAL_VISUAL,withUnifiedWorldPortalVisual} from '../src/g
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const renderer=readFileSync(resolve(root,'src/game/renderers/VillageMapRenderer.ts'),'utf8');
 
-test('17개 공간의 월드 포탈은 세종 추천 코스 게시판의 흰색 바닥 원형 디자인을 사용한다',()=>{
+test('17개 공간의 월드 포탈은 공통 흰색 바닥 원형 디자인을 사용한다',()=>{
   assert.equal(WORLD_GUIDE_MAP_IDS.length,17);
   assert.deepEqual(UNIFIED_WORLD_PORTAL_VISUAL,{appearance:'white-circle',theme:'mint'});
   assert.deepEqual(

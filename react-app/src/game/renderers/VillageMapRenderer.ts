@@ -40,7 +40,7 @@ import { canAccessPersonalFarmPortal } from '../../services/personalFarmPortalAc
 import {getCachedPersonalFarmProgress} from '../../services/personalFarmApi';
 import {BEAR_FEED_PICKUPS,BEAR_FEED_SPOT_IDS,type BearFeedId,type GardenFlowerId,type PersonalFarmProgressDto} from '../../../shared/personal-farm';
 import { applyColorsToThreeScene } from '../../utils/modelColorizer';
-import {createGltfLoader} from '../../utils/createGltfLoader';
+import {createGltfLoader,loadValidatedGlb} from '../../utils/createGltfLoader';
 import { greenhousePlants,GREENHOUSE_MEMORY_TREE_OBJECT,GREENHOUSE_PLANT_TOTAL,greenhousePlantIdByObjectName } from '../../data/greenhouse-plants';
 import { CAMPUS_FRIEND_NPCS } from '../../data/campusNpc';
 import { PROJECT_ROOM_NPC } from '../../data/projectRoomNpc';
@@ -351,14 +351,14 @@ export function portalArrivalSpawn(options:WorldMapRendererOptions,sourceMapId:M
   };
 }
 const [LAKE_PARK_PRIMARY_PORTAL,...LAKE_PARK_FIXED_PORTALS]=LAKE_PARK_PORTALS;
-export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config})),lakeExperiences:[{id:'wind-hill',x:1908,z:549,label:'세종 추천 코스 게시판',description:'발견한 취향으로 코스를 살펴봐요',color:0xffffff}]};
+export const LAKE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={modelUrl:villageModelUrl,mapName:'세종호수공원',spawn:LAKE_PARK_SPAWN,guide:true,mapSign:true,overview:true,cameraZoom:LAKE_PARK_CAMERA_ZOOM,cameraDistance:LAKE_PARK_FOLLOW_CAMERA_DISTANCE,cameraElevationDeg:LAKE_PARK_CAMERA_ELEVATION_DEG,characterHeight:CHARACTER_HEIGHT,performanceMode:true,adaptivePixelRatio:false,balancedTextureQuality:true,performancePixelRatio:1.1,portal:{...LAKE_PARK_PRIMARY_PORTAL},fixedPortals:LAKE_PARK_FIXED_PORTALS.map(config=>({...config}))};
 export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:bearTreeParkModelUrl,mapName:'베어트리파크',spawn:BEAR_TREE_PARK_SPAWN,
-  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:true,chargeSeconds:3,sharedPosition:false},
+  portal:{...WORLD_GUIDE_PORTAL_POSITIONS['bear-tree-park'],destination:'town',label:'세종호수공원',theme:'blue',fixedPosition:false,chargeSeconds:3,sharedPosition:true,positionEditable:true},
   fixedPortals:[
-    {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3},
+    {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:false,chargeSeconds:3,sharedPosition:true,positionEditable:true},
   ],
-  interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:true,chargeSeconds:3},
+  interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:false,chargeSeconds:3,positionEditable:true},
   nameplateScale:1.25,groundFillColor:0xc9bc98,sceneBackgroundColor:'#c8ddcf',toneMappingExposure:1.12,
   lightingIntensityMultiplier:1.08,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
   performancePixelRatio:1.25,simplifiedCollision:false,bearPhotoZone:true,
@@ -919,7 +919,8 @@ const createModelLoader=createGltfLoader;
 const loadModel=(url:string)=>{
   let pending=modelAssetCache.get(url);
   if(!pending){
-    pending=createModelLoader().loadAsync(url).catch(error=>{
+    // Reject an incomplete cached BearTree response before GLTFLoader parses it.
+    pending=(url.includes('new-beartree-')?loadValidatedGlb(url):createModelLoader().loadAsync(url)).catch(error=>{
       modelAssetCache.delete(url);
       throw error;
     });
@@ -3038,7 +3039,7 @@ export class VillageMapRenderer{
   }
   setPortalPosition(position:PortalPosition,sharedUpdate=true){
     if(this.options.mapId&&position.mapId!==this.options.mapId)return false;
-    if(position.mapId==='campus'||position.mapId==='garden'||position.mapId==='club-street-festival'&&position.destination==='campus'||position.mapId==='recruitment-center'&&position.destination==='campus'||position.mapId==='project-room'&&position.destination==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience'||position.mapId==='bear-tree-park'&&['town','garden','bear-play-zone'].includes(position.destination))return true;
+    if(position.mapId==='campus'||position.mapId==='garden'||position.mapId==='club-street-festival'&&position.destination==='campus'||position.mapId==='recruitment-center'&&position.destination==='campus'||position.mapId==='project-room'&&position.destination==='campus'||position.mapId==='arts-center'||position.mapId==='festival-experience')return true;
     const primary=this.options.portal?.destination===position.destination?this.options.portal:undefined;
     const fixedIndex=this.options.fixedPortals?.findIndex(config=>config.destination===position.destination)??-1;
     const fixed=fixedIndex>=0?this.options.fixedPortals?.[fixedIndex]:undefined;
@@ -3099,8 +3100,9 @@ export class VillageMapRenderer{
     }
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=textureAnisotropy;
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false,depthWrite:false}));
-    const compact=this.options.mapName==='베어트리파크'||this.options.mapName==='모집센터'&&label.includes('공동 캠퍼스')||['세종호수공원','공동캠퍼스','베어트리파크','공연 부스','먹거리 부스','축제 부스','세종 추천 코스 게시판'].includes(label);
-    sprite.scale.set(compact?125:250,compact?31:62,1);sprite.renderOrder=120;sprite.frustumCulled=false;
+    const compact=this.options.mapName==='베어트리파크'||this.options.mapName==='모집센터'&&label.includes('공동 캠퍼스')||['세종호수공원','공동캠퍼스','베어트리파크','세종예술의전당','공연 부스','먹거리 부스','축제 부스','축제부스'].includes(label);
+    const requestedTitleScale=['세종호수공원','베어트리파크'].includes(this.options.mapName)?1.5:1;
+    sprite.scale.set((compact?125:250)*requestedTitleScale,(compact?31:62)*requestedTitleScale,1);sprite.renderOrder=120;sprite.frustumCulled=false;
     return sprite;
   }
   private createPortal(config:PortalConfig,groundHeight:number){

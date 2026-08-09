@@ -19,7 +19,7 @@ import {applyUnifiedWorldCamera,usesUnifiedWorldNavigation} from './worldNavigat
 import {loadSharedWorldCameraProfiles,loadWorldCameraProfileDraft,type WorldCameraProfile} from '../services/worldCameraProfiles';
 import {fixedWorldCameraProfileFor,isFixedWorldCameraMap} from './fixedWorldCameraProfiles';
 import {resetGuestCampusProfileSignals,setCampusProfileSignalMode} from '../services/campusProfileSignals';
-import {resetGuestProjectRoomProfile,setProjectRoomProfileMode} from '../services/projectRoomProjects';
+import {setProjectRoomProfileMode} from '../services/projectRoomProjects';
 import {guestUnifiedProfileSession} from '../services/guestUnifiedProfile';
 
 const MAP_LOADING_COPY:Partial<Record<MapId,{place:string;title:string;description:string;tasks:string[]}>>={
@@ -62,7 +62,7 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
     const changed=(event:Event)=>gameEvents.emit(PERSONAL_FARM_PROGRESS_CHANGED,(event as CustomEvent).detail);
     window.addEventListener(PERSONAL_FARM_PROGRESS_CHANGED,changed);
     void refreshPersonalFarmProgress().catch(()=>undefined);
-    return()=>{window.removeEventListener(PERSONAL_FARM_PROGRESS_CHANGED,changed);if(!authenticated){resetGuestExperienceProfile();resetGuestCampusProfileSignals();resetGuestProjectRoomProfile();guestUnifiedProfileSession.reset()}};
+    return()=>{window.removeEventListener(PERSONAL_FARM_PROGRESS_CHANGED,changed);if(!authenticated){resetGuestExperienceProfile();resetGuestCampusProfileSignals();guestUnifiedProfileSession.reset()}};
   },[authenticated,previewOnly,profile.nickname]);
   const loadingCopy=MAP_LOADING_COPY[loadingMapId]??{place:'세종예술의전당',title:'세종예술의전당으로 이동중...',description:'공연장 로비와 무대를 준비하고 있어요',tasks:['전당 입구 확인','예술의전당 GLB 불러오기','캐릭터 배치','공연 공간 연결','호수공원 귀환 포탈 연결']};
   useEffect(()=>{

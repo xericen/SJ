@@ -139,7 +139,8 @@ export function GovernmentAiRecommendationCenter({
     [recommendedStops, setRecommendedStops] = useState(fallbackRouteStops),
     [recommendationSource, setRecommendationSource] = useState<"openai" | "fallback">("fallback"),
     [recommendationLoading, setRecommendationLoading] = useState(false),
-    [profileRevision, setProfileRevision] = useState(0);
+    [profileRevision, setProfileRevision] = useState(0),
+    [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   const routeStops = recommendedStops;
   const ai = useMemo(() => buildAiSejongProfile(profile), [profile,profileRevision]);
   const activityRecords=useMemo(()=>loadExperienceActivityHistory(profile.nickname),[profile.nickname,profileRevision]);
@@ -172,6 +173,7 @@ export function GovernmentAiRecommendationCenter({
     setCardIndex(0);
     setSelectedStop(null);
     setFinalMapStop(null);
+    setExitConfirmationOpen(false);
     gameEvents.emit("government-ai-center-stage-changed", 0);
     gameEvents.emit("government-ai-center-mode-changed", false);
   };
@@ -214,7 +216,11 @@ export function GovernmentAiRecommendationCenter({
     onNotice("AI 추천 일정을 저장했어요.");
   };
   const startTrip = () => {
+    setExitConfirmationOpen(true);
+  };
+  const confirmStartTrip = () => {
     if (!saved) saveRoute();
+    setExitConfirmationOpen(false);
     close();
     onNotice("AI 여행 일정을 저장했어요. 홈 화면으로 이동합니다.");
     window.setTimeout(onExit, 0);
@@ -321,6 +327,12 @@ export function GovernmentAiRecommendationCenter({
   useEffect(() => {
     if (!running) return;
     const keydown = (event: KeyboardEvent) => {
+      if(exitConfirmationOpen){
+        if(event.key === "Escape")setExitConfirmationOpen(false);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (event.code === "KeyE") {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -333,7 +345,7 @@ export function GovernmentAiRecommendationCenter({
     };
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
-  }, [running, stage, saved]);
+  }, [exitConfirmationOpen, running, stage, saved]);
 
   const current = stages[stage],
     analysisScores = [
@@ -610,6 +622,18 @@ export function GovernmentAiRecommendationCenter({
                 </button>
               </article>
             </div>
+          )}
+          {exitConfirmationOpen && (
+            <section className="government-ai-exit-confirm" role="alertdialog" aria-modal="true" aria-labelledby="government-ai-exit-title">
+              <span aria-hidden="true">🏠</span>
+              <small>여행 시작 전 확인</small>
+              <h2 id="government-ai-exit-title">홈 화면으로 나가시겠어요?</h2>
+              <p>이동하면 현재 AI 분석 화면이 종료되고 홈 화면으로 이동합니다. 중앙광장에 계속 머물 수도 있어요.</p>
+              <div>
+                <button type="button" onClick={()=>setExitConfirmationOpen(false)}>중앙광장에 머무르기</button>
+                <button type="button" className="confirm" onClick={confirmStartTrip}>그래도 홈으로 이동</button>
+              </div>
+            </section>
           )}
           <footer className="government-ai-process">
             <div>

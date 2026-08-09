@@ -1051,6 +1051,7 @@ export default function App() {
     <Suspense fallback={<ExperienceLoading mapId={gameReturnState?.mapId}/>}>
       <GamePage
         key={gameReturnState?.mapId??'default-world'}
+        experienceMode={experienceMode === 'local' ? 'local' : 'social'}
         profile={
           profile.nickname.trim()
             ? profile

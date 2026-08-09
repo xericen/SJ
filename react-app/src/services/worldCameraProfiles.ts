@@ -26,6 +26,10 @@ export const WORLD_CAMERA_PROFILE_LIMITS={
 
 const WORLD_CAMERA_API='/wiz/api/page.home/portal_positions';
 const WORLD_CAMERA_DRAFTS_KEY='sejong-world-camera-profile-drafts-v1';
+const LOCAL_EXPERIENCE_MODE_KEY='jochiwon-local-experience-active';
+const LOCAL_CAMERA_PROFILES_KEY='jochiwon-local-world-camera-profiles-v1';
+const FIXED_LOCAL_CAMERA_PROFILES_KEY='jochiwon-fixed-world-camera-profiles-v1';
+const isLocalExperience=()=>typeof window!=='undefined'&&window.sessionStorage.getItem(LOCAL_EXPERIENCE_MODE_KEY)==='1';
 type CameraApiResponse={code?:number;data?:{profiles?:unknown[];profile?:unknown;canEdit?:boolean;message?:string}};
 
 export const isWorldCameraEditorMap=(mapId:MapId)=>editableMapIds.has(mapId);
@@ -38,6 +42,29 @@ export function isWorldCameraProfile(value:unknown):value is WorldCameraProfile{
     const number=profile[field],limit=WORLD_CAMERA_PROFILE_LIMITS[field];
     return typeof number==='number'&&Number.isFinite(number)&&number>=limit.min&&number<=limit.max;
   });
+}
+
+function readLocalCameraProfiles(){
+  if(!isLocalExperience())return [] as WorldCameraProfile[];
+  try{
+    const fixed=JSON.parse(window.localStorage.getItem(FIXED_LOCAL_CAMERA_PROFILES_KEY)??'[]') as unknown;
+    const session=JSON.parse(window.sessionStorage.getItem(LOCAL_CAMERA_PROFILES_KEY)??'[]') as unknown;
+    const fixedProfiles=Array.isArray(fixed)?fixed.filter(isWorldCameraProfile):[];
+    const sessionProfiles=Array.isArray(session)?session.filter(isWorldCameraProfile):[];
+    if(sessionProfiles.length){
+      const sessionMapIds=new Set(sessionProfiles.map(profile=>profile.mapId));
+      const promoted=[...fixedProfiles.filter(profile=>!sessionMapIds.has(profile.mapId)),...sessionProfiles];
+      window.localStorage.setItem(FIXED_LOCAL_CAMERA_PROFILES_KEY,JSON.stringify(promoted));
+      window.sessionStorage.removeItem(LOCAL_CAMERA_PROFILES_KEY);
+      return promoted;
+    }
+    return fixedProfiles;
+  }catch{return []}
+}
+
+function writeLocalCameraProfile(profile:WorldCameraProfile){
+  const current=readLocalCameraProfiles();
+  window.localStorage.setItem(FIXED_LOCAL_CAMERA_PROFILES_KEY,JSON.stringify([...current.filter(value=>value.mapId!==profile.mapId),profile]));
 }
 
 function readWorldCameraProfileDrafts(){
@@ -76,17 +103,30 @@ async function callCameraApi(payload?:WorldCameraProfile|{mapId:MapId;reset:true
 }
 
 export async function loadSharedWorldCameraProfiles(){
-  const body=await callCameraApi();
-  return {profiles:(body.data?.profiles??[]).filter(isWorldCameraProfile),canEdit:body.data?.canEdit===true};
+  const local=readLocalCameraProfiles();
+  let body:CameraApiResponse;
+  try{body=await callCameraApi()}catch(error){if(isLocalExperience())return {profiles:local,canEdit:true};throw error}
+  const profiles=(body.data?.profiles??[]).filter(isWorldCameraProfile);
+  const localMapIds=new Set(local.map(profile=>profile.mapId));
+  return {profiles:[...profiles.filter(profile=>!localMapIds.has(profile.mapId)),...local],canEdit:isLocalExperience()||body.data?.canEdit===true};
 }
 
 export async function saveSharedWorldCameraProfile(profile:WorldCameraProfile){
+  if(isLocalExperience()){
+    writeLocalCameraProfile(profile);
+    return {profile,message:'체험용 카메라 설정으로 저장했어요.'};
+  }
   const body=await callCameraApi(profile),saved=body.data?.profile;
   if(!isWorldCameraProfile(saved))throw new Error('저장된 카메라 설정을 확인하지 못했어요.');
   return {profile:saved,message:body.data?.message??'모든 사용자에게 적용되는 카메라 설정으로 저장했어요.'};
 }
 
 export async function resetSharedWorldCameraProfile(mapId:MapId){
+  if(isLocalExperience()){
+    const profiles=readLocalCameraProfiles().filter(profile=>profile.mapId!==mapId);
+    window.localStorage.setItem(FIXED_LOCAL_CAMERA_PROFILES_KEY,JSON.stringify(profiles));
+    return {message:'체험용 카메라 설정을 기본값으로 되돌렸어요.'};
+  }
   const body=await callCameraApi({mapId,reset:true});
   return {message:body.data?.message??'기본 카메라 설정으로 되돌렸어요.'};
 }

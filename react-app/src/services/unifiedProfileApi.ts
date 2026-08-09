@@ -20,19 +20,25 @@ const sendWizShared=async(kind:string,value:unknown)=>{
 };
 
 export const syncCampusProfileSignal=(signal:unknown)=>send('/campus-signal',signal);
-export const syncUnifiedProject=(project:unknown)=>useWizRuntime()?Promise.allSettled([sendWizProject(project),sendWizShared('project-room-project',project)]).then(results=>{if(results.every(result=>result.status==='rejected'))throw new Error('Project sync failed');}):send('/projects',project);
+export const syncUnifiedProject=(project:unknown)=>useWizRuntime()?sendWizProject(project):send('/projects',project);
 export const deleteUnifiedProject=(project:Pick<{id:string;leaderId:string},'id'|'leaderId'>)=>useWizRuntime()?Promise.allSettled([
   fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomProjects&action=delete`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({payload:JSON.stringify(project)})}).then(response=>{if(!response.ok)throw new Error('Project delete failed') }),
   fetch(`${WIZ_SHARED_PROJECTS_ENDPOINT}?action=delete&payload=${encodeURIComponent(JSON.stringify(project))}`,{credentials:'include'}).then(response=>{if(!response.ok)throw new Error('Shared project delete failed') }),
 ]).then(results=>{if(results.every(result=>result.status==='rejected'))throw new Error('Project delete failed');}):Promise.resolve();
-export const syncUnifiedProjectApplication=(application:unknown)=>useWizRuntime()?sendWizShared('project-room-application',application):send('/project-applications',application);
+export const syncUnifiedProjectApplication=(application:unknown)=>useWizRuntime()?sendWizProjectApplication(application):send('/project-applications',application);
+
+async function sendWizProjectApplication(application:unknown){
+  const response=await fetch(`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomApplications&payload=${encodeURIComponent(JSON.stringify(application))}`,{method:'POST',credentials:'include'});
+  const body=await response.json() as {code?:number;data?:{message?:string}};
+  if(!response.ok||body.code!==200)throw new Error(body.data?.message??`Project application sync failed (${response.status})`);
+}
 
 export async function fetchUnifiedProjectApplications(){
-  const response=await fetch(useWizRuntime()?WIZ_SHARED_PROJECTS_ENDPOINT:endpoint('/project-applications'),{credentials:'include'});
-  const body=await response.json() as {code?:number;data?:{items?:unknown[];applications?:unknown[]};success?:boolean};
-  const values=useWizRuntime()?body.data?.items:body.data?.applications;
+  const response=await fetch(useWizRuntime()?`${WIZ_PROJECTS_ENDPOINT}?resource=projectRoomApplications`:endpoint('/project-applications'),{credentials:'include'});
+  const body=await response.json() as {code?:number;data?:{applications?:unknown[]};success?:boolean};
+  const values=body.data?.applications;
   if(!response.ok||!Array.isArray(values)||(useWizRuntime()?body.code!==200:body.success!==true))throw new Error(`Project application load failed (${response.status})`);
-  return values.filter((item:unknown)=>Boolean(item&&typeof item==='object'&&(item as {kind?:unknown}).kind==='project-room-application'));
+  return values;
 }
 
 export async function fetchUnifiedProjects(){

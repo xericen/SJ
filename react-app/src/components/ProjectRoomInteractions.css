@@ -135,7 +135,7 @@
 .project-room-overlay.is-kiosk-mode .project-room-panel.is-board .project-room-tools>label{height:44px;padding:0 12px}
 .project-room-overlay.is-kiosk-mode .project-room-panel.is-board .project-room-tools input{font-size:13px}
 .project-room-overlay.is-kiosk-mode .project-room-panel.is-board .project-room-tools nav button{padding:7px 10px;font-size:11px}
-.project-room-overlay.is-kiosk-mode .project-room-panel.is-board .project-room-tools nav{width:100%;justify-content:flex-start;text-align:left}
+.project-room-overlay.is-kiosk-mode .project-room-panel.is-board .project-room-tools nav{width:100%;justify-content:flex-start;text-align:left;scroll-behavior:auto;scroll-snap-type:none}
 .project-room-overlay .project-room-panel.is-board .project-panel-header,
 .project-room-overlay .project-room-panel.is-board .project-room-tools,
 .project-room-overlay .project-room-panel.is-board .project-board-list,

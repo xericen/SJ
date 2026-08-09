@@ -1,5 +1,15 @@
 import { useEffect, useState, type MouseEvent } from "react";
-import { ArrowRight, LoaderCircle, MapPin, Sparkles, X } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Map,
+  MapPin,
+  MessageSquareText,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from "lucide-react";
 import type {
   DirectMessage,
   DirectRecommendationPlace,
@@ -10,6 +20,7 @@ import type {
 import { API_BASE_URL } from "../config/api";
 import { gameEvents } from "../game/events";
 import { socket } from "../game/systems/socketClient";
+import "../direct-recommendation.css";
 
 const allowedHosts = ["place.map.kakao.com", "map.kakao.com", "kko.to"];
 const mapUrl = (place: {
@@ -23,6 +34,15 @@ const mapUrl = (place: {
     ? `https://map.kakao.com/?q=${encodeURIComponent(`${place.name} ${place.address}`)}`
     : "";
 };
+const embeddedMapUrl = (place: {
+  name: string;
+  address: string;
+  longitude?: number;
+  latitude?: number;
+}) =>
+  Number.isFinite(place.latitude) && Number.isFinite(place.longitude)
+    ? `https://map.kakao.com/link/map/${encodeURIComponent(place.name)},${place.latitude},${place.longitude}`
+    : `https://map.kakao.com/?q=${encodeURIComponent(`${place.name} ${place.address}`)}`;
 export function openKakaoMap(
   event: MouseEvent<HTMLButtonElement>,
   place: { name: string; address: string; externalUrl?: string },
@@ -82,7 +102,6 @@ export function DirectRecommendationControls({
     const completed = (data: { directRoomId: string }) => {
       if (data.directRoomId !== room.id) return;
       setLoading(false);
-      setConsentOpen(false);
       setStage("");
       setError("");
     };
@@ -101,36 +120,67 @@ export function DirectRecommendationControls({
       socket.off("directRecommendationFailed", failed);
     };
   }, [room.id]);
+  useEffect(() => {
+    if (!loading) return;
+    const timeout = window.setTimeout(() => {
+      setLoading(false);
+      setStage("");
+      setError("추천 응답이 지연되고 있어요. 잠시 후 다시 시도해 주세요.");
+    }, 20000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
   const request = async () => {
+    setConsentOpen(false);
     setLoading(true);
-    setStage("최근 대화를 안전하게 분석하고 있어요");
+    setStage("충녕이가 최근 대화의 공통 관심사를 분석하고 있어요");
     setError("");
-    try {
-      if (import.meta.env.PROD) {
-        (socket as unknown as {emit:(event:string,payload:unknown)=>void}).emit("directRecommendationRequest", { directRoomId: room.id, userRequest: userRequest.trim() });
+    if (import.meta.env.PROD) {
+      if (!socket.connected) {
+        setLoading(false);
+        setStage("");
+        setError(
+          "실시간 추천 서버에 연결되지 않았어요. 잠시 후 다시 시도해 주세요.",
+        );
         return;
       }
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 12000);
+      socket.emit("directRecommendationRequest", {
+        directRoomId: room.id,
+        ...(userRequest.trim() ? { userRequest: userRequest.trim() } : {}),
+      });
+      return;
+    }
+    try {
       const response = await fetch(
-        `${API_BASE_URL}/direct-rooms/${encodeURIComponent(room.id)}/recommendations`,
+        `${API_BASE_URL}/ai/conversation-place-recommendation`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Socket-Id": socket.id ?? "",
           },
-          body: JSON.stringify(
-            userRequest.trim() ? { userRequest: userRequest.trim() } : {},
-          ),
-          signal: controller.signal,
+          body: JSON.stringify({
+            directRoomId: room.id,
+            ...(userRequest.trim() ? { userRequest: userRequest.trim() } : {}),
+          }),
         },
       );
-      window.clearTimeout(timeout);
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? "추천 요청에 실패했어요.");
       }
+      const raw = (await response.json()) as {
+        data?: { message?: DirectMessage };
+        message?: DirectMessage;
+      };
+      const body = raw.data ?? raw;
+      if (body.message)
+        window.dispatchEvent(
+          new CustomEvent("direct-recommendation-created", {
+            detail: body.message,
+          }),
+        );
+      setLoading(false);
+      setStage("");
     } catch (error) {
       setLoading(false);
       setStage("");
@@ -154,21 +204,106 @@ export function DirectRecommendationControls({
         <Sparkles size={15} /> 대화 보고 장소 추천
       </button>
       {messageCount < 2 && (
-        <small>대화를 2개 이상 나누면 추천할 수 있어요.</small>
+        <small>두 분의 대화를 조금 더 나눈 뒤 추천받아 보세요.</small>
+      )}
+      {loading && (
+        <div
+          className="direct-recommendation-progress"
+          role="status"
+          aria-live="polite"
+        >
+          <i aria-hidden="true" />
+          <span>
+            <b>{stage || "최근 대화를 분석하고 있어요"}</b>
+            <small>대화 분석 후 카카오에서 실제 세종 장소를 찾습니다.</small>
+          </span>
+          <em>분석 중</em>
+        </div>
       )}
       {error && <small className="error">{error}</small>}
       {consentOpen && (
         <div className="recommendation-overlay">
-          <section className={`recommendation-modal direct-consent-modal ${loading ? "is-loading" : ""}`} aria-live="polite">
+          <section
+            className="recommendation-modal direct-analysis-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="direct-analysis-title"
+          >
             <button
               type="button"
               className="close"
-              disabled={loading}
               onClick={() => setConsentOpen(false)}
             >
               <X />
             </button>
-            {loading ? <div className="direct-analysis-progress"><LoaderCircle/><small>AI PLACE MATCHING</small><h2>두 분에게 맞는 장소를 찾는 중이에요</h2><p>{stage}</p><ol><li className="done">최근 대화 확인</li><li className={stage.includes("실제 장소") ? "done" : "active"}>관심 활동 분석</li><li className={stage.includes("실제 장소") ? "active" : ""}>세종 실제 장소 검색</li></ol><span>잠시만 기다려 주세요. 추천 결과는 채팅에 바로 표시됩니다.</span></div> : <><div className="direct-consent-icon"><Sparkles/></div><small>대화 기반 실제 장소 추천</small><h2>최근 대화로 장소를 찾아볼까요?</h2><p>최근 메시지 최대 20개를 A/B로 익명화해 분석하고, 카카오에서 확인된 세종의 실제 장소만 추천해요.</p><label><span>원하는 조건이 있다면 알려주세요 <em>선택</em></span><textarea value={userRequest} maxLength={300} onChange={(event) => setUserRequest(event.target.value)} placeholder="예: 조용한 카페, 주차하기 편한 곳"/></label><div className="direct-consent-actions"><button type="button" onClick={() => setConsentOpen(false)}>취소</button><button type="button" className="primary" onClick={() => void request()}><Sparkles size={16}/> 분석하고 추천받기</button></div><small className="privacy-note">민감정보는 보내지 않으며, 버튼을 누를 때만 분석합니다.</small></>}
+            <header>
+              <span>
+                <Sparkles size={22} />
+              </span>
+              <small>충녕이 AI 장소 추천</small>
+              <h2 id="direct-analysis-title">
+                두 분의 대화에서
+                <br />
+                함께 가기 좋은 곳을 찾아볼까요?
+              </h2>
+              <p>
+                최근 대화의 공통 관심사와 원하는 분위기를 살펴보고 실제 세종
+                장소를 추천해요.
+              </p>
+            </header>
+            <div className="direct-analysis-flow" aria-label="추천 과정">
+              <span>
+                <MessageSquareText />
+                <b>최근 대화</b>
+                <small>최대 30개</small>
+              </span>
+              <i>→</i>
+              <span>
+                <Search />
+                <b>취향 분석</b>
+                <small>익명 처리</small>
+              </span>
+              <i>→</i>
+              <span>
+                <MapPin />
+                <b>실제 장소</b>
+                <small>카카오 검색</small>
+              </span>
+            </div>
+            <label className="direct-analysis-condition">
+              <span>
+                추가로 원하는 조건 <em>선택</em>
+              </span>
+              <textarea
+                value={userRequest}
+                maxLength={300}
+                onChange={(event) => setUserRequest(event.target.value)}
+                placeholder="예: 조용한 카페, 주차 가능한 곳, 산책하기 좋은 곳"
+              />
+              <small>{userRequest.length}/300</small>
+            </label>
+            <div className="direct-analysis-privacy">
+              <ShieldCheck size={16} />
+              <span>
+                <b>대화 내용은 추천에만 사용돼요.</b>
+                <small>
+                  이름 대신 A/B로 익명화하며 카카오에서 확인된 장소만
+                  안내합니다.
+                </small>
+              </span>
+            </div>
+            <div className="direct-analysis-actions">
+              <button type="button" onClick={() => setConsentOpen(false)}>
+                취소
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void request()}
+              >
+                <Sparkles size={16} /> 분석하고 장소 추천받기
+              </button>
+            </div>
           </section>
         </div>
       )}
@@ -185,58 +320,16 @@ export function DirectRecommendationMessage({
   room: DirectRoom;
   showToast: (message: string) => void;
 }) {
-  const recommendation = message.recommendation,
-    [selected, setSelected] = useState<DirectRecommendationPlace | null>(null),
-    [mapPlace, setMapPlace] = useState<DirectRecommendationPlace | null>(null),
-    [saving, setSaving] = useState(false);
+  const recommendation = message.recommendation;
+  const [mapPlace, setMapPlace] = useState<DirectRecommendationPlace | null>(
+    null,
+  );
   if (!recommendation) return null;
-  const save = async () => {
-    if (!selected) return;
-    setSaving(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/direct-rooms/${encodeURIComponent(room.id)}/meeting-place`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Socket-Id": socket.id ?? "",
-          },
-          body: JSON.stringify({
-            recommendationId: recommendation.recommendationId,
-            placeId: selected.id,
-          }),
-        },
-      );
-      const body = (await response.json()) as {
-        error?: string;
-        changed?: boolean;
-      };
-      if (!response.ok)
-        throw new Error(
-          body.error ?? "모임 장소를 등록하지 못했습니다. 다시 시도해 주세요.",
-        );
-      showToast(
-        body.changed
-          ? "모임 장소가 변경되었습니다."
-          : "모임 장소로 등록되었습니다.",
-      );
-      setSelected(null);
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "모임 장소를 등록하지 못했습니다. 다시 시도해 주세요.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
   return (
     <article className="direct-ai-message">
       <b>✨ 대화 보고 찾은 장소</b>
       <p>{recommendation.summary}</p>
-      {recommendation.places.map((place) => (
+      {recommendation.places.slice(0, 1).map((place) => (
         <section className="place-card recommendation-card" key={place.id}>
           <small>{place.category}</small>
           <h3>{place.name}</h3>
@@ -254,63 +347,66 @@ export function DirectRecommendationMessage({
                   ? undefined
                   : "지도 링크가 제공되지 않은 장소입니다."
               }
-              onClick={() => setMapPlace(place)}
-            >
-              중앙에서 장소 보기
-            </button>
-            <button
-              type="button"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setSelected(place);
+                setMapPlace(place);
               }}
             >
-              모임 장소로 선택
+              <Map size={14} /> 지도보기
             </button>
           </div>
         </section>
       ))}
       {mapPlace && (
-        <div className="recommendation-overlay">
-          <section className="recommendation-modal kakao-map-modal">
-            <header><div><small>카카오맵 장소 정보</small><h2>{mapPlace.name}</h2><p>{mapPlace.roadAddress || mapPlace.address}</p></div><button type="button" className="close" onClick={() => setMapPlace(null)}><X /></button></header>
-            <iframe title={`${mapPlace.name} 카카오맵`} src={mapUrl(mapPlace)} referrerPolicy="no-referrer-when-downgrade" />
-          </section>
-        </div>
-      )}
-      {selected && (
-        <div className="recommendation-overlay">
-          <section className="recommendation-modal meeting-confirm">
-            <button
-              type="button"
-              className="close"
-              onClick={() => setSelected(null)}
-            >
-              <X />
-            </button>
-            <h2>
-              {room.meetingPlace
-                ? "기존 모임 장소를 이 장소로 변경할까요?"
-                : "이 장소를 모임 장소로 등록할까요?"}
-            </h2>
-            <h3>{selected.name}</h3>
-            <p>{selected.category}</p>
-            <p>{selected.roadAddress || selected.address}</p>
-            <p>등록하면 두 채팅 참여자에게 공지됩니다.</p>
-            <div>
-              <button type="button" onClick={() => setSelected(null)}>
-                취소
-              </button>
+        <div
+          className="recommendation-overlay kakao-map-overlay"
+          onMouseDown={() => setMapPlace(null)}
+        >
+          <section
+            className="kakao-map-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${mapPlace.name} 지도`}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <span>
+                <MapPin size={18} />
+              </span>
+              <div>
+                <small>카카오 지도</small>
+                <b>{mapPlace.name}</b>
+                <p>{mapPlace.roadAddress || mapPlace.address}</p>
+              </div>
               <button
                 type="button"
-                className="primary"
-                disabled={saving}
-                onClick={() => void save()}
+                aria-label="지도 닫기"
+                onClick={() => setMapPlace(null)}
               >
-                {saving ? "등록 중..." : "모임 장소로 등록"}
+                <X />
               </button>
+            </header>
+            <div className="kakao-map-frame">
+              <iframe
+                title={`${mapPlace.name} 카카오 지도`}
+                src={embeddedMapUrl(mapPlace)}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
+            <footer>
+              <small>
+                <Check size={13} /> 추천 장소의 위치를 웹 안에서 확인하고
+                있어요.
+              </small>
+              <button
+                type="button"
+                onClick={(event) => openKakaoMap(event, mapPlace, showToast)}
+              >
+                카카오맵에서 크게 보기 <ArrowRight size={14} />
+              </button>
+            </footer>
           </section>
         </div>
       )}

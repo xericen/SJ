@@ -1,5 +1,9 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-09 | 040 | 1:1 장소 추천 운영 소켓 복구 및 분석 진행 상태 표시 | [상세](devlog/2026-08-09/040-fix-direct-recommendation-progress.md) |
+| 2026-08-09 | 039 | 모집센터 글 분리·입력 공백 및 프로젝트 아이디어 실시간 동기화 | [상세](devlog/2026-08-09/039-recruitment-kiosk-project-idea-realtime.md) |
+| 2026-08-09 | 038 | 1:1 대화 분석 추천 UI 재설계 및 웹 내부 카카오 지도 연결 | [상세](devlog/2026-08-09/038-direct-recommendation-inapp-kakao-map.md) |
+| 2026-08-09 | 030 | 비가입자 동아리 활동·사진 차단 번들 운영 반영 | [상세](devlog/2026-08-09/030-publish-club-member-content-gate.md) |
 | 2026-08-09 | 028 | 체험용에서 확정한 세종호수공원 포탈 5개 좌표 공용 고정 및 편집 UI 제거 | [상세](devlog/2026-08-09/028-fix-public-lake-portal-layout.md) |
 | 2026-08-09 | 027 | 체험용 포탈 편집 복구 및 대화·충녕이 실제 세종 장소 추천 연결 | [상세](devlog/2026-08-09/027-real-sejong-place-chat-and-portal-edit.md) |
 | 2026-08-09 | 020 | 캐릭터 설정 2단계 옵션 축소 및 저장 버튼 겹침 방지 | [상세](devlog/2026-08-09/020-fix-character-step-save-overlap.md) |
@@ -328,3 +332,14 @@
 | 2026-08-09 | 089 | SejongPark 정식 원본 복구 및 회귀 감사 | [상세](devlog/2026-08-09/089-restore-sejongpark-source-audit.md) |
 | 2026-08-09 | 090 | GitHub 최신 main 복구 병합 및 포탈 운영 재배포 | [상세](devlog/2026-08-09/090-pull-latest-main-portal-recovery.md) |
 | 2026-08-09 | 091 | 현재 복구·기능 보강 상태 GitHub 반영 | [상세](devlog/2026-08-09/091-push-current-recovered-state.md) |
+| 2026-08-09 | 031 | 동아리 공용 부스·카카오 장소 검색 운영 API 재연결 및 합의 기능 재검증 | [상세](devlog/2026-08-09/031-verify-shared-booth-project-consensus.md) |
+| 2026-08-09 | 032 | 프로젝트 장소 검색 전용 카카오 Local API 복구 | [상세](devlog/2026-08-09/032-fix-project-sejong-place-search.md) |
+| 2026-08-09 | 033 | MySQL 기반 동아리·모집·프로젝트·채팅 멀티사용자 동기화 및 권한 보강 | [상세](devlog/2026-08-09/033-mysql-multiuser-collaboration.md) |
+| 2026-08-09 | 034 | SejongPark 정식 원본 복구 및 운영 기능 회귀 감사 | [상세](devlog/2026-08-09/034-restore-sejongpark-source-audit.md) |
+| 2026-08-09 | 035 | GitHub 최신 main 복구 병합 및 포탈 운영 재배포 | [상세](devlog/2026-08-09/035-pull-latest-main-portal-recovery.md) |
+| 2026-08-09 | 036 | 현재 복구·기능 보강 상태 GitHub 반영 | [상세](devlog/2026-08-09/036-push-current-recovered-state.md) |
+| 2026-08-09 | 037 | ReviewOps 채팅 공백·런타임 세션·카카오 장소·지도 UI·정부청사 AI 안전성 보강 | [상세](devlog/2026-08-09/037-reviewops-runtime-chat-place-government.md) |
+| 2026-08-09 | 041 | 새 모집글의 모집센터 키오스크 즉시 반영 복구 | [상세](devlog/2026-08-09/041-fix-recruitment-kiosk-immediate-refresh.md) |
+| 2026-08-09 | 042 | 프로젝트 아이디어 실시간 동기화와 완료·정부청사 이동 분리 | [상세](devlog/2026-08-09/042-project-realtime-completion-handoff.md) |
+| 2026-08-09 | 043 | 프로젝트 역할 권한 및 아이디어 실시간 동기화 재수정 | [상세](devlog/2026-08-09/043-fix-project-live-revision-role-permission.md) |
+| 2026-08-09 | 044 | 호수공원 충녕이 실제 세종 장소 첫 추천 및 내부 카카오지도 연결 | [상세](devlog/2026-08-09/044-lake-chungnyeong-kakao-place-map.md) |

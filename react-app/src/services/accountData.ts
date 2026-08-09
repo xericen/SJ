@@ -27,3 +27,12 @@ export function clearAllAccountData(storage:Pick<Storage,'length'|'key'|'removeI
   keys.forEach(key=>storage.removeItem(key));
   return keys;
 }
+
+/** Clears every account-scoped browser cache used by a game runtime. */
+export function clearRuntimeAccountData(){
+  const removed:string[]=[];
+  for(const storage of [window.localStorage,window.sessionStorage]){
+    try{removed.push(...clearAllAccountData(storage))}catch{/* restricted iframe */}
+  }
+  return removed;
+}

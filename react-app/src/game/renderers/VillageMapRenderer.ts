@@ -3532,7 +3532,7 @@ export class VillageMapRenderer{
       return;
     }
     if(this.foodTruckKioskId&&event.key==='Escape'){event.preventDefault();this.exitFoodTruckKiosk();return}
-    if(event.repeat||this.inputLocked||this.renderer.domElement.style.display==='none'||this.overviewActive||this.bearPhotoMode||(focused&&['INPUT','TEXTAREA','SELECT'].includes(focused.tagName)))return;
+    if(event.repeat||event.isComposing||this.inputLocked||this.renderer.domElement.style.display==='none'||this.overviewActive||this.bearPhotoMode||(focused&&(['INPUT','TEXTAREA','SELECT'].includes(focused.tagName)||focused.isContentEditable)))return;
     if((event.code==='KeyT'||event.key.toLowerCase()==='t')&&this.pendingHabitatResource){
       event.preventDefault();
       this.onHabitatResourcePositionPlace(this.pendingHabitatResource);

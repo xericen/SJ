@@ -57,5 +57,6 @@ apiRouter.post('/bear-wildlife/ask',recommendationRateLimit,async(req,res)=>{
 apiRouter.post('/government/course',recommendationRateLimit,async(req,res)=>{
   const parsed=governmentCourseRequestSchema.safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:'공동 코스 조건을 다시 확인해 주세요.'});
-  return res.json({course:await generateGovernmentCourse(parsed.data)});
+  try{return res.json({course:await generateGovernmentCourse(parsed.data)})}
+  catch(error){return res.status(503).json({error:error instanceof Error?error.message:'AI 맞춤 코스 추천에 실패했습니다.'})}
 });

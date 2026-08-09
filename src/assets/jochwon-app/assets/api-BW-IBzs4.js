@@ -1,1 +1,0 @@
-var i=e=>{const a=(e?.trim()||"/api").replace(/\/$/,"");if(a==="/api"||/\/api$/i.test(a))return a;try{const r=new URL(a,window.location.origin);if(r.pathname===""||r.pathname==="/")return`${a}/api`}catch{}return a},p=i(void 0),t="/wiz/api/page.home",n="/wiz/app/main/page.home".replace(/\/$/,"");export{t as n,n as r,p as t};

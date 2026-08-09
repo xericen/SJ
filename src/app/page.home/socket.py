@@ -338,7 +338,48 @@ class Controller:
                 if item.get("mapId") == "project-room"
                 and item.get("projectRoomId") == project_room_id
             ]
+        io.join("project-collaboration:" + project_room_id)
         io.emit("currentMapUsers", users, to=sid)
+
+    def updateProjectIdea(self, data, flask, io):
+        if not isinstance(data, dict) or not isinstance(data.get("idea"), dict):
+            return
+        sid = self._sid(flask)
+        project_id = _text(data.get("projectId"), 80)
+        action = data.get("action")
+        idea = data["idea"]
+        category = idea.get("category")
+        with self.state.lock:
+            player = self.state.players.get(sid)
+        if (
+            not player
+            or player.get("mapId") != "project-room"
+            or player.get("projectRoomId") != project_id
+            or action not in {"add", "vote"}
+            or category not in {"place", "theme", "food", "festival"}
+        ):
+            return
+        idea_id = _text(idea.get("id"), 100)
+        name = _text(idea.get("name"), 60)
+        if not idea_id or not name:
+            return
+        payload = {
+            "projectId": project_id,
+            "authorId": sid,
+            "action": action,
+            "idea": {
+                "id": idea_id,
+                "name": name,
+                "category": category,
+                "emoji": _text(idea.get("emoji"), 4),
+                "votes": max(0, min(999, int(_number(idea.get("votes"), 0)))),
+            },
+        }
+        io.emit(
+            "projectIdeaUpdated",
+            payload,
+            to="project-collaboration:" + project_id,
+        )
 
     def encounterFocus(self, data, flask, io):
         if not isinstance(data, dict):

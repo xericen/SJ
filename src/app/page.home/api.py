@@ -361,8 +361,11 @@ def _secret_configured(config, name):
 
 
 def api_config_status():
-    if wiz.request.query("action", "").strip() == "placeSearch":
+    action = wiz.request.query("action", "").strip()
+    if action == "placeSearch":
         return place_search()
+    if action == "chungnyeongPlaceRecommendation":
+        return chungnyeong_place_recommendation()
     config = _secret_config()
     return wiz.response.status(
         200,
@@ -1976,13 +1979,38 @@ def _project_room_projects(user_id):
             return wiz.response.status(403, message="프로젝트 참가자만 협업 상태를 볼 수 있습니다.")
         state = project.setdefault("collaboration", {"roles": {}, "consensus": None, "finalCourse": None})
         state.setdefault("roles", {})
+        state.setdefault("revision", 0)
         if action == "collaboration":
             return wiz.response.status(200, collaboration=state, projectStatus=project.get("status"))
         if action == "saveDraft":
             draft = request_value.get("draft")
             if not isinstance(draft, dict) or len(json.dumps(draft, ensure_ascii=False).encode("utf-8")) > 250000:
                 return wiz.response.status(400, message="프로젝트 협업 내용이 올바르지 않습니다.")
-            state["draft"] = draft
+            previous_draft = state.get("draft") if isinstance(state.get("draft"), dict) else {}
+            if not is_leader:
+                draft = dict(draft)
+                if "roles" in previous_draft:
+                    draft["roles"] = previous_draft["roles"]
+                else:
+                    leader_name = str(project.get("leaderId") or project.get("leaderNickname") or "")
+                    draft["roles"] = [
+                        {"name": name, "role": "프로젝트 리더" if name == leader_name else "역할 미정"}
+                        for name in member_names
+                    ]
+            previous_ideas = previous_draft.get("ideas") if isinstance(previous_draft.get("ideas"), list) else []
+            incoming_ideas = draft.get("ideas") if isinstance(draft.get("ideas"), list) else []
+            merged_ideas = []
+            for idea in previous_ideas + incoming_ideas:
+                if not isinstance(idea, dict) or not str(idea.get("id") or "").strip():
+                    continue
+                existing = next((item for item in merged_ideas if item.get("id") == idea.get("id")), None)
+                if existing is None:
+                    merged_ideas.append(dict(idea))
+                else:
+                    existing.update(idea)
+                    existing["votes"] = max(int(_number(existing.get("votes"), 0)), int(_number(idea.get("votes"), 0)))
+            state["draft"] = {**previous_draft, **draft, "ideas": merged_ideas}
+            state["revision"] = int(_number(state.get("revision"), 0)) + 1
         if action in ("updateRole", "requestConsensus", "confirmConsensus") and not is_leader:
             return wiz.response.status(403, message="프로젝트 팀장만 수행할 수 있습니다.")
         if action == "updateRole":
@@ -2618,6 +2646,85 @@ def place_search():
             continue
         places.append({"id": str(item.get("id") or ""), "name": str(item.get("place_name") or ""), "category": str(item.get("category_name") or ""), "address": address, "roadAddress": road_address, "externalUrl": str(item.get("place_url") or ""), "longitude": longitude, "latitude": latitude, "source": "kakao"})
     return wiz.response.status(200, places=places)
+
+
+CHUNGNYEONG_LAKE_PLACE_PROMPT = """너는 세종호수공원 NPC 충녕이다.
+1. 첫 대화에서는 자신을 짧게 소개한다.
+2. 자신을 '오늘 가볼 세종 장소를 추천해주는 충녕이'라고 자연스럽게 설명한다.
+3. 이어서 제공된 장소 하나를 바로 추천한다.
+4. 장소 이름은 제공된 실제 장소명을 그대로 사용한다.
+5. 후보에 없는 장소를 새로 만들어내지 않는다.
+6. 확인되지 않은 영업시간, 가격, 메뉴, 별점 등의 정보를 만들지 않는다.
+7. 사용자의 성격이나 취향을 임의로 분석하지 않는다.
+8. 너무 관광 안내원처럼 길게 설명하지 않는다.
+9. 밝고 친근한 말투로 2~3문장 이내로 말한다.
+10. '궁금한 것이 있으면 물어봐', '자유롭게 둘러봐' 같은 일반 챗봇 안내는 하지 않는다.
+11. 핵심은 항상 '오늘 여기 한번 가보는 건 어때?'라는 추천이다."""
+
+
+def chungnyeong_place_recommendation():
+    """카카오 Local 후보 하나만 사용해 호수공원 충녕이 첫 추천을 만든다."""
+    config = _secret_config()
+    kakao_key = (getattr(config, "KAKAO_REST_API_KEY", "") if config is not None else "").strip()
+    if not kakao_key:
+        return wiz.response.status(503, message="카카오 Local API 설정을 확인해 주세요.")
+    categories = ("공원", "산책", "관광명소", "문화시설", "전시", "체험", "카페", "맛집", "디저트")
+    category = categories[secrets.randbelow(len(categories))]
+    params = urllib.parse.urlencode({"query": "세종 " + category, "x": "127.289", "y": "36.5", "radius": "20000", "size": "15"})
+    try:
+        result = _kakao_request_json(
+            "https://dapi.kakao.com/v2/local/search/keyword.json?" + params,
+            headers={"Authorization": "KakaoAK " + kakao_key},
+        )
+    except Exception:
+        return wiz.response.status(502, message="카카오에서 실제 세종 장소를 찾지 못했어요.")
+    candidates = []
+    for item in result.get("documents", []):
+        address = str(item.get("address_name") or "")
+        road_address = str(item.get("road_address_name") or "")
+        if "세종특별자치시" not in address and "세종특별자치시" not in road_address:
+            continue
+        try:
+            longitude, latitude = float(item.get("x")), float(item.get("y"))
+        except (TypeError, ValueError):
+            continue
+        name = str(item.get("place_name") or "").strip()
+        if name:
+            candidates.append({
+                "placeName": name, "address": road_address or address,
+                "category": str(item.get("category_name") or category),
+                "placeUrl": str(item.get("place_url") or ""),
+                "longitude": longitude, "latitude": latitude,
+            })
+    if not candidates:
+        return wiz.response.status(404, message="확인된 실제 세종 장소가 없어요.")
+    place = candidates[secrets.randbelow(len(candidates))]
+    fallback = f"나는 오늘 가볼 세종 장소를 추천해주는 충녕이야! 오늘은 {place['placeName']} 한번 가보는 건 어때?"
+    message = fallback
+    openai_key = (getattr(config, "OPENAI_API_KEY", "") if config is not None else "").strip()
+    openai_model = (getattr(config, "OPENAI_MODEL", "") if config is not None else "").strip()
+    if openai_key and openai_model:
+        request_body = json.dumps({
+            "model": openai_model,
+            "max_completion_tokens": 120,
+            "messages": [
+                {"role": "system", "content": CHUNGNYEONG_LAKE_PLACE_PROMPT},
+                {"role": "user", "content": json.dumps({"placeName": place["placeName"], "category": place["category"], "address": place["address"]}, ensure_ascii=False)},
+            ],
+        }, ensure_ascii=False).encode("utf-8")
+        try:
+            generated = _kakao_request_json(
+                "https://api.openai.com/v1/chat/completions",
+                data=request_body,
+                headers={"Authorization": "Bearer " + openai_key, "Content-Type": "application/json"},
+            )
+            value = str(generated.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+            if place["placeName"] in value and len(value) <= 240:
+                message = value
+        except Exception:
+            pass
+    place["message"] = message
+    return wiz.response.status(200, place=place)
 
 
 def greenhouse_public_memories():

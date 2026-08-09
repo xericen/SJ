@@ -295,6 +295,8 @@ export function GamePage({
       address: string;
       category: string;
       placeUrl: string;
+      longitude: number;
+      latitude: number;
       message: string;
     } | null>(null),
     [guidePlaceLoading, setGuidePlaceLoading] = useState(false);
@@ -1218,14 +1220,9 @@ export function GamePage({
     startGuideChat = () => {
       setGuideConversation(true);
       setGuideText("");
-      setGuideMessages([
-        {
-          id: "chungnyeong-hello",
-          sender: "npc",
-          message:
-            "안녕! 나는 세종 여행을 함께할 충녕이야. 이곳은 세종호수공원이야. 자유롭게 둘러보다가 궁금한 게 있으면 언제든 물어봐!",
-        },
-      ]);
+      setGuidePlace(null);
+      setGuideMessages([]);
+      window.setTimeout(() => void recommendGuidePlace(), 0);
     },
     closeGuideChat = () => setGuideConversation(false),
     npcReply = (npc: NearbyNpc, message: string) =>
@@ -1236,14 +1233,6 @@ export function GamePage({
           : /어디|장소|길/.test(message)
             ? `${location}에서 둘러볼 만한 공간을 함께 찾아볼까요?`
             : "좋은 이야기네요. 조금 더 들려주세요!",
-    guideReply = (message: string) =>
-      /이동|조작|걷|뛰/.test(message)
-        ? "방향키로 이동하고 Shift를 누르면 달릴 수 있어. Space로 점프할 수도 있어!"
-        : /어디|장소|길|뭐/.test(message)
-          ? "축제와 공연, 먹거리 중 마음에 끌리는 곳부터 가 봐. 가까운 체험존과 포탈이 다음 여정을 알려줄 거야."
-          : /안녕|반가/.test(message)
-            ? "반가워! 세종에서 네 취향에 맞는 장소를 함께 찾아보자."
-            : "좋은 질문이야! 우선 공원을 자유롭게 둘러보고, 빛나는 체험존이나 포탈을 발견하면 가까이 가 봐.",
     sendNpc = () => {
       const message = npcText.trim();
       if (!message || !activeNpc) return;
@@ -1264,13 +1253,9 @@ export function GamePage({
       setGuideMessages((old) => [
         ...old,
         { id: crypto.randomUUID(), sender: "me", message },
-        {
-          id: crypto.randomUUID(),
-          sender: "npc",
-          message: guideReply(message),
-        },
       ]);
       setGuideText("");
+      window.setTimeout(() => void recommendGuidePlace(), 0);
     },
     playEncounterEmote = (emote: CharacterEmote) =>
       gameEvents.emit("character-emote-play", emote),
@@ -1410,7 +1395,10 @@ export function GamePage({
       const target = event.target as HTMLElement | null;
       if (
         event.repeat ||
-        target?.matches('input,textarea,select,[contenteditable=\"true\"]')
+        event.isComposing ||
+        target?.matches(
+          'input,textarea,select,[contenteditable], [contenteditable=\"true\"]',
+        )
       )
         return;
       if (guideConversation && event.code === "KeyE") {
@@ -1459,9 +1447,9 @@ export function GamePage({
     if (guidePlaceLoading) return;
     setGuidePlaceLoading(true);
     try {
-      const response = await fetch(
+      let response = await fetch(
           import.meta.env.PROD
-            ? `${COMMUNITY_API_BASE_URL}/chungnyeong_place_recommendation`
+            ? `${COMMUNITY_API_BASE_URL}/api_config_status?action=chungnyeongPlaceRecommendation`
             : `${API_BASE_URL}/ai/chungnyeong-place-recommendation`,
           { headers: { "X-Socket-Id": socket.id ?? "" } },
         ),
@@ -1469,13 +1457,49 @@ export function GamePage({
           data?: { place?: typeof guidePlace; error?: string };
           place?: typeof guidePlace;
           error?: string;
-        },
-        body =
+        };
+      let body =
           raw.data ??
           (raw as {
             place?: typeof guidePlace;
             error?: string;
           });
+      if (import.meta.env.PROD && !body.place) {
+        response = await fetch(
+          `${COMMUNITY_API_BASE_URL}/place_search?query=${encodeURIComponent("오늘 갈만한 관광명소")}`,
+          { credentials: "include" },
+        );
+        const search = (await response.json()) as {
+          data?: {
+            places?: Array<{
+              name: string;
+              address: string;
+              roadAddress: string;
+              category: string;
+              externalUrl: string;
+              longitude: number;
+              latitude: number;
+            }>;
+            message?: string;
+          };
+        };
+        const places = search.data?.places ?? [],
+          selected = places[Math.floor(Math.random() * places.length)];
+        body = {
+          error: search.data?.message,
+          place: selected
+            ? {
+                placeName: selected.name,
+                address: selected.roadAddress || selected.address,
+                category: selected.category,
+                placeUrl: selected.externalUrl,
+                longitude: selected.longitude,
+                latitude: selected.latitude,
+                message: `나는 오늘 가볼 세종 장소를 추천해주는 충녕이야! 오늘은 ${selected.name} 한번 가보는 건 어때?`,
+              }
+            : undefined,
+        };
+      }
       if (!response.ok || !body.place)
         throw new Error(body.error ?? "장소를 찾지 못했어요.");
       setGuidePlace(body.place);
@@ -2159,8 +2183,14 @@ export function GamePage({
                 <small>{guidePlace.category}</small>
                 <b>{guidePlace.placeName}</b>
                 <span>{guidePlace.address}</span>
+                <iframe
+                  title={`${guidePlace.placeName} 카카오 지도`}
+                  src={`https://map.kakao.com/link/map/${encodeURIComponent(guidePlace.placeName)},${guidePlace.latitude},${guidePlace.longitude}`}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
                 <a href={guidePlace.placeUrl} target="_blank" rel="noreferrer">
-                  장소 정보 보기
+                  카카오맵에서 크게 보기
                 </a>
               </article>
             )}

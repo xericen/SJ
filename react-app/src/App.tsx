@@ -19,7 +19,8 @@ import { TermsPage } from './pages/TermsPage';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSessionStorage } from './hooks/useSessionStorage';
 import { API_BASE_URL } from './config/api';
-import { clearAllAccountData } from './services/accountData';
+import { clearAllAccountData, clearRuntimeAccountData } from './services/accountData';
+import { socket } from './game/systems/socketClient';
 import { startBehaviorStateSync } from './services/behaviorStateSync';
 
 import {
@@ -679,6 +680,8 @@ export default function App() {
     const localStorage = browserStorage();
     const sessionStorage = browserSessionStorage();
     if (localStorage) clearAllAccountData(localStorage);
+    clearRuntimeAccountData();
+    socket.disconnect();
     sessionStorage?.removeItem(PROFILE_KEY);
     sessionStorage?.removeItem(USER_JOURNEY_KEY);
     sessionStorage?.removeItem(LOCAL_EXPERIENCE_MODE_KEY);
@@ -962,6 +965,8 @@ export default function App() {
           }
 
           setGameReturnState(undefined);
+          clearRuntimeAccountData();
+          socket.disconnect();
           setLoginIdentity('');
           setExperienceMode(null);
           hydratedProfileUserIdRef.current = undefined;

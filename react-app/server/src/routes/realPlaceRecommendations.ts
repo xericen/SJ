@@ -31,7 +31,7 @@ const categories = [
 const isSejong = (place: PlaceCandidate) =>
   `${place.roadAddress} ${place.address}`.includes("세종특별자치시");
 const chungnyeongMessage = async (place: PlaceCandidate) => {
-  const fallback = `오늘은 ${place.name} 한번 가보는 거 어때요?`;
+  const fallback = `나는 오늘 가볼 세종 장소를 추천해주는 충녕이야! 오늘은 ${place.name} 한번 가보는 건 어때?`;
   if (!env.OPENAI_API_KEY || !env.OPENAI_MODEL) return fallback;
   try {
     const response = await getOpenAIClient().chat.completions.create({
@@ -41,7 +41,7 @@ const chungnyeongMessage = async (place: PlaceCandidate) => {
         {
           role: "system",
           content:
-            "너는 친근한 세종 안내 NPC 충녕이다. 제공된 실제 장소 이름을 그대로 유지하고, 확인되지 않은 가격·영업시간·평점·메뉴를 말하지 말며 한두 문장으로만 추천한다.",
+            "너는 세종호수공원 NPC 충녕이다. 첫 대화에서 자신을 짧게 소개하고 '오늘 가볼 세종 장소를 추천해주는 충녕이'라고 자연스럽게 설명한 뒤 제공된 실제 장소 하나를 바로 추천한다. 장소 이름은 제공값 그대로 사용하고 후보 밖 장소를 만들지 않는다. 확인되지 않은 영업시간·가격·메뉴·별점과 사용자 성격·취향을 만들지 않는다. 관광 안내처럼 길게 말하거나 일반 챗봇 안내를 하지 않는다. 밝고 친근하게 2~3문장 안에서 항상 '오늘 여기 한번 가보는 건 어때?'를 핵심으로 말한다.",
         },
         {
           role: "user",
@@ -251,6 +251,8 @@ realPlaceRecommendationsRouter.get(
           address: place.roadAddress || place.address,
           category: place.category,
           placeUrl: place.externalUrl,
+          longitude: place.longitude,
+          latitude: place.latitude,
           message: await chungnyeongMessage(place),
         },
       });

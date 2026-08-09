@@ -234,7 +234,11 @@ export const GameCanvas=memo(function GameCanvas({profile,returnState,previewOnl
       gameEvents.on('greenhouse-progress-changed',experienceChanged);
     }
     gameEvents.on('map-travel-complete',mapExperienceChanged);
-    const game=new Phaser.Game({type:Phaser.CANVAS,parent:ref.current,width:1100,height:700,transparent:true,backgroundColor:'rgba(0,0,0,0)',render:{antialias:false,roundPixels:true},dom:{createContainer:true},physics:{default:'arcade'},scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH}});
+    // Phaser may call preventDefault for captured keys before React inputs see
+    // them. We still poll SPACE/WASD in WorldScene, but never globally capture
+    // browser keyboard events, so inputs, textareas and IME composition retain
+    // their exact internal whitespace.
+    const game=new Phaser.Game({type:Phaser.CANVAS,parent:ref.current,width:1100,height:700,transparent:true,backgroundColor:'rgba(0,0,0,0)',input:{keyboard:{capture:[]}},render:{antialias:false,roundPixels:true},dom:{createContainer:true},physics:{default:'arcade'},scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH}});
     game.canvas.classList.add('phaser-world-canvas');
     if(game.domContainer)game.domContainer.style.zIndex='3';
     game.scene.add('world',WorldScene,true,{profile,mapId:initialMapId,worldRenderers,ensureWorldRenderer,initialSpawn:entrySpawn,previewOnly});

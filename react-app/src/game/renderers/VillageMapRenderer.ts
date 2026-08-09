@@ -358,8 +358,8 @@ export const BEAR_TREE_PARK_RENDERER_OPTIONS:WorldMapRendererOptions={
     {x:767,z:751,destination:'garden',label:'세종수목원',appearance:'white-circle',fixedPosition:true,chargeSeconds:3},
   ],
   interaction:{x:1482,z:661,destination:'bear-play-zone',label:'곰 체험소',buttonLabel:'곰 체험소 둘러보기',fixedPosition:true,chargeSeconds:3},
-  nameplateScale:1.25,groundFillColor:0xb8a77e,sceneBackgroundColor:'#a9c4ad',toneMappingExposure:.84,
-  lightingIntensityMultiplier:.76,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
+  nameplateScale:1.25,groundFillColor:0xc9bc98,sceneBackgroundColor:'#c8ddcf',toneMappingExposure:1.12,
+  lightingIntensityMultiplier:1.08,performanceMode:true,adaptivePixelRatio:false,antialias:true,balancedTextureQuality:true,maxTextureSize:2048,
   performancePixelRatio:1.25,simplifiedCollision:false,bearPhotoZone:true,
 };
 export const BEAR_PLAY_ZONE_RENDERER_OPTIONS:WorldMapRendererOptions={
@@ -622,14 +622,15 @@ export const GOVERNMENT_RENDERER_OPTIONS:WorldMapRendererOptions={
   cameraZoom:1.05,
   characterHeight:CHARACTER_HEIGHT,
   performanceMode:true,
-  performanceFrameRate:60,
+  antialias:false,
+  performanceFrameRate:30,
   minPixelRatio:.65,
-  performancePixelRatio:.9,
+  performancePixelRatio:.7,
   balancedTextureQuality:true,
-  simplifiedCollision:false,
-  fastGroundSampling:false,
+  simplifiedCollision:true,
+  fastGroundSampling:true,
   stableCharacterGrounding:true,
-  lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.7,performanceFrameRate:30,balancedTextureQuality:false},
+  lowQualityFallback:{maxTextureSize:512,performancePixelRatio:.55,performanceFrameRate:24,balancedTextureQuality:false},
 };
 export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   modelUrl:governmentCentralPlazaModelUrl,
@@ -658,18 +659,22 @@ export const GOVERNMENT_CENTRAL_PLAZA_RENDERER_OPTIONS:WorldMapRendererOptions={
   characterHeight:150,
   groundFillColor:0xd9d9d5,
   // The plaza has several large glass surfaces and three embedded web panels.
-  // Preserve the authored plaza materials at full display resolution.
+  // Keep the authored materials, but leave enough GPU headroom for the
+  // hologram and three embedded web panels that are rendered over this map.
+  // This map is substantially heavier than the other government scenes.
   groundingShadows:false,
   performanceMode:true,
-  adaptivePixelRatio:false,
-  antialias:true,
+  adaptivePixelRatio:true,
+  antialias:false,
   balancedTextureQuality:true,
   prioritizeGroundTextures:true,
   maxTextureSize:2048,
-  minPixelRatio:1,
-  performancePixelRatio:1.2,
-  maxPixelRatio:1.2,
-  performanceFrameRate:45,
+  minPixelRatio:.75,
+  performancePixelRatio:.85,
+  maxPixelRatio:.95,
+  performanceFrameRate:30,
+  geometrySimplificationRatio:.18,
+  groundGeometrySimplificationRatio:.12,
   toneMappingExposure:1.18,
   lightingIntensityMultiplier:1.12,
   sceneBackgroundColor:'#b9d7d8',
@@ -4231,7 +4236,6 @@ export class VillageMapRenderer{
     if(authoredLeft)authoredLeft.rotation.z+=sideTilt;
     if(authoredRight)authoredRight.rotation.z-=sideTilt;
     model.updateMatrixWorld(true);
-    const centerSurface=model.getObjectByName('WebUI_Surface_Center');
     const aiPlatform=model.getObjectByName('AI_Platform_Base');
     if(aiPlatform){
       const bounds=new THREE.Box3().setFromObject(aiPlatform),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
@@ -4253,9 +4257,6 @@ export class VillageMapRenderer{
       };
       this.setupGovernmentAiHologram(center,bounds.max.y,size);
     }
-    const entranceFrontNormal=centerSurface
-      ?new THREE.Vector3(0,-1,0).transformDirection(centerSurface.matrixWorld).normalize()
-      :new THREE.Vector3(0,0,-1);
     GOVERNMENT_CENTRAL_PLAZA_WEB_UI.forEach((config,index)=>{
       const target=model.getObjectByName(config.objectName);
       if(!(target instanceof THREE.Mesh))return;
@@ -4282,16 +4283,13 @@ export class VillageMapRenderer{
       const approach=center.clone().addScaledVector(normal,260);
       this.governmentWebUiScreens.set(config.id,panel);
       this.governmentWebUiPositions.set(config.id,{x:approach.x,z:this.sceneToWorldZ(approach.z),radius:index===1?470:420});
-      const isCenter=config.id==='course-recommendation';
-      // Side displays still read as angled, but the view is biased strongly
-      // toward each display normal so neither outer edge is cropped.
-      const cameraDirection=isCenter
-        ?normal
-        :normal.clone().multiplyScalar(.78).addScaledVector(entranceFrontNormal,.22).normalize();
+      // Use each panel's own normal and the same distance/FOV, so 01 and 03
+      // enlarge as straight and as large as the center display.
+      const cameraDirection=normal;
       this.governmentWebUiViews.set(config.id,{
         target:center,
-        camera:center.clone().addScaledVector(cameraDirection,isCenter?1120:1380),
-        fov:isCenter?36:40,
+        camera:center.clone().addScaledVector(cameraDirection,1120),
+        fov:36,
       });
       const outline=new THREE.Box3Helper(new THREE.Box3().setFromObject(target),index===1?0x65e8ff:0x64dbc8);
       outline.visible=false;outline.renderOrder=90;const material=outline.material as THREE.LineBasicMaterial;material.transparent=true;material.opacity=.9;material.depthTest=false;

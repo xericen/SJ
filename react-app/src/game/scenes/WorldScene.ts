@@ -99,7 +99,7 @@ export class WorldScene extends Phaser.Scene{
   this.isMoving=!!(movement.x||movement.y);const running=this.isMoving&&this.keys.SHIFT.isDown,state=motionState(movement,running);
   if(this.isMoving){
     this.targetYaw=movementYaw({x:worldMovement.x,y:worldMovement.z});this.direction=directionFromMovement(movement,this.direction);
-    const size=this.worldRenderer?movementSize(this.mapId):DETAIL,baseSpeed=running?PLAYER_MOVEMENT_SPEED.run:PLAYER_MOVEMENT_SPEED.walk,speed=this.mapId==='garden'?baseSpeed*1.5:this.mapId==='campus'?baseSpeed/1.5:baseSpeed,nextX=Phaser.Math.Clamp(this.player.x+worldMovement.x*speed*deltaSeconds,35,size.width-35),nextY=Phaser.Math.Clamp(this.groundY+worldMovement.z*speed*deltaSeconds,90,size.height-35);
+    const size=this.worldRenderer?movementSize(this.mapId):DETAIL,baseSpeed=running?PLAYER_MOVEMENT_SPEED.run:PLAYER_MOVEMENT_SPEED.walk,speed=this.mapId==='government'?baseSpeed*2/3:this.mapId==='garden'?baseSpeed*1.5:this.mapId==='campus'?baseSpeed/1.5:baseSpeed,nextX=Phaser.Math.Clamp(this.player.x+worldMovement.x*speed*deltaSeconds,35,size.width-35),nextY=Phaser.Math.Clamp(this.groundY+worldMovement.z*speed*deltaSeconds,90,size.height-35);
     if(this.worldRenderer){this.player.x=nextX;this.groundY=nextY}else{if(this.jumpHeight>8||this.canMove(nextX,this.groundY))this.player.x=nextX;if(this.jumpHeight>8||this.canMove(this.player.x,nextY))this.groundY=nextY}
   }
   const focusedRemote=this.encounterPlayerId?this.remotes.get(this.encounterPlayerId):undefined;

@@ -220,6 +220,11 @@ function mergeExperienceActivities(nickname:string,records:ExperienceActivityRec
   records.forEach(record=>merged.set(keyFor(record),record));
   cacheExperienceActivities(nickname,[...merged.values()].sort((a,b)=>Date.parse(a.recordedAt)-Date.parse(b.recordedAt)));
 }
+export function recordConfirmedCourseVisit(nickname:string,placeName:string){
+  const record:ExperienceActivityRecord={id:`government-central-plaza:visit:${placeName}`,mapId:'government-central-plaza',title:`${placeName} 방문 인증`,note:`AI 추천 일정의 ${placeName} 방문을 인증했어요. 다음 추천과 내 프로필에 반영됩니다.`,point:12,breakdown:[{label:'AI 추천 코스 방문',point:7},{label:'방문 인증',point:5}],recordedAt:new Date().toISOString()};
+  mergeExperienceActivities(nickname,[record]);
+  window.dispatchEvent(new CustomEvent('sejong-experience-profile-updated',{detail:{activityRecords:[record],optimistic:true}}));
+}
 const GENERIC_ACTION_LABELS:Record<string,string>={
   'map-enter':'입장','map-exit':'탐험','club-open':'동아리 부스 살펴보기','club-detail':'동아리 상세 보기','club-join':'동아리 가입','club-save':'관심 동아리 저장','club-activity':'동아리 활동 참여','club-vote':'동아리 제안 투표','greenhouse-observe':'식물 관찰','greenhouse-collect':'식물 채집','greenhouse-analysis':'충녕 AI 자연 성향 분석','greenhouse-memory':'기억나무 기록','photo':'사진 기록','favorite':'관심 저장','save':'저장','complete':'체험 완료','apply':'참여 신청','join':'참여','select':'선택','open':'상세 보기','interaction':'공간 체험',
 };

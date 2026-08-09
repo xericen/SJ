@@ -1,5 +1,15 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-09 | 009 | 현재 22개 맵·프로젝트 기반 AI 일정 흐름 README 갱신 및 GitHub 배포 | [상세](devlog/2026-08-09/009-refresh-readme-and-push-current-state.md) |
+| 2026-08-09 | 008 | 베어트리파크 주간 조명·노출 및 배경 밝기 개선 | [상세](devlog/2026-08-09/008-brighten-bear-tree-park.md) |
+| 2026-08-09 | 007 | STEP 9 AI 추천 일정의 프로필 저장·인라인 카카오지도 연결 복구 | [상세](devlog/2026-08-09/007-fix-ai-ready-route-connection.md) |
+| 2026-08-09 | 006 | 원형 홀로그램 9단계 실제 프로필 분석 복구 및 STEP 5·6 연장 | [상세](devlog/2026-08-09/006-restore-real-profile-nine-stage-analysis.md) |
+| 2026-08-09 | 005 | 02 확정 코스 전용 03 저장 및 01·03 전광판 정면 확대 | [상세](devlog/2026-08-09/005-final-course-and-side-screen-zoom.md) |
+| 2026-08-09 | 004 | 운영의 가짜 AI 라이프 코스 제거 및 완료 프로젝트 전용 번들 배포 | [상세](devlog/2026-08-09/004-deploy-completed-project-only-bundle.md) |
+| 2026-08-09 | 003 | 완료 프로젝트 일정표 기반 02→03 확정 흐름 및 AI·카카오 장소 추가 | [상세](devlog/2026-08-09/003-completed-project-course-gating.md) |
+| 2026-08-09 | 002 | 01 전체 프로필 전달본을 02 OpenAI 코스 분석에 연결 | [상세](devlog/2026-08-09/002-link-full-profile-to-openai-course.md) |
+| 2026-08-09 | 001 | 정부청사 보행 성능·속도 및 완료 프로젝트 기반 AI 일정 3단계 연결 | [상세](devlog/2026-08-09/001-government-project-ai-visit-flow.md) |
+| 2026-08-08 | 075 | 중앙광장 렌더링 부하 완화 | [상세](devlog/2026-08-08/075-central-plaza-performance.md) |
 | 2026-08-08 | 031 | WIZ 런타임 watchdog 상시 재기동 설정 | [상세](devlog/2026-08-08/031-wiz-watchdog.md) |
 | 2026-08-08 | 030 | WIZ 런타임 지속 세션 재기동 및 upstream 재확인 | [상세](devlog/2026-08-08/030-runtime-persistent-session.md) |
 | 2026-08-08 | 029 | WIZ upstream 연결 오류 복구 및 운영 API 재검증 | [상세](devlog/2026-08-08/029-upstream-connection-recovery.md) |
@@ -282,3 +292,8 @@
 | 2026-08-08 | 073 | 정부청사 포탈·보행 안정화 및 중앙광장 화질·AI 실시간 분석 개선 | [상세](devlog/2026-08-08/073-fix-government-portals-ground-profile-live.md) |
 | 2026-08-08 | 074 | 현재 22개 맵 기준 README 정비 및 GitHub 누적 변경 배포 | [상세](devlog/2026-08-08/074-refresh-readme-and-push-github.md) |
 | 2026-08-08 | 062 | 정부청사 스마트시티·전망대 포탈을 기존 고정 위치로 복원 | [상세](devlog/2026-08-08/062-restore-government-portals.md) |
+| 2026-08-08 | 076 | 중앙광장 9단계 AI 분석을 로그인 사용자 실제 프로필·활동과 연결 | [상세](devlog/2026-08-08/076-connect-government-ai-real-profile.md) |
+| 2026-08-08 | 077 | AI 추천 일정에 실제 세종 밥집·카페·도시 장소와 카카오지도 연결 | [상세](devlog/2026-08-08/077-government-ai-real-place-route.md) |
+| 2026-08-08 | 078 | 브라우저 확장 메시지 채널 종료 Promise 오류 격리 | [상세](devlog/2026-08-08/078-ignore-extension-message-channel-rejection.md) |
+| 2026-08-08 | 079 | AI 5·6단계 체류 시간 연장 및 양쪽 전광판 정면 확대 | [상세](devlog/2026-08-08/079-ai-stage-duration-side-screen.md) |
+| 2026-08-08 | 080 | 중앙광장 PROJECT→AI→VISIT 순환 구조 및 프로필 코스 연결 | [상세](devlog/2026-08-08/080-central-plaza-project-ai-visit-loop.md) |

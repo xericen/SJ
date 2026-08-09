@@ -22,6 +22,13 @@ test('베어트리파크는 선명한 화면을 위한 렌더링 품질을 고�
   assert.doesNotMatch(bearTree,/maxTextureSize:512|performancePixelRatio:\.75/);
 });
 
+test('베어트리파크는 밝은 주간 조명과 배경을 사용한다',()=>{
+  assert.match(bearTree,/toneMappingExposure:1\.12/);
+  assert.match(bearTree,/lightingIntensityMultiplier:1\.08/);
+  assert.match(bearTree,/sceneBackgroundColor:'#c8ddcf'/);
+  assert.doesNotMatch(bearTree,/toneMappingExposure:\.84|lightingIntensityMultiplier:\.76/);
+});
+
 test('베어트리파크는 캐릭터를 줄여도 이름표 가독성을 유지한다',()=>{
   assert.match(bearTree,/nameplateScale:1\.25/);
   assert.match(renderer,/\*this\.nameplateScale/);

@@ -6,6 +6,7 @@ import {loadExperienceProfileFragments,loadFestivalKeywordInsights,loadGenerated
 import {buildFoodTasteProfile} from './foodTasteProfile';
 import {campusSignalKeywords} from './campusProfileSignals';
 import {buildProfileProgress} from './profileProgress';
+import {loadTravelProjectDraft} from './travelProjectDraft';
 
 type ProfileInterest={emoji:string;label:string};
 export type AiSejongProfile={
@@ -98,7 +99,9 @@ export function buildAiSejongProfile(profile:UserProfile):AiSejongProfile{
     if(decisionResult?.courseStrategy)generatedCourse.push(decisionResult.courseStrategy);
     generatedCourse.push('베어트리파크 자연 탐험');
   }
-  const recommendedCourse=unique([...savedCourses,...generatedCourse]).slice(0,4);
+  const confirmedDraft=loadTravelProjectDraft();
+  const confirmedCourses=confirmedDraft.status==='approved'&&confirmedDraft.courseConfirmed?confirmedDraft.courseOrder??[]:[];
+  const recommendedCourse=unique([...confirmedCourses,...savedCourses,...generatedCourse]).slice(0,4);
   const completed=[interests.length>0,Boolean(dominant),Boolean(plant),Boolean(decisionResult),recommendedCourse.length>0].filter(Boolean).length;
   const completion=completed*20;
   const pace=decisionResult?.title==='효율 운영형'?'효율적으로':decisionResult?.title==='상황 적응형'?'유연하게':'차근차근';

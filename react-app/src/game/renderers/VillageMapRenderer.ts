@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
+import { MeshoptSimplifier } from 'meshoptimizer';
 import villageModelUrl from '../../assets/maps/sejong-lake-park.glb?url';
 import bearTreeParkModelUrl from '../../assets/maps/new-beartree.glb?url';
 import bearPlayZoneModelUrl from '../../assets/maps/park-landscape.glb?url';
@@ -40,6 +40,7 @@ import { canAccessPersonalFarmPortal } from '../../services/personalFarmPortalAc
 import {getCachedPersonalFarmProgress} from '../../services/personalFarmApi';
 import {BEAR_FEED_PICKUPS,BEAR_FEED_SPOT_IDS,type BearFeedId,type GardenFlowerId,type PersonalFarmProgressDto} from '../../../shared/personal-farm';
 import { applyColorsToThreeScene } from '../../utils/modelColorizer';
+import {createGltfLoader} from '../../utils/createGltfLoader';
 import { greenhousePlants,GREENHOUSE_MEMORY_TREE_OBJECT,GREENHOUSE_PLANT_TOTAL,greenhousePlantIdByObjectName } from '../../data/greenhouse-plants';
 import { CAMPUS_FRIEND_NPCS } from '../../data/campusNpc';
 import { PROJECT_ROOM_NPC } from '../../data/projectRoomNpc';
@@ -914,7 +915,7 @@ export const FOOD_EXPERIENCE_RENDERER_OPTIONS:WorldMapRendererOptions={
 };
 type LoadedModel=Awaited<ReturnType<GLTFLoader['loadAsync']>>;
 const modelAssetCache=new Map<string,Promise<LoadedModel>>();
-const createModelLoader=()=>new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const createModelLoader=createGltfLoader;
 const loadModel=(url:string)=>{
   let pending=modelAssetCache.get(url);
   if(!pending){
@@ -4899,7 +4900,7 @@ export class VillageMapRenderer{
       const visual=await new FBXLoader().loadAsync(config.modelUrl);
       return {visual,animations:visual.animations};
     }
-    const gltf=await new GLTFLoader().loadAsync(config.modelUrl);
+    const gltf=await createGltfLoader().loadAsync(config.modelUrl);
     return {visual:gltf.scene,animations:gltf.animations};
   }
   private updateResident(delta:number){

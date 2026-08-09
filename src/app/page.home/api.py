@@ -920,6 +920,9 @@ def save_avatar():
 
 def logout():
     session.clear()
+    # Keep this server-side because the React app runs inside an iframe and
+    # its sessionStorage can be replaced when OAuth navigates the top window.
+    session.set(kakao_reauth_required=True)
     return wiz.response.status(200)
 
 def _public_origin():
@@ -952,6 +955,15 @@ def kakao_start():
             message="카카오 로그인 설정을 확인해 주세요.",
         )
 
+    reauth = (
+        wiz.request.query("reauth", "") == "1"
+        or bool(session.get("kakao_reauth_required", False))
+    )
+    if reauth:
+        # An explicit app logout must not leave an old WIZ identity available
+        # while Kakao re-authentication is in progress.
+        session.clear()
+
     state = secrets.token_urlsafe(24)
     session.set(kakao_oauth_state=state)
     params = {
@@ -963,6 +975,10 @@ def kakao_start():
         # authentication before the onboarding flow.
         # QR 인증을 포함한 카카오의 현재 로그인 세션을 그대로 사용한다.
     }
+    if reauth:
+        # Keep normal/QR login unchanged. Only a login started after an
+        # explicit logout asks Kakao to show authentication again.
+        params["prompt"] = "login"
 
     scopes = getattr(config, "KAKAO_LOGIN_SCOPES", "") or ""
     scopes = ",".join(

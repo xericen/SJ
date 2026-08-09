@@ -184,6 +184,7 @@ Express 서버가 필요한 경우 `react-app/server/.env.example`을 복사해 
 ### 계정과 프로필
 
 - 카카오 OAuth 로그인 및 WIZ 서버 세션 연결
+- 로그아웃 시 브라우저·WIZ·Node 인증 상태를 함께 초기화하고, 다음 카카오 로그인에서는 인증 화면을 다시 거치도록 서버 재인증 플래그 유지
 - 로그인·DB 저장 없이 현재 웹에서만 유지되는 로컬 체험
 - 이메일·비밀번호 기반 WIZ 회원가입과 로그인
 - 닉네임, 관심사, 생활권, 캐릭터 설정 저장
@@ -217,6 +218,7 @@ Express 서버가 필요한 경우 `react-app/server/.env.example`을 복사해 
 - 비버·충녕이·사람형 GLB 캐릭터 및 Idle/Walk/Run 애니메이션
 - 사용자·충녕이 고해상도 이름표와 경사면 수직 자세 보정
 - 대형 GLB 실패 시 안전한 fallback 처리
+- 공간안내 라이브 미리보기에서 일반 GLB는 독립 `model-viewer`, Meshopt 압축 GLB는 디코더가 등록된 Three.js 로더로 분리
 
 대표 공간:
 
@@ -231,7 +233,8 @@ Express 서버가 필요한 경우 `react-app/server/.env.example`을 복사해 
 - 미래 세종관 서비스별 디지털 트윈 홀로그램
 - 중앙 테이블 HTML 키오스크와 서비스 선택 UI
 - 스마트교통·안전·환경·복지 등 세종 서비스 체험
-- 실제 GLB 기반 드래그형 스마트시티 라이브 미리보기
+- 실제 `sejong-smartcity-exhibition.glb` 기반 드래그·확대형 스마트시티 공간안내 미리보기
+- 동아리 거리제 Meshopt 압축 GLB와 스마트시티 일반 GLB의 렌더러를 격리해 공간안내 WebGL 충돌 방지
 - 정부청사 중앙광장 AI 세종 추천센터
 - 완료 프로젝트 기반 PROJECT → AI 일정 확정 → VISIT 저장의 3단계 전광판 흐름
 - 전체 사용자 프로필 기반 OpenAI 코스 분석, 장소 추가·최적화와 9단계 시네마틱 분석

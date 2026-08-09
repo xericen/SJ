@@ -172,6 +172,9 @@ const ONBOARDING_COMPLETE_USER_ID_KEY =
 const LOCAL_EXPERIENCE_MODE_KEY =
   'jochiwon-local-experience-active';
 
+const KAKAO_REAUTH_REQUIRED_KEY =
+  'jochiwon-kakao-reauth-required';
+
 type ExperienceMode = 'local' | 'social' | null;
 
 export default function App() {
@@ -185,6 +188,11 @@ export default function App() {
         KAKAO_USER_ID_KEY,
       )?.trim() ?? '',
     );
+  const kakaoLoginUrl = browserSessionStorage()?.getItem(
+    KAKAO_REAUTH_REQUIRED_KEY,
+  ) === '1'
+    ? `${KAKAO_LOGIN_URL}?reauth=1`
+    : KAKAO_LOGIN_URL;
   const [experienceMode, setExperienceMode] =
     useState<ExperienceMode>(() =>
       browserSessionStorage()?.getItem(
@@ -471,6 +479,7 @@ export default function App() {
     }
 
     setLoginError('');
+    browserSessionStorage()?.removeItem(KAKAO_REAUTH_REQUIRED_KEY);
 
     const userId =
       searchParams.get('userId')?.trim() ??
@@ -841,7 +850,7 @@ export default function App() {
         onBack={() =>
           setPage('landing')
         }
-        loginUrl={KAKAO_LOGIN_URL}
+        loginUrl={kakaoLoginUrl}
         onLocalStart={startLocalExperience}
         errorMessage={loginError}
       />
@@ -862,7 +871,7 @@ export default function App() {
         onBack={() =>
           setPage('landing')
         }
-        loginUrl={KAKAO_LOGIN_URL}
+        loginUrl={kakaoLoginUrl}
         onLocalStart={startLocalExperience}
         errorMessage={loginError}
       />
@@ -943,7 +952,7 @@ export default function App() {
               );
             });
         }}
-        onLogout={() => {
+        onLogout={async () => {
           if (experienceMode === 'local') {
             discardLocalExperience();
             setExperienceMode(null);
@@ -955,6 +964,7 @@ export default function App() {
           setGameReturnState(undefined);
           setLoginIdentity('');
           setExperienceMode(null);
+          hydratedProfileUserIdRef.current = undefined;
           removeStoredValue(
             KAKAO_USER_ID_KEY,
           );
@@ -963,15 +973,28 @@ export default function App() {
             KAKAO_PROFILE_IMAGE_KEY,
           );
 
-          setJourney({
-            ...journey,
-            authenticated: false,
-          });
+          removeStoredValue(
+            ONBOARDING_COMPLETE_USER_ID_KEY,
+          );
 
-          void fetch('/wiz/api/page.home/logout', {
-            method: 'POST',
-            credentials: 'include',
-          });
+          browserSessionStorage()?.removeItem(PROFILE_KEY);
+          browserSessionStorage()?.removeItem(USER_JOURNEY_KEY);
+          browserSessionStorage()?.removeItem(LOCAL_EXPERIENCE_MODE_KEY);
+          browserSessionStorage()?.setItem(KAKAO_REAUTH_REQUIRED_KEY, '1');
+
+          setSocialProfile(defaultProfile);
+          setSocialJourney(defaultUserJourney);
+
+          await Promise.allSettled([
+            fetch('/wiz/api/page.home/logout', {
+              method: 'POST',
+              credentials: 'include',
+            }),
+            fetch('/api/auth/logout', {
+              method: 'POST',
+              credentials: 'include',
+            }),
+          ]);
 
           setPage('landing');
         }}

@@ -1,5 +1,11 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-09 | 015 | 현재 22개 맵·인증·GLB 구조 README 갱신 및 GitHub 누적 변경 배포 | [상세](devlog/2026-08-09/015-refresh-readme-and-push-latest.md) |
+| 2026-08-09 | 014 | 스마트시티 공간안내 GLB 뷰어를 Meshopt Three 렌더러와 격리 | [상세](devlog/2026-08-09/014-fix-smart-city-space-guide-glb.md) |
+| 2026-08-09 | 013 | 공간안내 동아리 거리제 미리보기를 Meshopt 지원 Three.js 뷰어로 교체 | [상세](devlog/2026-08-09/013-fix-space-guide-club-preview.md) |
+| 2026-08-09 | 012 | 동아리 거리제 포함 전체 GLB 로더의 Meshopt 디코더 누락 해소 | [상세](devlog/2026-08-09/012-fix-club-street-meshopt-loader.md) |
+| 2026-08-09 | 011 | iframe 재생성에도 유지되는 서버 기반 카카오 재인증 플래그 적용 | [상세](devlog/2026-08-09/011-persist-kakao-reauth-on-server.md) |
+| 2026-08-09 | 010 | 로그아웃 후 카카오 재인증 및 브라우저·서버 인증 상태 초기화 | [상세](devlog/2026-08-09/010-force-kakao-reauth-after-logout.md) |
 | 2026-08-09 | 009 | 현재 22개 맵·프로젝트 기반 AI 일정 흐름 README 갱신 및 GitHub 배포 | [상세](devlog/2026-08-09/009-refresh-readme-and-push-current-state.md) |
 | 2026-08-09 | 008 | 베어트리파크 주간 조명·노출 및 배경 밝기 개선 | [상세](devlog/2026-08-09/008-brighten-bear-tree-park.md) |
 | 2026-08-09 | 007 | STEP 9 AI 추천 일정의 프로필 저장·인라인 카카오지도 연결 복구 | [상세](devlog/2026-08-09/007-fix-ai-ready-route-connection.md) |

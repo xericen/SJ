@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/examples/jsm/utils/SkeletonUtils.js';
 import bearTreeModelUrl from '../assets/maps/new-beartree.glb?url';
+import {createGltfLoader} from '../utils/createGltfLoader';
 
 const STATUE_NODE_NAME='tripo_node_663ac3ae-202d-4035-bde3-3b143688b477';
 
@@ -10,7 +10,7 @@ let sourcePromise:Promise<THREE.Object3D>|undefined;
 async function loadSource(){
   if(!sourcePromise){
     sourcePromise=new Promise<THREE.Object3D>((resolve,reject)=>{
-      new GLTFLoader().load(bearTreeModelUrl,gltf=>{
+      createGltfLoader().load(bearTreeModelUrl,gltf=>{
         const source=gltf.scene;source.updateMatrixWorld(true);
         const statue=source.getObjectByName(STATUE_NODE_NAME);
         if(!statue){reject(new Error(`Bear statue node not found: ${STATUE_NODE_NAME}`));return}

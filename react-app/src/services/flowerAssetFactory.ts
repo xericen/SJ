@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/examples/jsm/utils/SkeletonUtils.js';
 import gardenModelUrl from '../assets/maps/garden.glb?url';
 import {greenhousePlantById} from '../data/greenhouse-plants';
 import {flowerCatalogByFlowerId} from './flowerInterestProfile';
 import type {GardenFlowerId} from '../../shared/personal-farm';
 import {FLOWER_ASSET_NODES,normalizeFlowerNodeName,type FlowerAssetNodeDefinition} from './flowerAssetNodes';
+import {createGltfLoader} from '../utils/createGltfLoader';
 
 function findFlowerNode(source:THREE.Object3D,definition:FlowerAssetNodeDefinition){
   const targets=new Set([definition.objectName,definition.userDataName].map(normalizeFlowerNodeName));
@@ -26,7 +26,7 @@ function cloneFlower(source:THREE.Object3D){
 
 let sourceScenePromise:Promise<THREE.Object3D>|undefined;
 const loadSourceScene=()=>sourceScenePromise??=new Promise<THREE.Object3D>((resolve,reject)=>{
-  new GLTFLoader().load(gardenModelUrl,gltf=>resolve(gltf.scene),undefined,reject);
+  createGltfLoader().load(gardenModelUrl,gltf=>resolve(gltf.scene),undefined,reject);
 });
 
 export async function createFlowerObjectById(flowerId:GardenFlowerId){

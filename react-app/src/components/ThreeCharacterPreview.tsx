@@ -12,9 +12,9 @@ import {
   Vector3,
   WebGLRenderer
 } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { applyColorsToThreeScene } from '../utils/modelColorizer';
+import {createGltfLoader} from '../utils/createGltfLoader';
 import type { CharacterModel, CharacterParts } from '../types';
 
 const PREVIEW_CHARACTER_HEIGHT=1.3;
@@ -98,7 +98,7 @@ export function ThreeCharacterPreview({
     },{rootMargin:'80px'});
     visibilityObserver.observe(host);
 
-    new GLTFLoader().load(
+    createGltfLoader().load(
       src,
       gltf => {
         if (disposed) return;

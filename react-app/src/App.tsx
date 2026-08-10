@@ -207,6 +207,7 @@ export default function App() {
   const [gameReturnState,setGameReturnState]=useState<GameReturnState>();
   const [guestMapPreview,setGuestMapPreview]=useState(false);
   const [behaviorStateReady,setBehaviorStateReady]=useState(false);
+  const [accountDataReady,setAccountDataReady]=useState(false);
   const hydratedProfileUserIdRef=useRef<string|undefined>(undefined);
   const hydratedAccountDataUserIdRef=useRef<string|undefined>(undefined);
 
@@ -674,23 +675,38 @@ export default function App() {
   }, [experienceMode, hasLoginIdentity, membershipComplete, setSocialProfile]);
 
   useEffect(() => {
-    if (experienceMode !== 'social' || !hasLoginIdentity) return;
+    if(experienceMode==='local'){setAccountDataReady(true);return;}
+    if (experienceMode !== 'social' || !hasLoginIdentity){setAccountDataReady(false);return;}
     const userId=readStoredValue(KAKAO_USER_ID_KEY)?.trim();
-    if (!userId) return;
+    if (!userId){setAccountDataReady(false);return;}
     let active=true;
     const restore=async()=>{
-      if(hydratedAccountDataUserIdRef.current===userId)return;
+      if(active)setAccountDataReady(false);
       try{
-        restoreAccountDataSnapshot(await loadAccountDataSnapshot());
-        if(active)hydratedAccountDataUserIdRef.current=userId;
+        if(hydratedAccountDataUserIdRef.current!==userId){
+          const snapshot=await loadAccountDataSnapshot(),storage=browserStorage();
+          if(storage){
+            const identity=new Map([KAKAO_USER_ID_KEY,KAKAO_PROFILE_IMAGE_KEY,ONBOARDING_COMPLETE_USER_ID_KEY].map(key=>[key,storage.getItem(key)]));
+            clearAllAccountData(storage);
+            restoreAccountDataSnapshot(snapshot,storage);
+            identity.forEach((value,key)=>{if(value!==null)storage.setItem(key,value)});
+          }
+          if(active)hydratedAccountDataUserIdRef.current=userId;
+        }
+        const {refreshPersonalFarmProgress,setPersonalFarmProgressMode,setPersonalFarmProgressUser}=await import('./services/personalFarmApi');
+        setPersonalFarmProgressMode(true);
+        setPersonalFarmProgressUser(profile.nickname);
+        await refreshPersonalFarmProgress();
+        window.dispatchEvent(new CustomEvent('sejong-profile-progress-updated'));
       }catch{/* 로그인 성공은 유지하고 다음 동기화에서 재시도한다. */}
+      finally{if(active)setAccountDataReady(true)}
     };
     const save=()=>{void saveAccountDataSnapshot().catch(()=>undefined);};
     void restore();
     const timer=window.setInterval(save,4000);
     window.addEventListener('pagehide',save);
     return()=>{active=false;window.clearInterval(timer);window.removeEventListener('pagehide',save);};
-  }, [experienceMode, hasLoginIdentity]);
+  }, [experienceMode, hasLoginIdentity,profile.nickname]);
 
   const startExperience = () => {
     setPage('game');
@@ -835,7 +851,7 @@ export default function App() {
   if (
     page === 'game' &&
     canExperience &&
-    !behaviorStateReady
+    (!behaviorStateReady||!accountDataReady)
   ) {
     return <ExperienceLoading mapId={gameReturnState?.mapId} />;
   }

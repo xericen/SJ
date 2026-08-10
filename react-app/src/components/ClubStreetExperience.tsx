@@ -21,6 +21,7 @@ type ClubMember = {
   name: string;
   role?: "chair" | "executive" | "member";
 };
+type ClubApplication={userId:string;name:string;status:"pending"|"accepted"|"rejected";createdAt?:string};
 type Club = {
   id: string;
   name: string;
@@ -32,6 +33,8 @@ type Club = {
   members: ClubMember[];
   isMember?: boolean;
   currentRole?: "chair" | "executive" | "member";
+  applications?: ClubApplication[];
+  currentApplicationStatus?: ClubApplication["status"];
   activity?: string;
   location?: string;
   schedule?: string;
@@ -204,7 +207,7 @@ export function ClubStreetExperience({ active, profile, onNotice }: { active: bo
     const controller = new AbortController();
     const refresh = () => fetch(`${API_BASE_URL}/clubs`, { signal: controller.signal, credentials: "include" })
       .then((response) => (response.ok ? response.json() : []))
-      .then((value) => { setAuthenticatedUserId(value?.data?.currentUserId ?? value?.currentUserId ?? null); setClubs((Array.isArray(value) ? value : (value?.data?.items ?? [])).map(normalizeClub)); })
+      .then((value) => { const next=(Array.isArray(value) ? value : (value?.data?.items ?? [])).map(normalizeClub);setAuthenticatedUserId(value?.data?.currentUserId ?? value?.currentUserId ?? null);setClubs(next);setSelected(current=>{const updated=current&&next.find((club:Club)=>club.id===current.id);return updated?asBoothClub(updated):current}) })
       .catch(() => undefined);
     void refresh();
     const timer = window.setInterval(() => void refresh(), 2500);
@@ -345,7 +348,7 @@ export function ClubStreetExperience({ active, profile, onNotice }: { active: bo
       const updated = body.data.club;
       setClubs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setSelected((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
-      onNotice(`${club.name}에 가입했어요.`);
+      onNotice(`${club.name} 가입을 신청했어요. 회장 승인을 기다려 주세요.`);
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "가입하지 못했어요.");
     }
@@ -444,6 +447,18 @@ export function ClubStreetExperience({ active, profile, onNotice }: { active: bo
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "역할을 변경하지 못했어요.");
     }
+  };
+  const reviewClubApplication=async(application:ClubApplication,decision:"accepted"|"rejected")=>{
+    if(!selected||!isChair)return;
+    try{
+      const response=await fetch(`${API_BASE_URL}/clubs?action=reviewApplication&payload=${encodeURIComponent(JSON.stringify({clubId:selected.id,applicantId:application.userId,decision}))}`,{credentials:"include"});
+      const body=await response.json() as {code:number;data?:{club?:Club;message?:string}};
+      if(body.code>=400||!body.data?.club)throw new Error(body.data?.message??"가입 신청을 처리하지 못했어요.");
+      const updated=body.data.club;
+      setClubs(current=>current.map(item=>item.id===updated.id?updated:item));
+      setSelected(current=>current?.id===updated.id?asBoothClub(updated):current);
+      onNotice(decision==="accepted"?`${application.name}님의 가입을 승인했어요.`:`${application.name}님의 가입을 거절했어요.`);
+    }catch(error){onNotice(error instanceof Error?error.message:"가입 신청을 처리하지 못했어요.")}
   };
   const addLinkedProject = (event: FormEvent) => {
     event.preventDefault();
@@ -687,6 +702,7 @@ export function ClubStreetExperience({ active, profile, onNotice }: { active: bo
                   <small>{isChair ? "회장은 구성원의 역할을 변경할 수 있어요." : "역할별로 커뮤니티를 함께 운영해요."}</small>
                 </div>
               </header>
+              {isChair&&Boolean(selected.applications?.some(application=>application.status==="pending"))&&<section className="club-applications"><b>가입 승인 대기</b>{selected.applications?.filter(application=>application.status==="pending").map(application=><article key={application.userId}><span>{application.name}</span><button type="button" className="reject" onClick={()=>void reviewClubApplication(application,"rejected")}>거절</button><button type="button" onClick={()=>void reviewClubApplication(application,"accepted")}>승인</button></article>)}</section>}
               {selected.members.map((member) => {
                 const role = memberRole(member);
                 return (
@@ -749,12 +765,12 @@ export function ClubStreetExperience({ active, profile, onNotice }: { active: bo
               </span>
               <ArrowRight />
             </button>
-            <button className="club-simple-join" disabled={Boolean(selected.isMember || selected.members.some((member) => member.userId === userId))} onClick={() => void joinClub(selected)}>
+            <button className="club-simple-join" disabled={Boolean(selected.isMember || selected.members.some((member) => member.userId === userId)||selected.currentApplicationStatus==="pending")} onClick={() => void joinClub(selected)}>
               {selected.isMember || selected.members.some((member) => member.userId === userId) ? (
                 <>
                   <Check /> 가입됨
                 </>
-              ) : (
+              ) : selected.currentApplicationStatus==="pending"? <><Check /> 승인 대기 중</> : (
                 <>
                   <Plus /> 동아리 가입
                 </>

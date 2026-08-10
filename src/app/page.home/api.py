@@ -2002,7 +2002,9 @@ def _normalize_project_room_project(value):
     ):
         return None
     project = {
-        "id": project_id, "title": title, "summary": summary,
+        "id": project_id,
+        "kind": "recruitment" if value.get("kind") == "recruitment" or project_id.startswith("recruitment-") else "project",
+        "title": title, "summary": summary,
         "description": description, "leaderId": leader_id,
         "maxMembers": max_members, "status": status, "visibility": visibility,
         **lists,
@@ -2072,6 +2074,11 @@ def _project_room_projects(user_id):
         state.setdefault("roles", {})
         state.setdefault("revision", 0)
         if action == "collaboration":
+            draft = state.get("draft")
+            if isinstance(draft, dict) and isinstance(draft.get("roles"), list):
+                for member in draft["roles"]:
+                    if isinstance(member, dict) and member.get("name") in state["roles"]:
+                        member["role"] = state["roles"][member["name"]]
             return wiz.response.status(200, collaboration=state, projectStatus=project.get("status"))
         if action == "saveDraft":
             draft = request_value.get("draft")
@@ -2111,6 +2118,12 @@ def _project_room_projects(user_id):
                 seen_message_ids.add(message_id)
                 merged_messages.append(dict(message))
             state["draft"] = {**previous_draft, **draft, "ideas": merged_ideas, "messages": merged_messages}
+            if isinstance(state["draft"].get("roles"), list):
+                state["roles"] = {
+                    str(member.get("name")): str(member.get("role"))
+                    for member in state["draft"]["roles"]
+                    if isinstance(member, dict) and str(member.get("name") or "").strip() and str(member.get("role") or "").strip()
+                }
             if isinstance(state.get("consensus"), dict) and state["consensus"].get("status") == "pending":
                 state["consensus"] = None
             state["revision"] = int(_number(state.get("revision"), 0)) + 1
@@ -2122,6 +2135,18 @@ def _project_room_projects(user_id):
             if member_name not in member_names or not role:
                 return wiz.response.status(400, message="팀원과 역할을 확인해 주세요.")
             state["roles"][member_name] = role
+            draft = state.get("draft")
+            if isinstance(draft, dict):
+                roles = draft.get("roles") if isinstance(draft.get("roles"), list) else []
+                matched = False
+                for member in roles:
+                    if isinstance(member, dict) and member.get("name") == member_name:
+                        member["role"] = role
+                        matched = True
+                if not matched:
+                    roles.append({"name": member_name, "role": role})
+                draft["roles"] = roles
+            state["revision"] = int(_number(state.get("revision"), 0)) + 1
         elif action == "requestConsensus":
             course = request_value.get("course")
             if not isinstance(course, list) or not course:
@@ -2278,6 +2303,12 @@ def _project_room_applications(user_id):
         project = None
     if project is None or project["visibility"] != "public":
         return wiz.response.status(404, message="공개 프로젝트를 찾을 수 없습니다.")
+    is_leader = str(project_row.get("leader_user_id") or "") == str(user_id)
+    if application["status"] == "pending":
+        if is_leader:
+            return wiz.response.status(403, message="내가 만든 모집에는 신청할 수 없습니다.")
+        if project["status"] != "recruiting" or len(project["memberIds"]) >= project["maxMembers"]:
+            return wiz.response.status(409, message="모집이 이미 완료되었습니다.")
     current_row = db.get(id=application["id"])
     if current_row is not None:
         try:
@@ -2286,8 +2317,10 @@ def _project_room_applications(user_id):
             current = None
         if current is not None and current["status"] != "pending" and application["status"] == "pending":
             application["status"] = current["status"]
-    if application["status"] != "pending" and application.get("projectLeaderId") != project["leaderId"]:
+    if application["status"] != "pending" and not is_leader:
         return wiz.response.status(403, message="프로젝트 리더만 신청 상태를 변경할 수 있습니다.")
+    if application["status"] == "accepted" and application["applicantId"] not in project["memberIds"] and len(project["memberIds"]) >= project["maxMembers"]:
+        return wiz.response.status(409, message="모집 인원이 이미 모두 찼습니다.")
     now = datetime.datetime.now()
     values = {"id": application["id"], "project_id": application["projectId"], "payload": json.dumps(application, ensure_ascii=False, separators=(",", ":")), "updated": now}
     if current_row is None:
@@ -2297,6 +2330,13 @@ def _project_room_applications(user_id):
         db.update({key: value for key, value in values.items() if key != "id"}, id=application["id"])
     if application["status"] == "pending" and application["applicantId"] not in project["applicantIds"]:
         project["applicantIds"].append(application["applicantId"])
+    elif application["status"] in ("accepted", "rejected"):
+        project["applicantIds"] = [item for item in project["applicantIds"] if item != application["applicantId"]]
+        if application["status"] == "accepted" and application["applicantId"] not in project["memberIds"]:
+            project["memberIds"].append(application["applicantId"])
+        if len(project["memberIds"]) >= project["maxMembers"]:
+            project["status"] = "completed"
+    if application["status"] in ("pending", "accepted", "rejected"):
         project_db.update({"payload": json.dumps(project, ensure_ascii=False, separators=(",", ":")), "updated": now}, id=application["projectId"])
     return wiz.response.status(200, application=application)
 
@@ -2530,10 +2570,15 @@ def _club_public_view(club, identity):
     value["memberCount"] = len(members)
     value["isMember"] = member
     value["currentRole"] = str(current_member.get("role") or "member") if current_member else None
+    applications = value.get("applications") if isinstance(value.get("applications"), list) else []
+    own_application = next((item for item in applications if identity and isinstance(item, dict) and str(item.get("userId")) == identity["id"]), None)
+    value["currentApplicationStatus"] = str(own_application.get("status") or "pending") if own_application else None
     if not member:
         value.pop("feed", None)
         value.pop("activityBoard", None)
         value.pop("members", None)
+        value.pop("applications", None)
+    elif not current_member or str(current_member.get("role") or "member") != "chair":
         value.pop("applications", None)
     return value
 
@@ -2600,7 +2645,7 @@ def clubs():
     if not action:
         return wiz.response.status(200, items=[_club_public_view(item, identity) for item in items], currentUserId=identity["id"] if identity else None)
 
-    if action in ("create", "join", "role", "assignBooth", "content", "createPost", "comment", "like") and identity is None:
+    if action in ("create", "join", "reviewApplication", "role", "assignBooth", "content", "createPost", "comment", "like") and identity is None:
         return wiz.response.status(401, message="카카오 로그인이 필요합니다.")
 
     if action == "create":
@@ -2643,7 +2688,34 @@ def clubs():
             return wiz.response.status(409, message="이미 가입한 동아리입니다.")
         if len(members) >= int(club.get("capacity") or 30):
             return wiz.response.status(409, message="동아리 정원이 가득 찼습니다.")
-        members.append({"userId": identity["id"], "name": identity["name"], "role": "member", "joinedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+        applications = club.setdefault("applications", [])
+        current_application = next((item for item in applications if isinstance(item, dict) and str(item.get("userId")) == identity["id"]), None)
+        if current_application and current_application.get("status") == "pending":
+            return wiz.response.status(409, message="이미 가입 승인을 기다리고 있습니다.")
+        application = {"userId": identity["id"], "name": identity["name"], "status": "pending", "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        if current_application:
+            current_application.update(application)
+        else:
+            applications.append(application)
+        _save_shared_json_items(db, "community_clubs", items)
+        return wiz.response.status(200, club=_club_public_view(club, identity))
+
+    if action == "reviewApplication":
+        if not is_chair:
+            return wiz.response.status(403, message="회장만 가입 신청을 처리할 수 있습니다.")
+        applicant_id, decision = str(payload.get("applicantId") or ""), str(payload.get("decision") or "")
+        if decision not in ("accepted", "rejected"):
+            return wiz.response.status(400, message="승인 또는 거절을 선택해 주세요.")
+        applications = club.setdefault("applications", [])
+        application = next((item for item in applications if isinstance(item, dict) and str(item.get("userId")) == applicant_id), None)
+        if application is None or application.get("status") != "pending":
+            return wiz.response.status(404, message="대기 중인 가입 신청을 찾지 못했습니다.")
+        if decision == "accepted":
+            if len(members) >= int(club.get("capacity") or 30):
+                return wiz.response.status(409, message="동아리 정원이 가득 찼습니다.")
+            members.append({"userId": applicant_id, "name": str(application.get("name") or "동아리원"), "role": "member", "joinedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+        application["status"] = decision
+        application["reviewedAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         _save_shared_json_items(db, "community_clubs", items)
         return wiz.response.status(200, club=club)
 

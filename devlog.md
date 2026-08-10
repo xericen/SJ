@@ -1,5 +1,15 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-10 | 113 | README 기술 문서 보강 및 WIZ·GitHub 반영 점검 | [상세](devlog/2026-08-10/113-readme-wiz-github-sync.md) |
+| 2026-08-10 | 112 | 협업 역할 이중 상태 통합 및 새로고침 응답 복구 | [상세](devlog/2026-08-10/112-fix-collaboration-role-refresh.md) |
+| 2026-08-10 | 111 | 모집글과 프로젝트글 종류·화면 분리 | [상세](devlog/2026-08-10/111-separate-recruitment-and-project-posts.md) |
+| 2026-08-10 | 110 | 프로젝트 보드 3종 정리 및 협업 최신 revision 강제 조회 | [상세](devlog/2026-08-10/110-project-board-collaboration-refresh.md) |
+| 2026-08-10 | 109 | 카카오 프로필 DB 원본 우선 복원 및 로컬 기록 혼입 차단 | [상세](devlog/2026-08-10/109-kakao-db-authoritative-profile-restore.md) |
+| 2026-08-10 | 108 | 개인 팜 MySQL 꽃·곰 진행도를 내 프로필 분석에 병합 | [상세](devlog/2026-08-10/108-personal-farm-db-profile-integration.md) |
+| 2026-08-10 | 107 | 카카오 재로그인 활동 스냅샷 복원 대기 및 프로필 즉시 재계산 | [상세](devlog/2026-08-10/107-kakao-relogin-profile-progress-restore.md) |
+| 2026-08-10 | 106 | 동아리 가입 즉시 승인 제거 및 회장 승인·거절 절차 복구 | [상세](devlog/2026-08-10/106-club-join-chair-approval.md) |
+| 2026-08-10 | 105 | 모집센터 내 모집 관리·소유자 신청 차단·승인 및 정원 완료 연동 | [상세](devlog/2026-08-10/105-recruitment-owner-management-capacity-completion.md) |
+| 2026-08-10 | 104 | 마이홈 꽃 심기·곰 체험소 먹이 수집 E키 상호작용 복구 | [상세](devlog/2026-08-10/104-fix-personal-farm-feed-e-interactions.md) |
 | 2026-08-09 | 103 | 프로젝트 새로고침 동작 확인 및 최종 합의 버튼 클릭 안내 개선 | [상세](devlog/2026-08-09/103-verify-refresh-enable-consensus-feedback.md) |
 | 2026-08-09 | 102 | 프로젝트 협업 자동 저장·새로고침 경합 방지 및 전원 합의 완료 | [상세](devlog/2026-08-09/102-project-collaboration-autosave-unanimous-consensus.md) |
 | 2026-08-09 | 101 | 프로젝트 새로고침 확정 상태 분리 및 AI 일정 지도 버튼 제거 | [상세](devlog/2026-08-09/101-separate-refresh-from-confirmation-remove-ai-map-button.md) |

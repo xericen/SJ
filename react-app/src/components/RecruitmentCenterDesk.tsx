@@ -29,11 +29,12 @@ import type { UserProfile } from "../types";
 import {
   createProjectApplication,
   loadProjectApplications,
-  loadProjectRoomProjects,
+  loadRecruitmentPosts,
   refreshProjectApplications,
+  refreshRecruitmentPosts,
   recommendProjects,
   saveProjectApplications,
-  saveProjectRoomProjects,
+  saveRecruitmentPosts,
   type Project,
 } from "../services/projectRoomProjects";
 import { gameEvents } from "../game/events";
@@ -129,6 +130,7 @@ const recruitmentPostToProject = (
   const schedule = line("모임 일정");
   return {
     id: `recruitment-${post.id}`,
+    kind: "recruitment",
     title: post.title,
     summary: description.slice(0, 90),
     description,
@@ -180,7 +182,7 @@ const syncCommunityRecruitments = async (
     );
   if (!recovered.length) return current;
   const next = [...recovered, ...current];
-  saveProjectRoomProjects(next);
+  saveRecruitmentPosts(next);
   return next;
 };
 const createRecruitmentDraft = (
@@ -342,7 +344,7 @@ export function RecruitmentCenterDesk({
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<DeskMode>("chat");
-  const [projects, setProjects] = useState<Project[]>(loadProjectRoomProjects);
+  const [projects, setProjects] = useState<Project[]>(loadRecruitmentPosts);
   const [sort, setSort] = useState<SortMode>("모집 중");
   const [lastApplied, setLastApplied] = useState<Project | null>(null);
   const [pendingApply, setPendingApply] = useState<Project | null>(null);
@@ -368,9 +370,11 @@ export function RecruitmentCenterDesk({
 
   useEffect(() => {
     const show = () => {
-      const stored = loadProjectRoomProjects();
+      const stored = loadRecruitmentPosts();
       setProjects(stored);
-      void syncCommunityRecruitments(profile, stored)
+      void refreshRecruitmentPosts()
+        .catch(() => stored)
+        .then((shared) => syncCommunityRecruitments(profile, shared))
         .then(setProjects)
         .catch(() => setProjects(stored));
       setMode("chat");
@@ -541,7 +545,7 @@ export function RecruitmentCenterDesk({
             created,
             ...current.filter((project) => project.id !== created.id),
           ];
-          saveProjectRoomProjects(next);
+          saveRecruitmentPosts(next);
           return next;
         });
       rememberCommunityPost(post);
@@ -583,7 +587,7 @@ export function RecruitmentCenterDesk({
       if (created)
         setProjects((current) => {
           const next = [created, ...current];
-          saveProjectRoomProjects(next);
+          saveRecruitmentPosts(next);
           return next;
         });
       window.dispatchEvent(
@@ -631,7 +635,7 @@ export function RecruitmentCenterDesk({
         : item,
     );
     setProjects(nextProjects);
-    saveProjectRoomProjects(nextProjects);
+    saveRecruitmentPosts(nextProjects);
     setLastApplied(project);
     setPendingApply(null);
     const topic = inferCampusTopicProfile(
@@ -1338,6 +1342,7 @@ export function RecruitmentCenterDesk({
                     projects={sortedProjects}
                     recommendations={recommendations}
                     applied={applied}
+                    isOwner={(project) => project.leaderId === userId(profile)}
                     onApply={setPendingApply}
                   />
                 </section>
@@ -1452,27 +1457,25 @@ function ManagementCard({
       status,
       createdAt: application.createdAt,
     }).catch(() => undefined);
-    const nextProjects = projects.map((item) =>
-      item.id !== project.id
-        ? item
-        : {
+    const nextProjects = projects.map((item) => {
+      if(item.id !== project.id)return item;
+      const memberIds=status === "accepted"
+        ? [...new Set([...item.memberIds, application.applicantId])]
+        : item.memberIds.filter((member) => member !== application.applicantId);
+      return {
             ...item,
-            memberIds:
-              status === "accepted"
-                ? [...new Set([...item.memberIds, application.applicantId])]
-                : item.memberIds.filter(
-                    (member) => member !== application.applicantId,
-                  ),
+            memberIds,
             applicantIds: item.applicantIds.filter(
               (id) => id !== application.applicantId,
             ),
-          },
-    );
-    saveProjectRoomProjects(nextProjects);
+            status:memberIds.length>=item.maxMembers?"completed":item.status,
+          };
+    });
+    saveRecruitmentPosts(nextProjects);
     onProjectsChange(nextProjects);
     onNotice(
       status === "accepted"
-        ? `${application.applicantId}님의 신청을 승인했어요.`
+        ? `${application.applicantId}님의 신청을 승인했어요.${nextProjects.find(item=>item.id===project.id)?.status==='completed'?' 모집 인원이 모두 차서 모집을 완료했어요.':''}`
         : `${application.applicantId}님의 신청을 거절했어요.`,
     );
   };
@@ -1511,7 +1514,7 @@ function ManagementCard({
                     setSelectedProjectId(expanded ? null : project.id)
                   }
                 >
-                  {expanded ? "목록 닫기" : "신청자 보기"}
+                  {expanded ? "상세 닫기" : "상세 보기"}
                 </button>
               </article>
               {expanded && (
@@ -1771,11 +1774,13 @@ function ProjectList({
   projects,
   recommendations,
   applied,
+  isOwner,
   onApply,
 }: {
   projects: Project[];
   recommendations: ReturnType<typeof recommendProjects>;
   applied: (project: Project) => boolean;
+  isOwner: (project: Project) => boolean;
   onApply: (project: Project) => void;
 }) {
   return (
@@ -1803,10 +1808,10 @@ function ProjectList({
             </div>
             <button
               type="button"
-              disabled={applied(project)}
+              disabled={applied(project)||isOwner(project)}
               onClick={() => onApply(project)}
             >
-              {applied(project) ? "승인 대기 중" : "내 프로필로 모집 참가"}
+              {isOwner(project)?"내 모집글 · 신청 불가":applied(project) ? "승인 대기 중" : "내 프로필로 모집 참가"}
             </button>
           </article>
         );

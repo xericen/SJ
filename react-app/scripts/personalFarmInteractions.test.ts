@@ -40,6 +40,11 @@ test('집·가구·식물의 중첩 메시를 충돌 영역으로 등록한다',
 
 test('문 출입과 의자·소파 착석은 E 상호작용으로만 실행한다',()=>{
   assert.match(renderer,/event\.code!=='KeyE'/);
+  assert.match(renderer,/gameEvents\.emit\('personal-farm-plant-requested',this\.personalFarmFlowerSlotNearby\)/);
+  assert.match(renderer,/gameEvents\.emit\('bear-feed-spot-collect-requested',this\.feedSpotNearby\)/);
+  assert.match(farmProgress,/gameEvents\.on\('personal-farm-plant-requested',plantRequested\)/);
+  assert.match(farmProgress,/gameEvents\.on\('bear-feed-spot-collect-requested',collectRequested\)/);
+  assert.match(farmProgress,/event\.currentTarget\.blur\(\)/);
   assert.match(renderer,/this\.options\.personalFarm&&this\.personalFarmDoorNearby/);
   assert.match(renderer,/setupPersonalFarmSeats\(model\)/);
   assert.match(renderer,/\(\['N','S','W','E'\] as const\)/);
@@ -77,8 +82,8 @@ test('마이홈은 16개 원래 맵을 기억해 맵 이동으로 되돌아간�
   assert.equal(isPersonalFarmReturnMap('personal-farm'),false);
   assert.equal(savePersonalFarmReturnMap('garden',storage),'garden');
   assert.equal(loadPersonalFarmReturnMap(storage),'garden');
-  assert.match(page,/destination==='personal-farm'&&isPersonalFarmReturnMap\(origin\)/);
-  assert.match(page,/gameEvents\.emit\('travel-to-map',personalFarmReturnMap\)/);
+  assert.match(page,/destination === "personal-farm" && isPersonalFarmReturnMap\(origin\)/);
+  assert.match(page,/gameEvents\.emit\("travel-to-map", personalFarmReturnMap\)/);
 });
 
 test('마이홈 정원 현황은 돌아가기 버튼과 간격을 둔 작은 카드로 표시한다',()=>{
@@ -86,9 +91,9 @@ test('마이홈 정원 현황은 돌아가기 버튼과 간격을 둔 작은 카
   assert.doesNotMatch(page,/className="is-current"[^>]*>[^<]*<span[^>]*>🌿<\/span> 마이홈 정원/);
   assert.match(page,/맵 이동/);
   assert.match(farmProgress,/personal-farm-reward-status"><b>정원 현황<\/b><span>꽃/);
-  assert.match(pageCss,/\.game-page>\.personal-farm-top-actions\{position:fixed;[^}]*inset:20px 20px auto auto[^}]*width:auto[^}]*display:flex[^}]*flex-direction:row[^}]*flex-wrap:nowrap/);
-  assert.match(pageCss,/\.game-page>\.personal-farm-top-actions>button\{position:static;width:82px;min-width:82px[^}]*flex:0 0 82px/);
-  assert.match(pageCss,/\.game-page>\.personal-farm-top-actions>button:first-child\{width:96px;min-width:96px;flex-basis:96px\}/);
+  assert.match(pageCss,/\.game-page > \.personal-farm-top-actions \{[\s\S]*?position: fixed;[\s\S]*?inset: 20px 20px auto auto;[\s\S]*?flex-wrap: nowrap;/);
+  assert.match(pageCss,/\.game-page > \.personal-farm-top-actions > button \{[\s\S]*?position: static;[\s\S]*?width: 82px;[\s\S]*?flex: 0 0 82px;/);
+  assert.match(pageCss,/\.game-page > \.personal-farm-top-actions > button:first-child \{[\s\S]*?width: 96px;[\s\S]*?flex-basis: 96px;/);
   assert.match(farmCss,/\.personal-farm-reward-status\{[^}]*right:226px[^}]*top:20px[^}]*max-width:calc\(100vw - 246px\)[^}]*min-height:36px[^}]*flex-wrap:nowrap/);
   assert.match(farmCss,/@media\(max-width:800px\)[\s\S]*\.personal-farm-reward-status\{[^}]*top:12px/);
 });
@@ -108,10 +113,13 @@ test('확대형 체험 중에는 마이홈 이동 버튼도 다른 HUD와 함께
     'project-lobby-board-focused-marker',
     'observatory-telescope-active-marker',
   ];
+  const focusRules=pageCss.slice(pageCss.indexOf('/* 확대형 체험 중에는'),pageCss.indexOf('@media (max-width: 800px)'));
   focusMarkers.forEach(marker=>{
-    assert.match(pageCss,new RegExp(`\\.game-page:has\\(\\.${marker}\\)>\\.world-my-home`));
-    assert.match(pageCss,new RegExp(`\\.game-page:has\\(\\.${marker}\\)>\\.personal-farm-top-actions`));
+    assert.match(focusRules,new RegExp(`\\.game-page:has\\(\\.${marker}\\)`));
   });
+  assert.match(focusRules,/> \.world-my-home/);
+  assert.match(focusRules,/> \.personal-farm-top-actions/);
+  assert.match(focusRules,/display: none !important/);
 });
 
 test('마이홈 실내 카메라는 캐릭터에서 충분히 떨어진다',()=>{

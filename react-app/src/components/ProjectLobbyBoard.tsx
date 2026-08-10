@@ -15,6 +15,7 @@ import {
   loadProjectApplications,
   loadProjectRoomProjects,
   refreshProjectRoomProjects,
+  isRecruitmentProject,
   type Project,
 } from "../services/projectRoomProjects";
 import gardenPreview from "../assets/maps/government-central-plaza-top-preview.png";
@@ -171,9 +172,7 @@ export function ProjectLobbyBoard({
     }
   }, [active]);
   const data = useMemo(() => {
-    const projectOnly = projects.filter(
-      (project) => !project.id.startsWith("recruitment-"),
-    );
+    const projectOnly = projects.filter((project) => !isRecruitmentProject(project));
     const live = projectOnly.filter(
       (project) => project.status !== "completed",
     );

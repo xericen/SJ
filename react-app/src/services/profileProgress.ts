@@ -8,6 +8,7 @@ import { loadVisitedCampusBuildings } from './campusVisits';
 import { parseGreenhouseProgress } from './greenhouseProgress';
 import { isExperienceProfileSocialMode,loadExperienceActivityHistory,loadFestivalKeywordInsights } from './experienceHarness';
 import { campusSignalAxisScores,loadCampusProfileSignals } from './campusProfileSignals';
+import {getCachedPersonalFarmProgress} from './personalFarmApi';
 
 export const PROFILE_VISITS_PREFIX = 'sejong-profile-visits-v1:';
 const LAKE_KEY = 'sejong-lake-interest-profile-v1';
@@ -91,6 +92,10 @@ const readJson = <T,>(key: string, fallback: T): T => { try { return JSON.parse(
 export function buildProfileProgress(profile: UserProfile) {
   const visits = loadProfileVisits(profile.nickname);
   const visitedIds = new Set(visits.map(item => item.mapId));
+  const personalFarm=getCachedPersonalFarmProgress();
+  if(personalFarm?.gardenMission.collectedFlowerIds.length)visitedIds.add('garden');
+  if(personalFarm?.bearMission.totalFeedCount||personalFarm?.bearMission.completedFeedSpotIds.length)visitedIds.add('bear-play-zone');
+  if(personalFarm?.natureChapter.bearTreeCompleted)visitedIds.add('bear-tree-park');
   const zones = PROFILE_ZONES.map(zone => ({ ...zone, visited: zone.maps.some(id => visitedIds.has(id)), mapVisits: zone.maps.filter(id => visitedIds.has(id)).length }));
   const greenhouse = parseGreenhouseProgress(localStorage.getItem(`greenhouse-progress-v1:${profile.nickname.trim().toLowerCase() || 'guest'}`));
   const bear = loadBearProgress(profile.nickname);
@@ -104,6 +109,14 @@ export function buildProfileProgress(profile: UserProfile) {
   const campusSignals=loadCampusProfileSignals(profile.nickname),campusAxes=campusSignalAxisScores(profile.nickname);
   const lakeRecords = countArray(lake?.savedContentIds) + countArray(lake?.activities) + countArray(lake?.foodPlaceInterests) + countArray(lake?.likedCourseTitles);
   const records: ProfileRecord[] = [];
+  if(personalFarm?.gardenMission.collectedFlowerIds.length){
+    const count=personalFarm.gardenMission.collectedFlowerIds.length,planted=personalFarm.gardenMission.plantedFlowers.length;
+    records.push({id:'personal-farm-garden',zone:'국립세종수목원',title:personalFarm.gardenMission.completed?'수목원 꽃 체험 완료':'수목원 꽃 채집 기록',note:`꽃 ${count}종 채집${planted?` · 마이홈에 ${planted}종 심기`:''}`,point:Math.min(25,count*3+planted*2),at:personalFarm.gardenMission.completedAt??personalFarm.updatedAt,image:'/images/festivals/spring-flower-2026.jpg',breakdown:[{label:'꽃 채집',point:Math.min(15,count*3)},...(planted?[{label:'마이홈 꽃 심기',point:Math.min(10,planted*2)}]:[])]});
+  }
+  if(personalFarm?.bearMission.totalFeedCount||personalFarm?.bearMission.completedFeedSpotIds.length){
+    const fed=personalFarm.bearMission.fedFeedSpotIds.length,total=personalFarm.bearMission.totalFeedCount;
+    records.push({id:'personal-farm-bear-feeding',zone:'곰 체험소',title:personalFarm.bearMission.completed?'곰 먹이 주기 체험 완료':'곰 먹이 체험 진행',note:`먹이 ${personalFarm.bearMission.completedFeedSpotIds.length}개 수집 · 곰에게 ${Math.max(fed,total)}회 전달`,point:Math.min(25,personalFarm.bearMission.completedFeedSpotIds.length*2+Math.max(fed,total)*3),at:personalFarm.bearMission.completedAt??personalFarm.bearMission.bearFedAt??personalFarm.updatedAt,image:'/images/government-complex-diorama.png',breakdown:[{label:'먹이 수집',point:Math.min(10,personalFarm.bearMission.completedFeedSpotIds.length*2)},{label:'곰 먹이 전달',point:Math.min(15,Math.max(fed,total)*3)}]});
+  }
   // Portal travel is represented by `zones`; the activity feed only contains
   // choices and completed actions that say something meaningful about the user.
   campusSignals.forEach(signal=>records.push({id:`campus-signal-${signal.id}`,zone:signal.zone,title:signal.title,note:signal.note,point:signal.point,at:signal.at,image:imageForMap(signal.mapId),breakdown:[{label:'선택 행동',point:signal.point}]}));

@@ -3557,6 +3557,14 @@ export class VillageMapRenderer{
     if(this.personalFarmBedNearby){
       event.preventDefault();event.stopImmediatePropagation();this.togglePersonalFarmBed();return;
     }
+    if(this.options.personalFarm&&this.personalFarmFlowerSlotNearby){
+      event.preventDefault();event.stopImmediatePropagation();
+      gameEvents.emit('personal-farm-plant-requested',this.personalFarmFlowerSlotNearby);return;
+    }
+    if(this.feedSpotNearby){
+      event.preventDefault();event.stopImmediatePropagation();
+      gameEvents.emit('bear-feed-spot-collect-requested',this.feedSpotNearby);return;
+    }
     if(this.smartCityTableNearby){
       event.preventDefault();event.stopImmediatePropagation();gameEvents.emit('smart-city-experience-open');return;
     }

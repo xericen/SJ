@@ -31,6 +31,7 @@ import {
   createProjectApplication,
   loadProjectApplications,
   loadProjectRoomProjects,
+  isRecruitmentProject,
   refreshProjectApplications,
   refreshProjectRoomProjects,
   recommendProjects,
@@ -94,9 +95,12 @@ type PlaceSearchResult = {
 };
 const ACTIVE_PROJECT_ROOM_KEY = "sejong-active-project-room-id-v1";
 const PROJECT_COLLABORATION_ENDPOINT = `${COMMUNITY_API_BASE_URL}/behavior_state?resource=projectRoomProjects`;
+const PROJECT_BOARD_IDS = ["night-festival", "garden-photo", "market-culture"] as const;
+let collaborationRequestSequence = 0;
 type SharedProjectCollaboration = {
   draft?: TravelProjectDraft;
   revision?: number;
+  roles?: Record<string, string>;
   consensus?: {
     requestId: string;
     status: "pending" | "rejected" | "confirmed";
@@ -106,23 +110,30 @@ type SharedProjectCollaboration = {
 };
 const requestProjectCollaboration = async (
   projectId: string,
-  action: "collaboration" | "saveDraft" | "requestConsensus" | "respondConsensus" | "confirmConsensus",
+  action: "collaboration" | "saveDraft" | "updateRole" | "requestConsensus" | "respondConsensus" | "confirmConsensus",
   values: Record<string, unknown> = {},
 ) => {
   const payload = { projectId, ...values };
-  const response = await fetch(
-    `${PROJECT_COLLABORATION_ENDPOINT}&action=${action}&payload=${encodeURIComponent(JSON.stringify(payload))}`,
-    { credentials: "include" },
-  );
-  const body = (await response.json()) as {
-    code?: number;
-    data?: { collaboration?: SharedProjectCollaboration; message?: string };
-  };
-  if (!response.ok || body.code !== 200)
-    throw new Error(
-      body.data?.message ?? "프로젝트 협업 내용을 동기화하지 못했습니다.",
+  const syncToken = `${Date.now()}-${++collaborationRequestSequence}`;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(
+      `${PROJECT_COLLABORATION_ENDPOINT}&action=${action}&payload=${encodeURIComponent(JSON.stringify(payload))}&_sync=${syncToken}`,
+      { credentials: "include", cache: "no-store", signal: controller.signal },
     );
-  return body.data?.collaboration;
+    const body = (await response.json()) as {
+      code?: number;
+      data?: { collaboration?: SharedProjectCollaboration; message?: string };
+    };
+    if (!response.ok || body.code !== 200)
+      throw new Error(
+        body.data?.message ?? "프로젝트 협업 내용을 동기화하지 못했습니다.",
+      );
+    return body.data?.collaboration;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 };
 const filters = [
   "전체",
@@ -172,8 +183,7 @@ const panelFor = (id: ProjectRoomInteractionId): Panel => {
       return null;
   }
 };
-const isRecruitmentPost = (project: Project) =>
-  project.id.startsWith("recruitment-");
+const isRecruitmentPost = (project: Project) => isRecruitmentProject(project);
 const formatDate = (value?: string) => {
   const schedule = value?.trim();
   if (!schedule) return "일정 협의";
@@ -446,6 +456,7 @@ export function ProjectRoomInteractions({
   }, [kioskActive, panel, returnPanel]);
 
   const filtered = displayedProjects
+    .filter((project) => PROJECT_BOARD_IDS.includes(project.id as (typeof PROJECT_BOARD_IDS)[number]))
     .filter(
       (project) =>
         project.status === "recruiting" &&
@@ -466,7 +477,8 @@ export function ProjectRoomInteractions({
           .join(" ")
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
-    );
+    )
+    .sort((a, b) => PROJECT_BOARD_IDS.indexOf(a.id as (typeof PROJECT_BOARD_IDS)[number]) - PROJECT_BOARD_IDS.indexOf(b.id as (typeof PROJECT_BOARD_IDS)[number]));
   const isSent = (project: Project) =>
     applications.some(
       (item) =>
@@ -1517,14 +1529,15 @@ function CourseCollaborationTable({
       return synchronized;
     });
   };
-  const update = (next: TravelProjectDraft) => {
+  const update = (next: TravelProjectDraft, roleChange?: { name: string; role: string }) => {
     const saveSequence = ++saveSequenceRef.current;
     setCollaborationSaveState("saving");
     const stamped = { ...next, updatedAt: new Date().toISOString() };
     setDraft(stamped);
     saveTravelProjectDraft(stamped, project.id);
     const saveOperation = saveQueueRef.current.catch(() => undefined).then(async () => {
-      const shared = await requestProjectCollaboration(project.id, "saveDraft", { draft: stamped });
+      let shared = await requestProjectCollaboration(project.id, "saveDraft", { draft: stamped });
+        if (roleChange) shared = await requestProjectCollaboration(project.id, "updateRole", { memberName: roleChange.name, role: roleChange.role });
         const revision = shared?.revision ?? 0;
         if (shared?.consensus !== undefined) setConsensus(shared.consensus);
         if (revision > sharedRevisionRef.current) {
@@ -1543,7 +1556,9 @@ function CourseCollaborationTable({
   };
   const pullSharedDraft = async (force = false) => {
     const shared = await requestProjectCollaboration(project.id, "collaboration");
-    const incoming = shared?.draft;
+    const incoming = shared?.draft && shared.roles
+      ? {...shared.draft,roles:shared.draft.roles.map(member=>({...member,role:shared.roles?.[member.name]??member.role}))}
+      : shared?.draft;
     const revision = shared?.revision ?? 0;
     if (shared?.consensus !== undefined) setConsensus(shared.consensus);
     if (!incoming || (!force && revision <= sharedRevisionRef.current)) return false;
@@ -1799,7 +1814,7 @@ function CourseCollaborationTable({
         member.name === name ? { ...member, role } : member,
       ),
       status: "draft",
-    });
+    }, { name, role });
     recordCampusProfileSignal(profile.nickname, {
       mapId: "project-room",
       zone: "프로젝트실",

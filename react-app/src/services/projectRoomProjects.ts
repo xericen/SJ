@@ -5,6 +5,7 @@ import {fetchUnifiedProjectApplications,fetchUnifiedProjects,syncUnifiedProject,
 
 export interface Project{
   id:string;
+  kind?:'project'|'recruitment';
   title:string;
   summary:string;
   description:string;
@@ -65,6 +66,7 @@ let applicationRefreshRequest:Promise<ProjectApplication[]>|undefined;
 const pendingProjectSyncs=new Map<string,Project>();
 
 const seedProjects:Project[]=[
+  {id:'night-festival',kind:'project',title:'세종 야간축제 탐방 프로젝트',summary:'공연과 야경을 함께 탐방하고 축제 지도를 만들어요.',description:'호수공원 야간축제의 공연, 먹거리, 포토존을 나누어 조사한 뒤 방문자용 추천 지도를 제작합니다.',placeIds:['세종호수공원'],activityTypes:['축제','탐방','사진'],tags:['야간축제','공연','사진','호수공원'],leaderId:'별빛여행',memberIds:['별빛여행','밤산책'],applicantIds:[],maxMembers:6,startDate:'2026-08-15',deadline:'2026-08-10',preferredTraits:['탐색형','자유형','실행 중심'],status:'recruiting',thumbnail:'🎆',createdAt:'2026-07-22T09:00:00.000Z'},
   {id:'garden-photo',title:'수목원 사진 기록 프로젝트',summary:'계절별 식물과 풍경을 사진으로 기록해요.',description:'국립세종수목원을 함께 걸으며 대표 식물과 계절의 변화를 촬영하고 작은 온라인 도감을 완성합니다.',placeIds:['국립세종수목원'],activityTypes:['사진','자연','조사'],tags:['사진','자연','수목원','기록'],leaderId:'초록산책',memberIds:['초록산책','하늘여우'],applicantIds:[],maxMembers:5,startDate:'2026-08-08',deadline:'2026-08-05',preferredTraits:['사진 기록형','여유형','대화 중심'],status:'recruiting',thumbnail:'🌸',createdAt:'2026-07-20T09:00:00.000Z'},
   {id:'market-culture',title:'전통시장 문화 기록 프로젝트',summary:'상인 인터뷰와 로컬 먹거리를 기록해요.',description:'전통시장의 오래된 가게와 새로운 청년 상점을 찾아 인터뷰하고 세종의 생활문화를 카드뉴스로 남깁니다.',placeIds:['전통시장'],activityTypes:['문화','인터뷰','조사'],tags:['전통시장','문화','인터뷰','먹거리'],leaderId:'시장탐험가',memberIds:['시장탐험가','복숭아소다','기록자'],applicantIds:[],maxMembers:5,startDate:'2026-08-22',deadline:'2026-08-16',preferredTraits:['계획형','대화 중심','실행 중심'],status:'recruiting',thumbnail:'🏮',createdAt:'2026-07-24T09:00:00.000Z'},
 ];
@@ -104,7 +106,7 @@ export function saveProjectRoomProjects(projects:Project[]){
   // Keep an immediate local snapshot as a fallback while the shared WIZ
   // record is being written. This also survives a kiosk panel remount.
   if(socialMode)try{localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects))}catch{/* local snapshot unavailable */}
-  if((socialMode||typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com')))projects.filter(project=>project.leaderId===activeNickname).forEach(project=>{pendingProjectSyncs.set(project.id,project);void syncUnifiedProject({id:project.id,title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).then(()=>pendingProjectSyncs.delete(project.id)).catch(()=>undefined)});
+  if((socialMode||typeof window!=='undefined'&&window.location.hostname.endsWith('.wizide.com')))projects.filter(project=>project.leaderId===activeNickname).forEach(project=>{pendingProjectSyncs.set(project.id,project);void syncUnifiedProject({id:project.id,kind:project.kind??(project.id.startsWith('recruitment-')?'recruitment':'project'),title:project.title,summary:project.summary,description:project.description,placeIds:project.placeIds,activityTypes:project.activityTypes,tags:project.tags,maxMembers:project.maxMembers,startDate:project.startDate,deadline:project.deadline,preferredTraits:project.preferredTraits,status:project.status,visibility:project.visibility,leaderNickname:project.leaderId,memberNicknames:project.memberIds,applicantNicknames:project.applicantIds,thumbnail:project.thumbnail,createdAt:project.createdAt}).then(()=>pendingProjectSyncs.delete(project.id)).catch(()=>undefined)});
   window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
 }
 
@@ -115,7 +117,7 @@ const storedProject=(value:unknown):Project|null=>{
   if(typeof item.id!=='string'||typeof item.title!=='string'||typeof item.summary!=='string')return null;
   const status=['recruiting','planning','active','completed'].includes(String(item.status))?item.status as Project['status']:'recruiting';
   return {
-    id:item.id,title:item.title,summary:item.summary,description:typeof item.description==='string'?item.description:'',
+    id:item.id,kind:item.kind==='recruitment'||item.id.startsWith('recruitment-')?'recruitment':'project',title:item.title,summary:item.summary,description:typeof item.description==='string'?item.description:'',
     placeIds:strings(item.placeIds),activityTypes:strings(item.activityTypes),tags:strings(item.tags),
     leaderId:typeof item.leaderId==='string'?item.leaderId:(typeof item.leaderNickname==='string'?item.leaderNickname:'프로젝트 운영팀'),
     memberIds:strings(item.memberIds).length?strings(item.memberIds):strings(item.memberNicknames),
@@ -147,6 +149,14 @@ export function refreshProjectRoomProjects(){
     window.dispatchEvent(new CustomEvent('project-room-projects-updated'));
     return visible;
   }).finally(()=>{projectRefreshRequest=undefined}));
+}
+
+export const isRecruitmentProject=(project:Pick<Project,'id'|'kind'>)=>project.kind==='recruitment'||project.id.startsWith('recruitment-');
+export const loadRecruitmentPosts=()=>loadProjectRoomProjects().filter(isRecruitmentProject);
+export const refreshRecruitmentPosts=()=>refreshProjectRoomProjects().then(projects=>projects.filter(isRecruitmentProject));
+export function saveRecruitmentPosts(posts:Project[]){
+  const projects=loadProjectRoomProjects();
+  saveProjectRoomProjects([...posts,...projects.filter(project=>!isRecruitmentProject(project))]);
 }
 
 export function loadProjectApplications(){

@@ -87,6 +87,27 @@ export function PersonalFarmProgressExperience({mapId,userKey,authenticated,onNo
   };
 
   useEffect(()=>{
+    const collectRequested=(spotId:BearFeedSpotId)=>{
+      const spotPickup=BEAR_FEED_PICKUPS[spotId];
+      const done=progress?.bearMission.completed
+        ?!repeatReady
+        :progress?.bearMission.completedFeedSpotIds.includes(spotId);
+      if(!spotPickup||done||!canPickUpFeed||pending)return;
+      void run(`spot:${spotId}`,()=>completeBearFeedSpot(spotId),`${spotPickup.name}을(를) 주웠어요. 곰에게 가져다주세요.`);
+    };
+    const plantRequested=(slot:1|2|3|4|5)=>{
+      if(!selectedFlower||pending)return;
+      void run(`slot:${slot}`,()=>plantGardenFlowerInSlot(selectedFlower,slot),`${slot}번 자리에 ${plantName(selectedFlower)}을(를) 심었어요.`).then(()=>setSelectedFlower(''));
+    };
+    gameEvents.on('bear-feed-spot-collect-requested',collectRequested);
+    gameEvents.on('personal-farm-plant-requested',plantRequested);
+    return()=>{
+      gameEvents.off('bear-feed-spot-collect-requested',collectRequested);
+      gameEvents.off('personal-farm-plant-requested',plantRequested);
+    };
+  },[canPickUpFeed,pending,progress,repeatReady,selectedFlower]);
+
+  useEffect(()=>{
     const key=(event:KeyboardEvent)=>{
       if(event.defaultPrevented||event.key.toLowerCase()!=='e'||event.repeat||pending)return;
       const focused=document.activeElement;if(focused instanceof HTMLInputElement||focused instanceof HTMLTextAreaElement||focused instanceof HTMLSelectElement)return;
@@ -105,7 +126,7 @@ export function PersonalFarmProgressExperience({mapId,userKey,authenticated,onNo
     {!authenticated&&mapId!=='personal-farm'&&(gardenFlower||feedSpot)&&<aside className="personal-farm-guest-note">게스트 진행도는 현재 접속 중에만 유지됩니다.</aside>}
     {mapId==='bear-play-zone'&&feedSpot&&pickup&&<section className="personal-farm-action-card"><span>{pickup.emoji}</span><div><small>길가에 떨어진 곰 먹이</small><b>{spotDone?'주운 먹이':hasPendingFeed?'먼저 곰에게 전달해 주세요':`${pickup.name} 줍기`}</b></div><button type="button" disabled={!!spotDone||!canPickUpFeed||!!pending} onClick={()=>void run(`spot:${feedSpot}`,()=>completeBearFeedSpot(feedSpot),`${pickup.name}을(를) 주웠어요. 곰에게 가져다주세요.`)}>{pending===`spot:${feedSpot}`?'저장 중…':spotDone?'완료':hasPendingFeed?'전달 대기':'E · 줍기'}</button></section>}
     {mapId==='bear-play-zone'&&!feedSpot&&!bearNearby&&progress&&!progress.bearMission.bearFed&&<aside className="personal-farm-reward-status"><b>곰 먹이 체험</b><span>급여 {fedFeedCount}/{BEAR_FEED_SPOT_IDS.length}</span><em>{hasPendingFeed?'곰에게 가져다주세요':'길을 따라 먹이를 하나 찾아보세요'}</em></aside>}
-    {mapId==='personal-farm'&&farmSlot&&<section className="personal-farm-action-card farm-plant-card"><span>🌱</span><div><small>{farmSlot.slot}번 꽃 심기 자리</small><b>{farmSlot.flowerId?`${plantName(farmSlot.flowerId!)}이(가) 심어져 있어요`:'이 위치에 수집한 꽃 심기'}</b>{farmSlot.flowerId?null:<select value={selectedFlower} onChange={event=>setSelectedFlower(event.target.value as GardenFlowerId|'')}><option value="">심을 꽃 선택</option>{availableToPlant.map(id=><option value={id} key={id}>{plantName(id)}</option>)}</select>}</div>{farmSlot.flowerId?<button type="button" disabled={!!pending} onClick={()=>void run(`remove:${farmSlot.flowerId}`,()=>removeGardenFlower(farmSlot.flowerId!),`${plantName(farmSlot.flowerId!)}을(를) 화단에서 제거했어요.`)}>{pending?.startsWith('remove:')?'제거 중…':'식물 제거'}</button>:<button type="button" disabled={!selectedFlower||!!pending} onClick={()=>selectedFlower&&void run(`slot:${farmSlot.slot}`,()=>plantGardenFlowerInSlot(selectedFlower,farmSlot.slot),`${farmSlot.slot}번 자리에 ${plantName(selectedFlower)}을(를) 심었어요.`).then(()=>setSelectedFlower(''))}>{pending?.startsWith('slot:')?'심는 중…':'E · 꽃 심기'}</button>}</section>}
+    {mapId==='personal-farm'&&farmSlot&&<section className="personal-farm-action-card farm-plant-card"><span>🌱</span><div><small>{farmSlot.slot}번 꽃 심기 자리</small><b>{farmSlot.flowerId?`${plantName(farmSlot.flowerId!)}이(가) 심어져 있어요`:'이 위치에 수집한 꽃 심기'}</b>{farmSlot.flowerId?null:<select value={selectedFlower} onChange={event=>{setSelectedFlower(event.target.value as GardenFlowerId|'');event.currentTarget.blur()}}><option value="">심을 꽃 선택</option>{availableToPlant.map(id=><option value={id} key={id}>{plantName(id)}</option>)}</select>}</div>{farmSlot.flowerId?<button type="button" disabled={!!pending} onClick={()=>void run(`remove:${farmSlot.flowerId}`,()=>removeGardenFlower(farmSlot.flowerId!),`${plantName(farmSlot.flowerId!)}을(를) 화단에서 제거했어요.`)}>{pending?.startsWith('remove:')?'제거 중…':'식물 제거'}</button>:<button type="button" disabled={!selectedFlower||!!pending} onClick={()=>selectedFlower&&void run(`slot:${farmSlot.slot}`,()=>plantGardenFlowerInSlot(selectedFlower,farmSlot.slot),`${farmSlot.slot}번 자리에 ${plantName(selectedFlower)}을(를) 심었어요.`).then(()=>setSelectedFlower(''))}>{pending?.startsWith('slot:')?'심는 중…':'E · 꽃 심기'}</button>}</section>}
     {mapId==='personal-farm'&&progress&&<aside className="personal-farm-reward-status"><b>정원 현황</b><span>꽃 {progress.gardenMission.plantedFlowerIds.length}/5</span><span>곰 급여 {fedFeedCount}/{BEAR_FEED_SPOT_IDS.length}</span><em>{progress.bearMission.completed&&progress.gardenMission.completed?'모두 완료':'진행 중'}</em></aside>}
     {mapId==='garden'&&progress&&<aside className="personal-farm-reward-status"><b>수목원 꽃 체험</b><span>꽃 {progress.gardenMission.favoriteFlowerIds.length}/5</span><span>채집 {progress.gardenMission.collectedFlowerIds.length}</span><em>{progress.gardenMission.favoriteFlowerIds.length===5?'선택 완료':'진행 중'}</em></aside>}
   </div>;

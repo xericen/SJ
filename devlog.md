@@ -1,5 +1,6 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-10 | 114 | 기존 구성 중심 README 간결화 및 기술 핵심 보강 | [상세](devlog/2026-08-10/114-condense-readme-technical-overview.md) |
 | 2026-08-10 | 113 | README 기술 문서 보강 및 WIZ·GitHub 반영 점검 | [상세](devlog/2026-08-10/113-readme-wiz-github-sync.md) |
 | 2026-08-10 | 112 | 협업 역할 이중 상태 통합 및 새로고침 응답 복구 | [상세](devlog/2026-08-10/112-fix-collaboration-role-refresh.md) |
 | 2026-08-10 | 111 | 모집글과 프로젝트글 종류·화면 분리 | [상세](devlog/2026-08-10/111-separate-recruitment-and-project-posts.md) |

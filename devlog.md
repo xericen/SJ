@@ -342,6 +342,7 @@
 | 2026-08-09 | 089 | SejongPark 정식 원본 복구 및 회귀 감사 | [상세](devlog/2026-08-09/089-restore-sejongpark-source-audit.md) |
 | 2026-08-09 | 090 | GitHub 최신 main 복구 병합 및 포탈 운영 재배포 | [상세](devlog/2026-08-09/090-pull-latest-main-portal-recovery.md) |
 | 2026-08-09 | 091 | 현재 복구·기능 보강 상태 GitHub 반영 | [상세](devlog/2026-08-09/091-push-current-recovered-state.md) |
+| 2026-08-09 | 092 | 사용자 여정 중심 README 전면 개편 | [상세](devlog/2026-08-09/092-refresh-readme-product-overview.md) |
 | 2026-08-09 | 031 | 동아리 공용 부스·카카오 장소 검색 운영 API 재연결 및 합의 기능 재검증 | [상세](devlog/2026-08-09/031-verify-shared-booth-project-consensus.md) |
 | 2026-08-09 | 032 | 프로젝트 장소 검색 전용 카카오 Local API 복구 | [상세](devlog/2026-08-09/032-fix-project-sejong-place-search.md) |
 | 2026-08-09 | 033 | MySQL 기반 동아리·모집·프로젝트·채팅 멀티사용자 동기화 및 권한 보강 | [상세](devlog/2026-08-09/033-mysql-multiuser-collaboration.md) |

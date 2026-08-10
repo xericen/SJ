@@ -1,5 +1,6 @@
 | 날짜 | ID | 작업 내용 | 상세 |
 |------|-----|----------|------|
+| 2026-08-10 | 116 | 17개 월드 Experience Harness 프로필 생성 구조 문서화 | [상세](devlog/2026-08-10/116-readme-experience-harness-profile.md) |
 | 2026-08-10 | 115 | README 프로젝트 차별점·구현 완성도 보강 | [상세](devlog/2026-08-10/115-readme-hackathon-highlights.md) |
 | 2026-08-10 | 114 | 기존 구성 중심 README 간결화 및 기술 핵심 보강 | [상세](devlog/2026-08-10/114-condense-readme-technical-overview.md) |
 | 2026-08-10 | 113 | README 기술 문서 보강 및 WIZ·GitHub 반영 점검 | [상세](devlog/2026-08-10/113-readme-wiz-github-sync.md) |

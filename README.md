@@ -201,13 +201,5 @@ Express 서버와 데이터베이스가 필요한 기능은 `react-app/server/.e
 - 게스트 기록은 세션·브라우저 저장 범위이므로 재접속 시 유지되지 않을 수 있습니다.
 - 외부 Kakao·OpenAI API 장애가 발생하면 추천 재시도가 필요할 수 있습니다.
 
-## 팀 역할
-
-| 담당 | 역할 |
-|---|---|
-| 김민주 | AI 모델·Experience Harness·개인화 프로필 분석 |
-| 팀원 | 3D 메타버스·Frontend |
-| 팀원 | Backend·MySQL·Socket.IO |
-| 팀원 | UI/UX·공간 체험 설계 |
-
-> 실제 제출 시 팀원 이름과 세부 역할을 프로젝트 참여자 정보에 맞게 수정해 주세요.
+https://app.notion.com/p/AX-3ab6574daa5d800c8ddedd37e7ab4757
+카카오로그인용 노션 정리 (장소 탐험 및 1대1채팅과 로그인하여 볼 수 있는 부분 담겨있음)
